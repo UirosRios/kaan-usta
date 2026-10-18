@@ -14,16 +14,18 @@ Telefonun GPS'i ve ivmeölçeri ile mikromobilite (e-scooter, bisiklet vb.) sür
 | Sütun | Açıklama |
 |---|---|
 | `Tarih_Saat` | Kayıt zamanı |
-| `Enlem`, `Boylam` | Son geçerli GPS konumu (WGS84, derece) |
-| `Mantiksal_Hiz_kmh` | 2 km/h altı sıfırlanmış hız |
-| `Ham_Hiz_kmh` | GPS'in verdiği ham hız |
+| `Enlem`, `Boylam` | Son geçerli ham GPS konumu (WGS84, derece) |
+| `Mantiksal_Hiz_kmh` | Ham hızın 2 km/h altı sıfırlanmış hali |
+| `Ham_Hiz_kmh` | Doğrudan GPS donanımından ham hız (Doppler, yumuşatma yok) |
+| `Duzeltilmis_GPS_Hiz_kmh` | Fused (birleşik) konum servisinin hızı; uygulamada "Düzeltilmiş GPS" |
 | `Z_Ekseni` | O andaki tek Z ivme değeri (m/s², yerçekimi dahil) |
 | `Z_Ort` | 0,5 sn penceredeki Z ortalaması (≈ yerçekimi bileşeni) |
 | `Z_RMS_Dinamik` | Ortalama çıkarıldıktan sonra RMS → **sarsıntı şiddeti** |
 | `Z_Min`, `Z_Max` | Penceredeki en düşük / en yüksek Z |
 | `Z_Ornek_Sayisi` | Penceredeki ivmeölçer örneği sayısı (~25 beklenir) |
-| `GPS_Dogruluk_m` | GPS yatay doğruluğu (m) |
-| `GPS_Yasi_s` | Son GPS konumundan bu yana geçen süre (GPS kesintilerini ayıklamak için) |
+| `GPS_Dogruluk_m` | Ham GPS yatay doğruluğu (m, %68 güven yarıçapı) |
+| `GPS_Yasi_s` | Son ham GPS konumundan bu yana geçen süre (GPS kesintilerini ayıklamak için) |
+| `Duzeltilmis_GPS_Yasi_s` | Son düzeltilmiş (Fused) konumdan bu yana geçen süre |
 
 ## Ölçüm notları
 

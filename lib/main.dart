@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:path_provider/path_provider.dart';
@@ -37,9 +38,11 @@ class _SensorDashboardState extends State<SensorDashboard> {
   double currentLat = 0.0;
   double currentLon = 0.0;
   double currentSpeed = 0.0; // Mantıksal (Ölü Bölge Filtreli) Hız
-  double currentRawSpeed = 0.0; // Ham (Seken) GPS Hızı
-  double currentAccuracy = 0.0; // GPS yatay konum doğruluğu (m)
-  DateTime? lastFixTime; // Son geçerli GPS konumunun zamanı
+  double currentRawSpeed = 0.0; // Ham (Seken) GPS Hızı - doğrudan GPS donanımı
+  double currentFusedSpeed = 0.0; // Düzeltilmiş GPS Hızı - Fused (birleşik) konum servisi
+  double currentAccuracy = 0.0; // Ham GPS yatay konum doğruluğu (m)
+  DateTime? lastFixTime; // Son geçerli ham GPS konumunun zamanı
+  DateTime? lastFusedFixTime; // Son geçerli düzeltilmiş GPS konumunun zamanı
   bool isRecording = false;
   String _gpsStatus = "GPS bekleniyor...";
 
@@ -57,6 +60,9 @@ class _SensorDashboardState extends State<SensorDashboard> {
   List<String> recordedData = [];
 
   // Abonelikler
+  // Ham GPS, Android tarafında (MainActivity.kt) GPS_PROVIDER'dan okunur
+  static const EventChannel _rawGpsChannel = EventChannel('kaan_usta/ham_gps');
+  StreamSubscription<dynamic>? rawGpsSubscription;
   StreamSubscription<Position>? geoSubscription;
   StreamSubscription<AccelerometerEvent>? accelSubscription;
 
@@ -110,13 +116,38 @@ class _SensorDashboardState extends State<SensorDashboard> {
 
     if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
       if (mounted) setState(() => _gpsStatus = "GPS sinyali aranıyor...");
-      // Yüksek Hassasiyetli GPS'i Başlat
+      // HAM GPS: Doğrudan GPS donanımı (yumuşatma yok). Enlem/Boylam, doğruluk ve mantıksal hız buradan gelir.
+      rawGpsSubscription = _rawGpsChannel.receiveBroadcastStream().listen((dynamic event) {
+        if (!mounted) return;
+        final m = event as Map;
+        final double accuracy = (m['accuracy'] as num).toDouble();
+        // 50 metreden büyük çok ekstrem sapmaları yoksay (hassasiyet korunur)
+        if (accuracy < 0 || accuracy > 50.0) return;
+        final double speed = (m['speed'] as num).toDouble();
+
+        setState(() {
+          _gpsStatus = "";
+          currentLat = (m['lat'] as num).toDouble();
+          currentLon = (m['lon'] as num).toDouble();
+          currentAccuracy = accuracy;
+          lastFixTime = DateTime.now();
+
+          // Uydudan gelen gerçek (sekme payı olan) ham hız
+          currentRawSpeed = speed < 0 ? 0.0 : speed * 3.6;
+
+          // MANTIKSAL ÖLÜ BÖLGE FİLTRESİ: Kapalı alandaki 2 km/h altı mikro sekmeleri sıfırla
+          currentSpeed = currentRawSpeed < 2.0 ? 0.0 : currentRawSpeed;
+        });
+      }, onError: (Object e) {
+        if (mounted) setState(() => _gpsStatus = "Ham GPS başlatılamadı: $e");
+      });
+
+      // DÜZELTİLMİŞ GPS: Fused (birleşik) konum servisi. GPS'i Wi-Fi/baz istasyonu/sensörlerle harmanlar ve yumuşatır.
       geoSubscription = Geolocator.getPositionStream(
         locationSettings: AndroidSettings(
           accuracy: LocationAccuracy.bestForNavigation, // Tez için en yüksek hassasiyet
           distanceFilter: 0,
           intervalDuration: const Duration(milliseconds: 500),
-          forceLocationManager: true, // Ham GNSS hızını doğrudan almak için (Fused yerine)
         ),
       ).listen((Position position) {
         if (mounted) {
@@ -124,17 +155,8 @@ class _SensorDashboardState extends State<SensorDashboard> {
           if (position.accuracy > 50.0) return;
 
           setState(() {
-            _gpsStatus = "";
-            currentLat = position.latitude;
-            currentLon = position.longitude;
-            currentAccuracy = position.accuracy;
-            lastFixTime = DateTime.now();
-
-            // Uydudan gelen gerçek (sekme payı olan) ham hız
-            currentRawSpeed = position.speed < 0 ? 0.0 : position.speed * 3.6;
-
-            // MANTIKSAL ÖLÜ BÖLGE FİLTRESİ: Kapalı alandaki 2 km/h altı mikro sekmeleri sıfırla
-            currentSpeed = currentRawSpeed < 2.0 ? 0.0 : currentRawSpeed;
+            lastFusedFixTime = DateTime.now();
+            currentFusedSpeed = position.speed < 0 ? 0.0 : position.speed * 3.6;
           });
         }
       });
@@ -154,8 +176,8 @@ class _SensorDashboardState extends State<SensorDashboard> {
     // Her yeni kayıtta listeyi temizle ve teze uygun CSV Başlıklarını ekle
     recordedData.clear();
     _zWindow.clear();
-    recordedData.add("Tarih_Saat,Enlem,Boylam,Mantiksal_Hiz_kmh,Ham_Hiz_kmh,Z_Ekseni,"
-        "Z_Ort,Z_RMS_Dinamik,Z_Min,Z_Max,Z_Ornek_Sayisi,GPS_Dogruluk_m,GPS_Yasi_s");
+    recordedData.add("Tarih_Saat,Enlem,Boylam,Mantiksal_Hiz_kmh,Ham_Hiz_kmh,Duzeltilmis_GPS_Hiz_kmh,Z_Ekseni,"
+        "Z_Ort,Z_RMS_Dinamik,Z_Min,Z_Max,Z_Ornek_Sayisi,GPS_Dogruluk_m,GPS_Yasi_s,Duzeltilmis_GPS_Yasi_s");
 
     // Saniyede 2 kez (500 milisaniye) veri örnekleme
     _recordTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
@@ -178,11 +200,12 @@ class _SensorDashboardState extends State<SensorDashboard> {
 
       // Son GPS konumundan bu yana geçen süre (GPS kesilirse eski konum tekrarlanır, bu sütunla ayıklanabilir)
       final String gpsAge = lastFixTime == null ? "" : (DateTime.now().difference(lastFixTime!).inMilliseconds / 1000).toStringAsFixed(1);
+      final String fusedAge = lastFusedFixTime == null ? "" : (DateTime.now().difference(lastFusedFixTime!).inMilliseconds / 1000).toStringAsFixed(1);
 
       // O anki sensör verilerini CSV formatında virgülle ayırarak kaydet
       String timestamp = DateTime.now().toString();
-      String row = "$timestamp,${currentLat.toStringAsFixed(6)},${currentLon.toStringAsFixed(6)},${currentSpeed.toStringAsFixed(2)},${currentRawSpeed.toStringAsFixed(2)},${zAxis.toStringAsFixed(4)},"
-          "${zMean.toStringAsFixed(4)},${zRms.toStringAsFixed(4)},${zMin.toStringAsFixed(4)},${zMax.toStringAsFixed(4)},${samples.length},${currentAccuracy.toStringAsFixed(1)},$gpsAge";
+      String row = "$timestamp,${currentLat.toStringAsFixed(6)},${currentLon.toStringAsFixed(6)},${currentSpeed.toStringAsFixed(2)},${currentRawSpeed.toStringAsFixed(2)},${currentFusedSpeed.toStringAsFixed(2)},${zAxis.toStringAsFixed(4)},"
+          "${zMean.toStringAsFixed(4)},${zRms.toStringAsFixed(4)},${zMin.toStringAsFixed(4)},${zMax.toStringAsFixed(4)},${samples.length},${currentAccuracy.toStringAsFixed(1)},$gpsAge,$fusedAge";
       recordedData.add(row);
     });
   }
@@ -221,6 +244,7 @@ class _SensorDashboardState extends State<SensorDashboard> {
     _clockTimer?.cancel();
     _uiTimer?.cancel();
     _recordTimer?.cancel();
+    rawGpsSubscription?.cancel();
     geoSubscription?.cancel();
     accelSubscription?.cancel();
     WakelockPlus.disable();
@@ -324,12 +348,34 @@ class _SensorDashboardState extends State<SensorDashboard> {
 
                             const SizedBox(height: 12),
 
-                            // Ham (Seken) GPS Hızı
-                            const Text('HAM GPS HIZI (km/h)', style: TextStyle(fontSize: 12, color: Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
-                            const SizedBox(height: 4),
-                            Text(
-                              currentRawSpeed.toStringAsFixed(1),
-                              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFFFD7E14))
+                            // Ham (Seken) GPS Hızı ve Düzeltilmiş (Fused) GPS Hızı yan yana
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      const Text('HAM GPS HIZI\n(km/h)', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        currentRawSpeed.toStringAsFixed(1),
+                                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFFFD7E14))
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      const Text('DÜZELTİLMİŞ GPS\n(km/h)', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        currentFusedSpeed.toStringAsFixed(1),
+                                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF0D6EFD))
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
 
                             const Padding(
