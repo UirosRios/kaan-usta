@@ -8,6 +8,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'about_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -35,6 +36,8 @@ class SensorDashboard extends StatefulWidget {
 class _SensorDashboardState extends State<SensorDashboard> {
   // Sensör ve Veri Değişkenleri
   double zAxis = 0.0;
+  double gyroX = 0.0, gyroY = 0.0, gyroZ = 0.0; // Jiroskop açısal hızı (rad/s)
+  bool gyroAvailable = true;
   double currentLat = 0.0;
   double currentLon = 0.0;
   double currentSpeed = 0.0; // Mantıksal (Ölü Bölge Filtreli) Hız
@@ -50,6 +53,8 @@ class _SensorDashboardState extends State<SensorDashboard> {
   // İvmeölçer ~50 Hz okunur; pencere başına istatistik çıkarılır ki
   // 2 Hz kayıtta tek anlık değer alınmasından doğan örtüşme (aliasing) olmasın.
   final List<double> _zWindow = [];
+  // Aynı pencere içindeki jiroskop örnekleri [x, y, z]
+  final List<List<double>> _gyroWindow = [];
 
   // Zamanlayıcı ve Veri Kayıt Değişkenleri
   String _liveDate = "Tarih Yükleniyor...";
@@ -65,6 +70,7 @@ class _SensorDashboardState extends State<SensorDashboard> {
   StreamSubscription<dynamic>? rawGpsSubscription;
   StreamSubscription<Position>? geoSubscription;
   StreamSubscription<AccelerometerEvent>? accelSubscription;
+  StreamSubscription<GyroscopeEvent>? gyroSubscription;
 
   @override
   void initState() {
@@ -100,6 +106,18 @@ class _SensorDashboardState extends State<SensorDashboard> {
     accelSubscription = accelerometerEventStream(samplingPeriod: SensorInterval.gameInterval).listen((AccelerometerEvent event) {
       zAxis = event.z;
       if (isRecording) _zWindow.add(event.z);
+    });
+
+    // Jiroskop (açısal hız) Sensörünü Başlat - ivmeölçerle aynı hızda (~50 Hz)
+    // Telefonun tutucuda eğilmesi / dönmesi bu sensörle izlenir
+    gyroSubscription = gyroscopeEventStream(samplingPeriod: SensorInterval.gameInterval).listen((GyroscopeEvent event) {
+      gyroX = event.x;
+      gyroY = event.y;
+      gyroZ = event.z;
+      if (isRecording) _gyroWindow.add([event.x, event.y, event.z]);
+    }, onError: (Object e) {
+      // Bazı ucuz telefonlarda jiroskop bulunmaz
+      if (mounted) setState(() => gyroAvailable = false);
     });
 
     // Konum servisi (GPS) açık mı?
@@ -176,8 +194,11 @@ class _SensorDashboardState extends State<SensorDashboard> {
     // Her yeni kayıtta listeyi temizle ve teze uygun CSV Başlıklarını ekle
     recordedData.clear();
     _zWindow.clear();
+    _gyroWindow.clear();
     recordedData.add("Tarih_Saat,Enlem,Boylam,Mantiksal_Hiz_kmh,Ham_Hiz_kmh,Duzeltilmis_GPS_Hiz_kmh,Z_Ekseni,"
-        "Z_Ort,Z_RMS_Dinamik,Z_Min,Z_Max,Z_Ornek_Sayisi,GPS_Dogruluk_m,GPS_Yasi_s,Duzeltilmis_GPS_Yasi_s");
+        "Z_Ort,Z_RMS_Dinamik,Z_Min,Z_Max,Z_Ornek_Sayisi,"
+        "Jiro_X_Ort,Jiro_Y_Ort,Jiro_Z_Ort,Jiro_Max_Bileske,"
+        "GPS_Dogruluk_m,GPS_Yasi_s,Duzeltilmis_GPS_Yasi_s");
 
     // Saniyede 2 kez (500 milisaniye) veri örnekleme
     _recordTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
@@ -198,6 +219,20 @@ class _SensorDashboardState extends State<SensorDashboard> {
         zMax = samples.reduce(max);
       }
 
+      // Pencere içindeki jiroskop istatistikleri (rad/s): eksen ortalamaları ve en büyük bileşke açısal hız
+      // Jiroskop yoksa sütunlar boş bırakılır
+      final gyroSamples = List<List<double>>.from(_gyroWindow);
+      _gyroWindow.clear();
+      String gyroCols = ",,,";
+      if (gyroSamples.isNotEmpty) {
+        final n = gyroSamples.length;
+        final double gxMean = gyroSamples.map((g) => g[0]).reduce((a, b) => a + b) / n;
+        final double gyMean = gyroSamples.map((g) => g[1]).reduce((a, b) => a + b) / n;
+        final double gzMean = gyroSamples.map((g) => g[2]).reduce((a, b) => a + b) / n;
+        final double gMax = gyroSamples.map((g) => sqrt(g[0] * g[0] + g[1] * g[1] + g[2] * g[2])).reduce(max);
+        gyroCols = "${gxMean.toStringAsFixed(4)},${gyMean.toStringAsFixed(4)},${gzMean.toStringAsFixed(4)},${gMax.toStringAsFixed(4)}";
+      }
+
       // Son GPS konumundan bu yana geçen süre (GPS kesilirse eski konum tekrarlanır, bu sütunla ayıklanabilir)
       final String gpsAge = lastFixTime == null ? "" : (DateTime.now().difference(lastFixTime!).inMilliseconds / 1000).toStringAsFixed(1);
       final String fusedAge = lastFusedFixTime == null ? "" : (DateTime.now().difference(lastFusedFixTime!).inMilliseconds / 1000).toStringAsFixed(1);
@@ -205,7 +240,7 @@ class _SensorDashboardState extends State<SensorDashboard> {
       // O anki sensör verilerini CSV formatında virgülle ayırarak kaydet
       String timestamp = DateTime.now().toString();
       String row = "$timestamp,${currentLat.toStringAsFixed(6)},${currentLon.toStringAsFixed(6)},${currentSpeed.toStringAsFixed(2)},${currentRawSpeed.toStringAsFixed(2)},${currentFusedSpeed.toStringAsFixed(2)},${zAxis.toStringAsFixed(4)},"
-          "${zMean.toStringAsFixed(4)},${zRms.toStringAsFixed(4)},${zMin.toStringAsFixed(4)},${zMax.toStringAsFixed(4)},${samples.length},${currentAccuracy.toStringAsFixed(1)},$gpsAge,$fusedAge";
+          "${zMean.toStringAsFixed(4)},${zRms.toStringAsFixed(4)},${zMin.toStringAsFixed(4)},${zMax.toStringAsFixed(4)},${samples.length},$gyroCols,${currentAccuracy.toStringAsFixed(1)},$gpsAge,$fusedAge";
       recordedData.add(row);
     });
   }
@@ -247,6 +282,7 @@ class _SensorDashboardState extends State<SensorDashboard> {
     rawGpsSubscription?.cancel();
     geoSubscription?.cancel();
     accelSubscription?.cancel();
+    gyroSubscription?.cancel();
     WakelockPlus.disable();
     super.dispose();
   }
@@ -279,6 +315,15 @@ class _SensorDashboardState extends State<SensorDashboard> {
                       Text(_liveTime, style: const TextStyle(color: Color(0xFFCED4DA), fontSize: 12)),
                     ],
                   ),
+                  Row(
+                    children: [
+                      // Hakkında / Teknik Bilgi sayfası
+                      IconButton(
+                        icon: const Icon(Icons.info_outline, color: Colors.white, size: 30),
+                        tooltip: 'Hakkında / Teknik Bilgi',
+                        onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutPage())),
+                      ),
+                      const SizedBox(width: 4),
                   Container(
                     width: 80,
                     height: 80,
@@ -297,6 +342,8 @@ class _SensorDashboardState extends State<SensorDashboard> {
                       ),
                     ),
                   ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -308,6 +355,12 @@ class _SensorDashboardState extends State<SensorDashboard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // Kartlar küçük ekranlarda kaydırılabilir, düğme her zaman altta görünür
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
                     // Z-Ekseni Kartı
                     Card(
                       elevation: 4,
@@ -323,6 +376,42 @@ class _SensorDashboardState extends State<SensorDashboard> {
                               zAxis.toStringAsFixed(3),
                               style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Color(0xFF003366))
                             ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+
+                    // Jiroskop Kartı (açısal hız, rad/s)
+                    Card(
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                      color: Colors.white,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
+                        child: Column(
+                          children: [
+                            const Text('JİROSKOP (rad/s)', style: TextStyle(fontSize: 14, color: Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
+                            const SizedBox(height: 8),
+                            if (!gyroAvailable)
+                              const Text('Bu telefonda jiroskop yok', style: TextStyle(fontSize: 14, color: Colors.redAccent))
+                            else
+                              Row(
+                                children: [
+                                  for (final (label, value) in [('X', gyroX), ('Y', gyroY), ('Z', gyroZ)])
+                                    Expanded(
+                                      child: Column(
+                                        children: [
+                                          Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF6C757D), fontWeight: FontWeight.bold)),
+                                          Text(
+                                            value.toStringAsFixed(3),
+                                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF6F42C1))
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ),
                           ],
                         ),
                       ),
@@ -401,7 +490,11 @@ class _SensorDashboardState extends State<SensorDashboard> {
                       ),
                     ),
 
-                    const Spacer(),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
 
                     // BAŞLAT / DURDUR Butonu
                     ElevatedButton(

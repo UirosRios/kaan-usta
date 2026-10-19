@@ -23,9 +23,21 @@ Telefonun GPS'i ve ivmeölçeri ile mikromobilite (e-scooter, bisiklet vb.) sür
 | `Z_RMS_Dinamik` | Ortalama çıkarıldıktan sonra RMS → **sarsıntı şiddeti** |
 | `Z_Min`, `Z_Max` | Penceredeki en düşük / en yüksek Z |
 | `Z_Ornek_Sayisi` | Penceredeki ivmeölçer örneği sayısı (~25 beklenir) |
+| `Jiro_X_Ort`, `Jiro_Y_Ort`, `Jiro_Z_Ort` | Penceredeki ortalama açısal hız (rad/s); ekran yukarı, üst kenar ileri takılıysa X = öne/arkaya eğilme, Y = yana yatma, Z = sağa/sola dönüş |
+| `Jiro_Max_Bileske` | Penceredeki en büyük bileşke açısal hız √(x²+y²+z²) (rad/s). Jiroskop yoksa jiroskop sütunları boş kalır |
 | `GPS_Dogruluk_m` | Ham GPS yatay doğruluğu (m, %68 güven yarıçapı) |
 | `GPS_Yasi_s` | Son ham GPS konumundan bu yana geçen süre (GPS kesintilerini ayıklamak için) |
 | `Duzeltilmis_GPS_Yasi_s` | Son düzeltilmiş (Fused) konumdan bu yana geçen süre |
+
+## Kullanılan sensörler
+
+Uygulamada sağ üstteki **ⓘ** simgesine dokununca açılan *Hakkında / Teknik Bilgi* sayfasında da listelenir.
+
+1. **İvmeölçer** – Z ekseni ivmesi (m/s², yerçekimi dahil), ~50 Hz
+2. **Jiroskop** – X/Y/Z açısal hız (rad/s), ~50 Hz
+3. **GNSS alıcısı (ham GPS)** – doğrudan GPS_PROVIDER; konum, Doppler hızı, doğruluk
+4. **Fused konum servisi (düzeltilmiş GPS)** – Google'ın birleşik konum servisi
+5. **Telefon saati** – zaman damgası
 
 ## Ölçüm notları
 
