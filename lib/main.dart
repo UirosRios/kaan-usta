@@ -5,10 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sensors_plus/sensors_plus.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'about_page.dart';
+import 'device_info.dart';
+import 'recordings_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -33,9 +33,10 @@ class SensorDashboard extends StatefulWidget {
   State<SensorDashboard> createState() => _SensorDashboardState();
 }
 
-class _SensorDashboardState extends State<SensorDashboard> {
+class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingObserver {
   // Sensör ve Veri Değişkenleri
-  double zAxis = 0.0;
+  double zAxis = 0.0; // Ham Z ivmesi (yerçekimi dahil)
+  double zNet = 0.0; // Yerçekimi çıkarılmış Z ivmesi = sarsıntı
   double gyroX = 0.0, gyroY = 0.0, gyroZ = 0.0; // Jiroskop açısal hızı (rad/s)
   bool gyroAvailable = true;
   double currentLat = 0.0;
@@ -53,6 +54,15 @@ class _SensorDashboardState extends State<SensorDashboard> {
   // İvmeölçer ~50 Hz okunur; pencere başına istatistik çıkarılır ki
   // 2 Hz kayıtta tek anlık değer alınmasından doğan örtüşme (aliasing) olmasın.
   final List<double> _zWindow = [];
+  final List<double> _zNetWindow = [];
+
+  // YERÇEKİMİ GİDERME: ham Z, 0,4 Hz kesim frekanslı birinci dereceden yüksek geçiren filtreden geçirilir
+  // (bilineer / Tustin dönüşümü). Yerçekimi ve telefonun yavaş eğilmesi gibi sabit/yavaş bileşenler atılır,
+  // titreşim kalır. 0,4 Hz, ISO 2631-1 titreşim değerlendirmesinin alt bant sınırıdır.
+  static const double gravityCutoffHz = 0.4;
+  static const double _gravityTau = 1 / (2 * pi * gravityCutoffHz);
+  double? _prevZ;
+  DateTime? _lastAccelTime;
   // Aynı pencere içindeki jiroskop örnekleri [x, y, z]
   final List<List<double>> _gyroWindow = [];
 
@@ -62,7 +72,19 @@ class _SensorDashboardState extends State<SensorDashboard> {
   Timer? _clockTimer;
   Timer? _uiTimer;
   Timer? _recordTimer;
-  List<String> recordedData = [];
+
+  // Kayıt dosyası: satırlar 5 saniyede bir dosyaya eklenir (uygulama kapanırsa en fazla son 5 sn kaybolur)
+  static const String _csvHeader = "Tarih_Saat,Enlem,Boylam,Mantiksal_Hiz_kmh,Ham_Hiz_kmh,Duzeltilmis_GPS_Hiz_kmh,"
+      "Z_Net,Z_Ham,Z_Ham_Ort,Z_Net_RMS,Z_Net_Min,Z_Net_Max,Z_Ornek_Sayisi,"
+      "Jiro_X_Ort,Jiro_Y_Ort,Jiro_Z_Ort,Jiro_Max_Bileske,"
+      "GPS_Dogruluk_m,GPS_Yasi_s,Duzeltilmis_GPS_Yasi_s";
+  File? _csvFile;
+  DateTime? _recordStart;
+  int _rowCount = 0;
+  final List<String> _pendingRows = [];
+  Future<void> _writeChain = Future.value();
+  bool _writeError = false;
+  bool _busy = false; // başlatma/durdurma sürerken düğmeye ikinci kez basılmasını engeller
 
   // Abonelikler
   // Ham GPS, Android tarafında (MainActivity.kt) GPS_PROVIDER'dan okunur
@@ -75,6 +97,8 @@ class _SensorDashboardState extends State<SensorDashboard> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    DeviceInfo.load();
     _startClock();
     _initSensors();
   }
@@ -105,7 +129,24 @@ class _SensorDashboardState extends State<SensorDashboard> {
     // gameInterval = 20 ms (~50 Hz). Varsayılan (normalInterval) 200 ms olup sarsıntı için çok yavaştır.
     accelSubscription = accelerometerEventStream(samplingPeriod: SensorInterval.gameInterval).listen((AccelerometerEvent event) {
       zAxis = event.z;
-      if (isRecording) _zWindow.add(event.z);
+
+      // Yüksek geçiren filtre: y = k/(k+1)·(z − z_önceki) + (k−1)/(k+1)·y_önceki, k = 2τ/dt
+      // İlk örnekte veya 1 sn'den uzun boşlukta sıfırlanır.
+      final last = _lastAccelTime;
+      _lastAccelTime = event.timestamp;
+      final double dt = last == null ? 0 : event.timestamp.difference(last).inMicroseconds / 1e6;
+      if (_prevZ == null || dt <= 0 || dt > 1) {
+        zNet = 0.0;
+      } else {
+        final double k = 2 * _gravityTau / dt;
+        zNet = k / (k + 1) * (event.z - _prevZ!) + (k - 1) / (k + 1) * zNet;
+      }
+      _prevZ = event.z;
+
+      if (isRecording) {
+        _zWindow.add(event.z);
+        _zNetWindow.add(zNet);
+      }
     });
 
     // Jiroskop (açısal hız) Sensörünü Başlat - ivmeölçerle aynı hızda (~50 Hz)
@@ -184,21 +225,37 @@ class _SensorDashboardState extends State<SensorDashboard> {
   }
 
   // 3. KAYIT BAŞLATMA MOTORU
-  void startRecording() {
+  Future<void> startRecording() async {
+    if (isRecording || _busy) return;
+    _busy = true;
+    try {
+      // Dosyayı hemen oluştur ve başlığı yaz
+      final now = DateTime.now();
+      final dir = await recordingsDirectory();
+      final file = File('${dir.path}/mikromobilite_${_fileStamp(now)}.csv');
+      await file.writeAsString('$_csvHeader\n', flush: true);
+      _csvFile = file;
+      _recordStart = now;
+      _rowCount = 0;
+      _pendingRows.clear();
+      _writeError = false;
+      await _writeInfoFile(null);
+    } catch (e) {
+      _busy = false;
+      _showMessage("Kayıt başlatılamadı: $e");
+      return;
+    }
+
     setState(() {
       isRecording = true;
     });
+    _busy = false;
     // Kayıt sırasında ekranın kapanıp sensörlerin durmasını engelle
     WakelockPlus.enable();
 
-    // Her yeni kayıtta listeyi temizle ve teze uygun CSV Başlıklarını ekle
-    recordedData.clear();
     _zWindow.clear();
+    _zNetWindow.clear();
     _gyroWindow.clear();
-    recordedData.add("Tarih_Saat,Enlem,Boylam,Mantiksal_Hiz_kmh,Ham_Hiz_kmh,Duzeltilmis_GPS_Hiz_kmh,Z_Ekseni,"
-        "Z_Ort,Z_RMS_Dinamik,Z_Min,Z_Max,Z_Ornek_Sayisi,"
-        "Jiro_X_Ort,Jiro_Y_Ort,Jiro_Z_Ort,Jiro_Max_Bileske,"
-        "GPS_Dogruluk_m,GPS_Yasi_s,Duzeltilmis_GPS_Yasi_s");
 
     // Saniyede 2 kez (500 milisaniye) veri örnekleme
     _recordTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
@@ -208,15 +265,18 @@ class _SensorDashboardState extends State<SensorDashboard> {
       }
 
       // Pencere içindeki Z örneklerinin istatistikleri
-      // Z_RMS_Dinamik: ortalama (yerçekimi + eğim) çıkarıldıktan sonraki RMS = sarsıntı şiddeti
+      // Z_Ham_Ort: ham Z ortalaması (≈ yerçekiminin Z bileşeni, telefonun eğimini gösterir)
+      // Z_Net_RMS: yerçekimi çıkarılmış Z'nin RMS'i = sarsıntı şiddeti
       final samples = List<double>.from(_zWindow);
+      final netSamples = List<double>.from(_zNetWindow);
       _zWindow.clear();
+      _zNetWindow.clear();
       double zMean = 0, zRms = 0, zMin = 0, zMax = 0;
       if (samples.isNotEmpty) {
         zMean = samples.reduce((a, b) => a + b) / samples.length;
-        zRms = sqrt(samples.map((z) => (z - zMean) * (z - zMean)).reduce((a, b) => a + b) / samples.length);
-        zMin = samples.reduce(min);
-        zMax = samples.reduce(max);
+        zRms = sqrt(netSamples.map((z) => z * z).reduce((a, b) => a + b) / netSamples.length);
+        zMin = netSamples.reduce(min);
+        zMax = netSamples.reduce(max);
       }
 
       // Pencere içindeki jiroskop istatistikleri (rad/s): eksen ortalamaları ve en büyük bileşke açısal hız
@@ -239,43 +299,105 @@ class _SensorDashboardState extends State<SensorDashboard> {
 
       // O anki sensör verilerini CSV formatında virgülle ayırarak kaydet
       String timestamp = DateTime.now().toString();
-      String row = "$timestamp,${currentLat.toStringAsFixed(6)},${currentLon.toStringAsFixed(6)},${currentSpeed.toStringAsFixed(2)},${currentRawSpeed.toStringAsFixed(2)},${currentFusedSpeed.toStringAsFixed(2)},${zAxis.toStringAsFixed(4)},"
-          "${zMean.toStringAsFixed(4)},${zRms.toStringAsFixed(4)},${zMin.toStringAsFixed(4)},${zMax.toStringAsFixed(4)},${samples.length},$gyroCols,${currentAccuracy.toStringAsFixed(1)},$gpsAge,$fusedAge";
-      recordedData.add(row);
+      String row = "$timestamp,${currentLat.toStringAsFixed(6)},${currentLon.toStringAsFixed(6)},${currentSpeed.toStringAsFixed(2)},${currentRawSpeed.toStringAsFixed(2)},${currentFusedSpeed.toStringAsFixed(2)},"
+          "${zNet.toStringAsFixed(4)},${zAxis.toStringAsFixed(4)},${zMean.toStringAsFixed(4)},${zRms.toStringAsFixed(4)},${zMin.toStringAsFixed(4)},${zMax.toStringAsFixed(4)},${samples.length},$gyroCols,${currentAccuracy.toStringAsFixed(1)},$gpsAge,$fusedAge";
+      _pendingRows.add(row);
+      _rowCount++;
+      // 10 satırda bir (5 sn) dosyaya ekle
+      if (_rowCount % 10 == 0) _flushPending();
     });
+  }
+
+  // Bekleyen satırları dosyanın sonuna ekle. Yazmalar sırayla yapılır (biri bitmeden diğeri başlamaz).
+  void _flushPending() {
+    final file = _csvFile;
+    if (_pendingRows.isEmpty || file == null) return;
+    final text = '${_pendingRows.join('\n')}\n';
+    _pendingRows.clear();
+    _writeChain = _writeChain.then((_) async {
+      try {
+        await file.writeAsString(text, mode: FileMode.append, flush: true);
+      } catch (e) {
+        debugPrint("Dosyaya yazılamadı: $e");
+        _writeError = true;
+      }
+    });
+  }
+
+  // Kayda ait _bilgi.txt: cihaz, sensörler ve ölçüm ayarları. Başlangıçta yazılır, durdurunca güncellenir.
+  Future<void> _writeInfoFile(DateTime? end) async {
+    final file = _csvFile;
+    if (file == null) return;
+    final info = await DeviceInfo.load();
+    final lines = [
+      'Mikromobilite Sarsıntı Ölçer - kayıt bilgisi',
+      'Veri dosyası: ${file.uri.pathSegments.last}',
+      'Kayıt başlangıcı: $_recordStart',
+      'Kayıt bitişi: ${end ?? "(kayıt sürüyor veya düzgün kapatılmadı)"}',
+      'Satır sayısı: ${end == null ? "(kayıt bitince yazılır; CSV'deki satırları sayın)" : _rowCount}',
+      '',
+      ...DeviceInfo.describe(info),
+      '',
+      'Ölçüm ayarları:',
+      '  İstenen sensör örnekleme aralığı: 20 ms (~50 Hz), ivmeölçer ve jiroskop',
+      '  Kayıt penceresi: 0,5 s (saniyede 2 satır)',
+      '  Yerçekimi giderme (Z_Net): birinci dereceden yüksek geçiren filtre (bilineer dönüşüm), kesim frekansı $gravityCutoffHz Hz',
+      '  Ham GPS: Android GPS_PROVIDER, istenen aralık 500 ms',
+      '  Düzeltilmiş GPS: Fused konum servisi, istenen aralık 500 ms',
+      '  GPS konum filtresi: doğruluğu 50 m\'den kötü konumlar atılır',
+      '  Mantıksal hız eşiği: ham hız < 2 km/h ise 0',
+    ];
+    await infoFileFor(file).writeAsString('${lines.join('\n')}\n', flush: true);
+  }
+
+  String _fileStamp(DateTime t) {
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${t.year}${two(t.month)}${two(t.day)}_${two(t.hour)}${two(t.minute)}${two(t.second)}';
+  }
+
+  void _showMessage(String text) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
   // 4. KAYIT BİTİRME VE PAYLAŞMA MOTORU
   Future<void> stopRecording() async {
+    if (!isRecording || _busy) return;
+    _busy = true;
+    _recordTimer?.cancel();
     setState(() {
       isRecording = false;
     });
-    _recordTimer?.cancel();
     WakelockPlus.disable();
 
-    if (recordedData.length <= 1) return;
-
+    final file = _csvFile;
     try {
-      // Cihazın güvenli klasörünü bul ve dosyayı oluştur
-      final directory = await getApplicationDocumentsDirectory();
-      final String filePath = '${directory.path}/mikromobilite_tez_verisi_${DateTime.now().millisecondsSinceEpoch}.csv';
-      final File file = File(filePath);
+      // Kalan satırları yaz ve tüm yazmaların bitmesini bekle
+      _flushPending();
+      await _writeChain;
+      if (file == null) return;
+      await _writeInfoFile(DateTime.now());
+      if (_writeError) _showMessage("Uyarı: bazı satırlar dosyaya yazılamadı.");
 
-      // Verileri alt alta (.csv formatında) dosyaya yaz
-      await file.writeAsString(recordedData.join('\n'));
-
-      // Dosyayı paylaşım ekranına (WhatsApp, Mail, Drive vb.) gönder
-      await SharePlus.instance.share(ShareParams(files: [XFile(filePath)], text: 'Tez Sensör Verisi (CSV) - KAAN USTA'));
+      // Dosyayı paylaşım ekranına (WhatsApp, Mail, Drive vb.) gönder. Kapatılırsa Kayıtlar sayfasından tekrar paylaşılabilir.
+      await shareRecording(file);
     } catch (e) {
       debugPrint("Dosya kaydedilirken hata oluştu: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Dosya kaydedilemedi: $e")));
-      }
+      _showMessage("Dosya kaydedilemedi: $e");
+    } finally {
+      _busy = false;
     }
+  }
+
+  // Uygulama arka plana geçerse bekleyen satırları hemen dosyaya yaz
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) _flushPending();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _flushPending();
     _clockTimer?.cancel();
     _uiTimer?.cancel();
     _recordTimer?.cancel();
@@ -317,11 +439,24 @@ class _SensorDashboardState extends State<SensorDashboard> {
                   ),
                   Row(
                     children: [
-                      // Hakkında / Teknik Bilgi sayfası
-                      IconButton(
-                        icon: const Icon(Icons.info_outline, color: Colors.white, size: 30),
-                        tooltip: 'Hakkında / Teknik Bilgi',
-                        onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutPage())),
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Kayıtlar sayfası
+                          IconButton(
+                            icon: const Icon(Icons.folder_outlined, color: Colors.white, size: 28),
+                            tooltip: 'Kayıtlar',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RecordingsPage())),
+                          ),
+                          // Hakkında / Teknik Bilgi sayfası
+                          IconButton(
+                            icon: const Icon(Icons.info_outline, color: Colors.white, size: 28),
+                            tooltip: 'Hakkında / Teknik Bilgi',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutPage())),
+                          ),
+                        ],
                       ),
                       const SizedBox(width: 4),
                   Container(
@@ -370,12 +505,15 @@ class _SensorDashboardState extends State<SensorDashboard> {
                         padding: const EdgeInsets.all(20.0),
                         child: Column(
                           children: [
-                            const Text('Z-EKSENİ SARSINTI', style: TextStyle(fontSize: 14, color: Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
+                            const Text('Z-EKSENİ SARSINTI (m/s²)', style: TextStyle(fontSize: 14, color: Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
                             const SizedBox(height: 10),
+                            // Yerçekimi çıkarılmış değer: hareketsizken ≈ 0
                             Text(
-                              zAxis.toStringAsFixed(3),
+                              zNet.toStringAsFixed(3),
                               style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Color(0xFF003366))
                             ),
+                            const SizedBox(height: 4),
+                            Text('Ham (yerçekimi dahil): ${zAxis.toStringAsFixed(3)}', style: const TextStyle(fontSize: 12, color: Color(0xFF6C757D))),
                           ],
                         ),
                       ),
@@ -506,7 +644,7 @@ class _SensorDashboardState extends State<SensorDashboard> {
                         elevation: 4,
                       ),
                       child: Text(
-                        isRecording ? 'DURDUR (${recordedData.length - 1} satır)' : 'BAŞLAT',
+                        isRecording ? 'DURDUR ($_rowCount satır)' : 'BAŞLAT',
                         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 2),
                       ),
                     ),
