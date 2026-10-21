@@ -4,11 +4,13 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorManager
+import android.location.GnssStatus
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
 import android.os.Looper
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -19,6 +21,7 @@ import io.flutter.plugin.common.MethodChannel
 // Hız, GNSS yongasının Doppler ölçümünden gelir; yumuşatma yapılmaz.
 class MainActivity : FlutterActivity() {
     private var listener: LocationListener? = null
+    private var gnssCallback: Any? = null // GnssStatus.Callback (Android 7+)
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -32,6 +35,7 @@ class MainActivity : FlutterActivity() {
                         override fun onLocationChanged(loc: Location) {
                             events.success(
                                 mapOf(
+                                    "type" to "fix",
                                     "lat" to loc.latitude,
                                     "lon" to loc.longitude,
                                     "speed" to if (loc.hasSpeed()) loc.speed.toDouble() else -1.0,
@@ -53,6 +57,23 @@ class MainActivity : FlutterActivity() {
                         listener = l
                     } catch (e: Exception) {
                         events.error("HAM_GPS", e.message, null)
+                    }
+
+                    // Uydu durumu (tanı için): kaç uydu görülüyor, kaçı konum çözümünde kullanılıyor
+                    if (Build.VERSION.SDK_INT >= 24) {
+                        try {
+                            val cb = object : GnssStatus.Callback() {
+                                override fun onSatelliteStatusChanged(status: GnssStatus) {
+                                    var used = 0
+                                    for (i in 0 until status.satelliteCount) if (status.usedInFix(i)) used++
+                                    events.success(mapOf("type" to "sat", "visible" to status.satelliteCount, "used" to used))
+                                }
+                            }
+                            locationManager().registerGnssStatusCallback(cb, Handler(Looper.getMainLooper()))
+                            gnssCallback = cb
+                        } catch (e: Exception) {
+                            // Yalnızca yaklaşık konum izni varsa uydu durumu okunamaz; konum yine de dinlenir
+                        }
                     }
                 }
 
@@ -99,6 +120,10 @@ class MainActivity : FlutterActivity() {
     private fun stopRawGps() {
         listener?.let { locationManager().removeUpdates(it) }
         listener = null
+        if (Build.VERSION.SDK_INT >= 24) {
+            (gnssCallback as? GnssStatus.Callback)?.let { locationManager().unregisterGnssStatusCallback(it) }
+        }
+        gnssCallback = null
     }
 
     override fun onDestroy() {

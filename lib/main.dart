@@ -49,6 +49,11 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   DateTime? lastFusedFixTime; // Son geçerli düzeltilmiş GPS konumunun zamanı
   bool isRecording = false;
   String _gpsStatus = "GPS bekleniyor...";
+  // GPS tanı bilgisi: uydu sayısı, 50 m filtresine takılan son doğruluk, durum yazısına dokununca açılacak ayar
+  int? _satVisible, _satUsed;
+  double? _rejectedAccuracy;
+  VoidCallback? _gpsStatusAction;
+  bool _initializingLocation = false;
 
   // Kayıt penceresi (500 ms) içindeki tüm Z örnekleri.
   // İvmeölçer ~50 Hz okunur; pencere başına istatistik çıkarılır ki
@@ -161,9 +166,39 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       if (mounted) setState(() => gyroAvailable = false);
     });
 
+    await _initLocation();
+  }
+
+  // GPS'i başlat. Ayarlardan dönüldüğünde (izin/konum açıldıysa) tekrar çağrılır.
+  Future<void> _initLocation() async {
+    // İzin penceresi açılırken uygulama duraklar/devam eder; aynı anda iki kez başlatılmasın
+    if (_initializingLocation) return;
+    _initializingLocation = true;
+    try {
+      await _startLocationStreams();
+    } finally {
+      _initializingLocation = false;
+    }
+  }
+
+  Future<void> _startLocationStreams() async {
+    await rawGpsSubscription?.cancel();
+    await geoSubscription?.cancel();
+    rawGpsSubscription = null;
+    geoSubscription = null;
+    _satVisible = null;
+    _satUsed = null;
+    _rejectedAccuracy = null;
+    _gpsStatusAction = null;
+
     // Konum servisi (GPS) açık mı?
     if (!await Geolocator.isLocationServiceEnabled()) {
-      if (mounted) setState(() => _gpsStatus = "Konum servisi kapalı! Lütfen GPS'i açın.");
+      if (mounted) {
+        setState(() {
+          _gpsStatus = "Konum servisi kapalı! Açmak için dokunun.";
+          _gpsStatusAction = Geolocator.openLocationSettings;
+        });
+      }
       return;
     }
 
@@ -174,18 +209,42 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     }
 
     if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
-      if (mounted) setState(() => _gpsStatus = "GPS sinyali aranıyor...");
+      // Android 12+: kullanıcı "Yaklaşık konum" seçtiyse konum ~2 km hatalı gelir ve 50 m filtresine takılır
+      final bool reduced = await Geolocator.getLocationAccuracy() == LocationAccuracyStatus.reduced;
+      if (mounted) {
+        setState(() {
+          if (reduced) {
+            _gpsStatus = "Yalnızca YAKLAŞIK konum izni var! Dokunun: İzinler > Konum > 'Kesin konum kullan'ı açın.";
+            _gpsStatusAction = Geolocator.openAppSettings;
+          } else {
+            _gpsStatus = "GPS sinyali aranıyor... (açık alanda ilk konum 1-2 dk sürebilir)";
+          }
+        });
+      }
       // HAM GPS: Doğrudan GPS donanımı (yumuşatma yok). Enlem/Boylam, doğruluk ve mantıksal hız buradan gelir.
       rawGpsSubscription = _rawGpsChannel.receiveBroadcastStream().listen((dynamic event) {
         if (!mounted) return;
         final m = event as Map;
+        // Uydu durumu (tanı bilgisi)
+        if (m['type'] == 'sat') {
+          setState(() {
+            _satVisible = (m['visible'] as num).toInt();
+            _satUsed = (m['used'] as num).toInt();
+          });
+          return;
+        }
         final double accuracy = (m['accuracy'] as num).toDouble();
         // 50 metreden büyük çok ekstrem sapmaları yoksay (hassasiyet korunur)
-        if (accuracy < 0 || accuracy > 50.0) return;
+        if (accuracy < 0 || accuracy > 50.0) {
+          setState(() => _rejectedAccuracy = accuracy);
+          return;
+        }
         final double speed = (m['speed'] as num).toDouble();
 
         setState(() {
           _gpsStatus = "";
+          _gpsStatusAction = null;
+          _rejectedAccuracy = null;
           currentLat = (m['lat'] as num).toDouble();
           currentLon = (m['lon'] as num).toDouble();
           currentAccuracy = accuracy;
@@ -220,8 +279,22 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
         }
       });
     } else {
-      if (mounted) setState(() => _gpsStatus = "Konum izni verilmedi! Ayarlardan izin verin.");
+      if (mounted) {
+        setState(() {
+          _gpsStatus = "Konum izni verilmedi! İzin vermek için dokunun.";
+          _gpsStatusAction = Geolocator.openAppSettings;
+        });
+      }
     }
+  }
+
+  // Durum yazısı: GPS bulunana kadar neden beklendiğini gösterir
+  String get _gpsStatusText {
+    if (_gpsStatus.isEmpty) return 'Doğruluk: ±${currentAccuracy.toStringAsFixed(1)} m';
+    final parts = [_gpsStatus];
+    if (_satVisible != null) parts.add('Uydu: $_satVisible görünen, $_satUsed kullanılan');
+    if (_rejectedAccuracy != null) parts.add('Gelen konumun doğruluğu ±${_rejectedAccuracy!.toStringAsFixed(0)} m (50 m altı bekleniyor)');
+    return parts.join('\n');
   }
 
   // 3. KAYIT BAŞLATMA MOTORU
@@ -391,7 +464,12 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   // Uygulama arka plana geçerse bekleyen satırları hemen dosyaya yaz
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) _flushPending();
+    if (state != AppLifecycleState.resumed) {
+      _flushPending();
+    } else if (_gpsStatusAction != null && !isRecording) {
+      // Kullanıcı ayarlara yönlendirilmişti (izin / konum servisi): dönünce GPS'i yeniden başlat
+      _initLocation();
+    }
   }
 
   @override
@@ -618,10 +696,17 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF212529))
                             ),
                             const SizedBox(height: 6),
-                            Text(
-                              _gpsStatus.isNotEmpty ? _gpsStatus : 'Doğruluk: ±${currentAccuracy.toStringAsFixed(1)} m',
-                              style: TextStyle(fontSize: 12, color: _gpsStatus.isNotEmpty ? Colors.redAccent : const Color(0xFF6C757D)),
-                              textAlign: TextAlign.center,
+                            GestureDetector(
+                              onTap: _gpsStatusAction,
+                              child: Text(
+                                _gpsStatusText,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: _gpsStatus.isNotEmpty ? Colors.redAccent : const Color(0xFF6C757D),
+                                  decoration: _gpsStatusAction != null ? TextDecoration.underline : null,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
                             ),
                           ],
                         ),
