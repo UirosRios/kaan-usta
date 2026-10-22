@@ -3,7 +3,9 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'about_page.dart';
@@ -41,7 +43,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   bool gyroAvailable = true;
   double currentLat = 0.0;
   double currentLon = 0.0;
-  double currentSpeed = 0.0; // Mantıksal (Ölü Bölge Filtreli) Hız
   double currentRawSpeed = 0.0; // Ham (Seken) GPS Hızı - doğrudan GPS donanımı
   double currentFusedSpeed = 0.0; // Düzeltilmiş GPS Hızı - Fused (birleşik) konum servisi
   double currentAccuracy = 0.0; // Ham GPS yatay konum doğruluğu (m)
@@ -54,6 +55,10 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   double? _rejectedAccuracy;
   VoidCallback? _gpsStatusAction;
   bool _initializingLocation = false;
+
+  // Harita (OpenStreetMap / flutter_map): o anki ham GPS konumunu takip eder
+  final MapController _mapController = MapController();
+  bool _mapReady = false;
 
   // Kayıt penceresi (500 ms) içindeki tüm Z örnekleri.
   // İvmeölçer ~50 Hz okunur; pencere başına istatistik çıkarılır ki
@@ -79,7 +84,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   Timer? _recordTimer;
 
   // Kayıt dosyası: satırlar 5 saniyede bir dosyaya eklenir (uygulama kapanırsa en fazla son 5 sn kaybolur)
-  static const String _csvHeader = "Tarih_Saat,Enlem,Boylam,Mantiksal_Hiz_kmh,Ham_Hiz_kmh,Duzeltilmis_GPS_Hiz_kmh,"
+  static const String _csvHeader = "Tarih_Saat,Enlem,Boylam,Ham_Hiz_kmh,Duzeltilmis_GPS_Hiz_kmh,"
       "Z_Net,Z_Ham,Z_Ham_Ort,Z_Net_RMS,Z_Net_Min,Z_Net_Max,Z_Ornek_Sayisi,"
       "Jiro_X_Ort,Jiro_Y_Ort,Jiro_Z_Ort,Jiro_Max_Bileske,"
       "GPS_Dogruluk_m,GPS_Yasi_s,Duzeltilmis_GPS_Yasi_s";
@@ -221,7 +226,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
           }
         });
       }
-      // HAM GPS: Doğrudan GPS donanımı (yumuşatma yok). Enlem/Boylam, doğruluk ve mantıksal hız buradan gelir.
+      // HAM GPS: Doğrudan GPS donanımı (yumuşatma yok). Enlem/Boylam, doğruluk ve harita konumu buradan gelir.
       rawGpsSubscription = _rawGpsChannel.receiveBroadcastStream().listen((dynamic event) {
         if (!mounted) return;
         final m = event as Map;
@@ -252,10 +257,9 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
 
           // Uydudan gelen gerçek (sekme payı olan) ham hız
           currentRawSpeed = speed < 0 ? 0.0 : speed * 3.6;
-
-          // MANTIKSAL ÖLÜ BÖLGE FİLTRESİ: Kapalı alandaki 2 km/h altı mikro sekmeleri sıfırla
-          currentSpeed = currentRawSpeed < 2.0 ? 0.0 : currentRawSpeed;
         });
+        // Haritayı yeni konuma kaydır (yakınlaştırma düzeyi korunur)
+        if (_mapReady) _mapController.move(LatLng(currentLat, currentLon), _mapController.camera.zoom);
       }, onError: (Object e) {
         if (mounted) setState(() => _gpsStatus = "Ham GPS başlatılamadı: $e");
       });
@@ -372,7 +376,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
 
       // O anki sensör verilerini CSV formatında virgülle ayırarak kaydet
       String timestamp = DateTime.now().toString();
-      String row = "$timestamp,${currentLat.toStringAsFixed(6)},${currentLon.toStringAsFixed(6)},${currentSpeed.toStringAsFixed(2)},${currentRawSpeed.toStringAsFixed(2)},${currentFusedSpeed.toStringAsFixed(2)},"
+      String row = "$timestamp,${currentLat.toStringAsFixed(6)},${currentLon.toStringAsFixed(6)},${currentRawSpeed.toStringAsFixed(2)},${currentFusedSpeed.toStringAsFixed(2)},"
           "${zNet.toStringAsFixed(4)},${zAxis.toStringAsFixed(4)},${zMean.toStringAsFixed(4)},${zRms.toStringAsFixed(4)},${zMin.toStringAsFixed(4)},${zMax.toStringAsFixed(4)},${samples.length},$gyroCols,${currentAccuracy.toStringAsFixed(1)},$gpsAge,$fusedAge";
       _pendingRows.add(row);
       _rowCount++;
@@ -418,7 +422,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       '  Ham GPS: Android GPS_PROVIDER, istenen aralık 500 ms',
       '  Düzeltilmiş GPS: Fused konum servisi, istenen aralık 500 ms',
       '  GPS konum filtresi: doğruluğu 50 m\'den kötü konumlar atılır',
-      '  Mantıksal hız eşiği: ham hız < 2 km/h ise 0',
     ];
     await infoFileFor(file).writeAsString('${lines.join('\n')}\n', flush: true);
   }
@@ -598,36 +601,30 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                     ),
                     const SizedBox(height: 15),
 
-                    // Jiroskop Kartı (açısal hız, rad/s)
+                    // Jiroskop Kartı (açısal hız, rad/s) - tek satır, küçük
                     Card(
                       elevation: 4,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                       color: Colors.white,
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
-                        child: Column(
+                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+                        child: Row(
                           children: [
-                            const Text('JİROSKOP (rad/s)', style: TextStyle(fontSize: 14, color: Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
-                            const SizedBox(height: 8),
+                            const Text('JİROSKOP\n(rad/s)', style: TextStyle(fontSize: 11, color: Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
+                            const SizedBox(width: 10),
                             if (!gyroAvailable)
-                              const Text('Bu telefonda jiroskop yok', style: TextStyle(fontSize: 14, color: Colors.redAccent))
+                              const Expanded(child: Text('Bu telefonda jiroskop yok', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: Colors.redAccent)))
                             else
-                              Row(
-                                children: [
-                                  for (final (label, value) in [('X', gyroX), ('Y', gyroY), ('Z', gyroZ)])
-                                    Expanded(
-                                      child: Column(
-                                        children: [
-                                          Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF6C757D), fontWeight: FontWeight.bold)),
-                                          Text(
-                                            value.toStringAsFixed(3),
-                                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF6F42C1))
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                ],
-                              ),
+                              for (final (label, value) in [('X', gyroX), ('Y', gyroY), ('Z', gyroZ)])
+                                Expanded(
+                                  child: Text.rich(
+                                    TextSpan(children: [
+                                      TextSpan(text: '$label ', style: const TextStyle(fontSize: 11, color: Color(0xFF6C757D), fontWeight: FontWeight.bold)),
+                                      TextSpan(text: value.toStringAsFixed(3), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF6F42C1))),
+                                    ]),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
                           ],
                         ),
                       ),
@@ -643,16 +640,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                         padding: const EdgeInsets.all(20.0),
                         child: Column(
                           children: [
-                            // Mantıksal (Filtrelenmiş) Hız
-                            const Text('MANTIKSAL HIZ (km/h)', style: TextStyle(fontSize: 12, color: Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
-                            const SizedBox(height: 4),
-                            Text(
-                              currentSpeed.toStringAsFixed(1),
-                              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF198754))
-                            ),
-
-                            const SizedBox(height: 12),
-
                             // Ham (Seken) GPS Hızı ve Düzeltilmiş (Fused) GPS Hızı yan yana
                             Row(
                               children: [
@@ -710,6 +697,58 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                             ),
                           ],
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+
+                    // Harita Kartı: o anki ham GPS konumu ve doğruluk dairesi (OpenStreetMap)
+                    Card(
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                      color: Colors.white,
+                      clipBehavior: Clip.antiAlias,
+                      child: SizedBox(
+                        height: 260,
+                        child: lastFixTime == null
+                            ? const Center(child: Text('Harita, ilk GPS konumu gelince açılır', style: TextStyle(fontSize: 13, color: Color(0xFF6C757D))))
+                            : FlutterMap(
+                                mapController: _mapController,
+                                options: MapOptions(
+                                  initialCenter: LatLng(currentLat, currentLon),
+                                  initialZoom: 17,
+                                  onMapReady: () => _mapReady = true,
+                                  // Sürükleme kapalı (sayfa kaydırmasıyla çakışmasın); harita konumu kendisi takip eder, yakınlaştırılabilir
+                                  interactionOptions: const InteractionOptions(flags: InteractiveFlag.pinchZoom | InteractiveFlag.doubleTapZoom),
+                                ),
+                                children: [
+                                  TileLayer(
+                                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                    userAgentPackageName: 'tr.edu.yildiz.kaan_usta',
+                                  ),
+                                  CircleLayer(
+                                    circles: [
+                                      // GPS doğruluk dairesi (yarıçap = doğruluk, metre)
+                                      CircleMarker(
+                                        point: LatLng(currentLat, currentLon),
+                                        radius: currentAccuracy,
+                                        useRadiusInMeter: true,
+                                        color: const Color(0x330D6EFD),
+                                        borderColor: const Color(0xFF0D6EFD),
+                                        borderStrokeWidth: 1,
+                                      ),
+                                      // O anki konum
+                                      CircleMarker(
+                                        point: LatLng(currentLat, currentLon),
+                                        radius: 7,
+                                        color: const Color(0xFF0D6EFD),
+                                        borderColor: Colors.white,
+                                        borderStrokeWidth: 2,
+                                      ),
+                                    ],
+                                  ),
+                                  const SimpleAttributionWidget(source: Text('OpenStreetMap katkıcıları')),
+                                ],
+                              ),
                       ),
                     ),
 

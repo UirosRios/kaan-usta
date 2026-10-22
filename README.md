@@ -15,7 +15,6 @@ Telefonun GPS'i ve ivmeölçeri ile mikromobilite (e-scooter, bisiklet vb.) sür
 |---|---|
 | `Tarih_Saat` | Kayıt zamanı |
 | `Enlem`, `Boylam` | Son geçerli ham GPS konumu (WGS84, derece) |
-| `Mantiksal_Hiz_kmh` | Ham hızın 2 km/h altı sıfırlanmış hali |
 | `Ham_Hiz_kmh` | Doğrudan GPS donanımından ham hız (Doppler, yumuşatma yok) |
 | `Duzeltilmis_GPS_Hiz_kmh` | Fused (birleşik) konum servisinin hızı; uygulamada "Düzeltilmiş GPS" |
 | `Z_Net` | O andaki yerçekimi çıkarılmış Z ivmesi (m/s²); hareketsizken ≈ 0 |

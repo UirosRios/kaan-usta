@@ -59,8 +59,8 @@ class AboutPage extends StatelessWidget {
             lines: [
               'Doğrudan GPS donanımı okunur (Android GPS_PROVIDER); yumuşatma yapılmaz. Yonga destekliyorsa GLONASS, Galileo ve BeiDou da kullanılır.',
               'Hız, uydu sinyalinin Doppler kaymasından ölçülür. Konum çoğu telefonda saniyede 1 kez gelir.',
-              'Ekranda: HAM GPS HIZI, MANTIKSAL HIZ, KOORDİNATLAR, Doğruluk',
-              'CSV: Enlem, Boylam, Ham_Hiz_kmh, Mantiksal_Hiz_kmh, GPS_Dogruluk_m, GPS_Yasi_s',
+              'Ekranda: HAM GPS HIZI, KOORDİNATLAR, Doğruluk, HARİTA',
+              'CSV: Enlem, Boylam, Ham_Hiz_kmh, GPS_Dogruluk_m, GPS_Yasi_s',
             ],
           ),
           const _InfoCard(
@@ -77,6 +77,14 @@ class AboutPage extends StatelessWidget {
               'CSV\'deki Tarih_Saat ve GPS yaşı hesapları telefonun sistem saatinden gelir (uydu saati değildir).',
             ],
           ),
+          const _InfoCard(
+            title: 'Harita',
+            lines: [
+              'OpenStreetMap haritası (flutter_map). Mavi nokta o anki ham GPS konumu, açık mavi daire GPS doğruluğu (yarıçap = doğruluk, m).',
+              'Harita konumu kendisi takip eder; iki parmakla veya çift dokunarak yakınlaştırılabilir.',
+              'Harita karoları internetten yüklenir; ölçümü ve kaydı etkilemez.',
+            ],
+          ),
           const _SectionTitle('KAYIT YÖNTEMİ'),
           const _InfoCard(
             title: 'Örnekleme ve filtreler',
@@ -86,7 +94,6 @@ class AboutPage extends StatelessWidget {
               'Z_Net_RMS: yerçekimi çıkarılmış Z\'nin pencere içindeki RMS\'i = sarsıntı şiddeti.',
               'Z_Ham_Ort: ham Z ortalaması ≈ yerçekiminin Z bileşeni; telefon eğildikçe 9,81\'den küçülür.',
               'Doğruluğu 50 m\'den kötü GPS konumları atılır.',
-              'Mantıksal hız: ham hız 2 km/h altındaysa 0 kabul edilir.',
             ],
           ),
           const _InfoCard(
