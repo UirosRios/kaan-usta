@@ -62,6 +62,7 @@ Uygulamada sağ üstteki **ⓘ** simgesine dokununca açılan *Hakkında / Tekni
 
 - Telefon araca **sıkıca** sabitlenmelidir; **açısı önemli değildir** (dikey sarsıntı açıdan bağımsız hesaplanır).
   Gevşek tutucu veya cep/çanta ölçümü bozar. Montaj açısı `Egim_derece` sütununa yazılır.
-- Uzun süren fren veya virajlarda (1–2 sn'den uzun) yerçekimi yönü tahmini birkaç derece kayabilir;
-  sarsıntı değerine etkisi %1'in altındadır.
+- Yaklaşık 1 sn'den uzun süren hızlanma, fren veya virajlarda yerçekimi yönü tahmini, yatay ivmenin
+  yerçekimine oranı kadar kayar (ör. 1 m/s² fren ≈ 6°, 3 m/s² sert fren ≈ 17°). Bu sürede dikey sarsıntı
+  %0,5–4 eksik ölçülür ve yatay titreşimin bir kısmı (açının sinüsü kadar, ≈ %10–30) dikeye karışır.
 - Kayıt süresince uygulama **açık ve ön planda** kalmalıdır (ekran otomatik kapanmaz).
