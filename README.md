@@ -1,7 +1,7 @@
 # Mikromobilite Sarsıntı Ölçer (Kaan Usta – YTÜ Harita Mühendisliği Tezi)
 
 Telefonun GPS'i ve ivmeölçeri ile mikromobilite (e-scooter, bisiklet vb.) sürüşünde
-**hıza göre Z-ekseni sarsıntısını** ölçüp CSV olarak dışa aktaran Android uygulaması.
+**hıza göre dikey sarsıntıyı** ölçüp CSV olarak dışa aktaran Android uygulaması.
 
 ## APK'yı indirme
 
@@ -17,21 +17,28 @@ Telefonun GPS'i ve ivmeölçeri ile mikromobilite (e-scooter, bisiklet vb.) sür
 | `Enlem`, `Boylam` | Son geçerli ham GPS konumu (WGS84, derece) |
 | `Ham_Hiz_kmh` | Doğrudan GPS donanımından ham hız (Doppler, yumuşatma yok) |
 | `Duzeltilmis_GPS_Hiz_kmh` | Fused (birleşik) konum servisinin hızı; uygulamada "Düzeltilmiş GPS" |
-| `Z_Net` | O andaki yerçekimi çıkarılmış Z ivmesi (m/s²); hareketsizken ≈ 0 |
+| `Dikey_Net` | O andaki dikey sarsıntı (m/s²): titreşimin gerçek düşey yöndeki bileşeni, telefonun montaj açısından bağımsız |
+| `Dikey_RMS` | Penceredeki dikey sarsıntının RMS'i → **ana sarsıntı şiddeti ölçüsü** |
+| `Dikey_Min`, `Dikey_Max` | Penceredeki en düşük / en yüksek dikey sarsıntı (darbe tepe değerleri) |
+| `Toplam_RMS` | Üç eksen titreşim vektörünün RMS büyüklüğü (dikey + yatay), yönden bağımsız |
+| `Egim_derece` | Penceredeki ortalama telefon eğimi: Z ekseni ile düşey arasındaki açı (ekran yukarı ve yatayken 0°) |
+| `Z_Net` | O andaki yerçekimi çıkarılmış Z ivmesi (m/s²), yalnızca telefonun kendi Z ekseni |
 | `Z_Ham` | O andaki ham Z ivmesi (m/s², yerçekimi dahil) |
 | `Z_Ham_Ort` | 0,5 sn penceredeki ham Z ortalaması (≈ yerçekiminin Z bileşeni; telefon eğildikçe 9,81'den küçülür) |
-| `Z_Net_RMS` | Penceredeki yerçekimi çıkarılmış Z'nin RMS'i → **sarsıntı şiddeti** |
+| `Z_Net_RMS` | Penceredeki yerçekimi çıkarılmış Z'nin RMS'i (telefon yatayken `Dikey_RMS` ile aynı) |
 | `Z_Net_Min`, `Z_Net_Max` | Penceredeki en düşük / en yüksek yerçekimsiz Z (darbe tepe değerleri) |
-| `Z_Ornek_Sayisi` | Penceredeki ivmeölçer örneği sayısı (~25 beklenir) |
+| `Ivme_Ornek_Sayisi` | Penceredeki ivmeölçer örneği sayısı (~25 beklenir) |
 | `Jiro_X_Ort`, `Jiro_Y_Ort`, `Jiro_Z_Ort` | Penceredeki ortalama açısal hız (rad/s); ekran yukarı, üst kenar ileri takılıysa X = öne/arkaya eğilme, Y = yana yatma, Z = sağa/sola dönüş |
 | `Jiro_Max_Bileske` | Penceredeki en büyük bileşke açısal hız √(x²+y²+z²) (rad/s). Jiroskop yoksa jiroskop sütunları boş kalır |
 | `GPS_Dogruluk_m` | Ham GPS yatay doğruluğu (m, %68 güven yarıçapı) |
 | `GPS_Yasi_s` | Son ham GPS konumundan bu yana geçen süre (GPS kesintilerini ayıklamak için) |
 | `Duzeltilmis_GPS_Yasi_s` | Son düzeltilmiş (Fused) konumdan bu yana geçen süre |
 
-**Yerçekimi giderme:** Ham Z, 0,4 Hz kesim frekanslı birinci dereceden yüksek geçiren
-filtreden (bilineer/Tustin dönüşümü) geçirilir. 0,4 Hz, ISO 2631-1'in alt bant sınırıdır.
-Filtre ilk ~2 saniyede oturur.
+**Yerçekimi giderme ve dikey sarsıntı:** İvmenin üç ekseni de 0,4 Hz kesim frekanslı birinci
+dereceden yüksek geçiren filtreden (bilineer/Tustin dönüşümü) geçirilir; 0,4 Hz, ISO 2631-1'in alt
+bant sınırıdır. Filtre çıkışı titreşim, ham ivme − titreşim ise yerçekimi vektörüdür (telefonun o anki
+"aşağı" yönü). Dikey sarsıntı, titreşim vektörünün yerçekimi yönüne izdüşümüdür; bu sayede telefon
+hangi açıda takılırsa takılsın aynı sarsıntı aynı değeri verir. Filtre ilk ~2 saniyede oturur.
 
 ## Kayıt dosyaları
 
@@ -53,6 +60,8 @@ Uygulamada sağ üstteki **ⓘ** simgesine dokununca açılan *Hakkında / Tekni
 
 ## Ölçüm notları
 
-- Telefon gidonda **sabit bir tutucuya, ekranı yukarı bakacak şekilde** yatay monte edilmelidir;
-  Z ekseni ekrana diktir, telefon eğik durursa düşey sarsıntı tam ölçülmez.
+- Telefon araca **sıkıca** sabitlenmelidir; **açısı önemli değildir** (dikey sarsıntı açıdan bağımsız hesaplanır).
+  Gevşek tutucu veya cep/çanta ölçümü bozar. Montaj açısı `Egim_derece` sütununa yazılır.
+- Uzun süren fren veya virajlarda (1–2 sn'den uzun) yerçekimi yönü tahmini birkaç derece kayabilir;
+  sarsıntı değerine etkisi %1'in altındadır.
 - Kayıt süresince uygulama **açık ve ön planda** kalmalıdır (ekran otomatik kapanmaz).

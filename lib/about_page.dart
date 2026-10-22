@@ -37,11 +37,14 @@ class AboutPage extends StatelessWidget {
           const _InfoCard(
             title: '1. İvmeölçer (sarsıntı)',
             lines: [
-              'Ölçtüğü: Ekrana dik (Z) eksendeki ivme, m/s². Ham değere yerçekimi dahildir; telefon düz dururken ≈ 9,81.',
-              'Yerçekimi giderme: ham Z, 0,4 Hz kesim frekanslı birinci dereceden yüksek geçiren filtreden (bilineer dönüşüm) geçirilir (0,4 Hz = ISO 2631-1 alt bant sınırı). Sonuç (Z_Net) hareketsizken ≈ 0 olur. Filtre ilk ~2 saniyede oturur.',
-              'Örnekleme: ~50 Hz istenir (gerçek sayı CSV\'de Z_Ornek_Sayisi).',
-              'Ekranda: Z-EKSENİ SARSINTI (büyük sayı Z_Net, altında ham değer)',
-              'CSV: Z_Net, Z_Ham, Z_Ham_Ort, Z_Net_RMS, Z_Net_Min, Z_Net_Max, Z_Ornek_Sayisi',
+              'Ölçtüğü: Üç eksendeki ivme (X, Y, Z), m/s². Ham değere yerçekimi dahildir; telefon düz dururken Z ≈ 9,81.',
+              'Yerçekimi giderme: her eksen 0,4 Hz kesim frekanslı birinci dereceden yüksek geçiren filtreden (bilineer dönüşüm) geçirilir (0,4 Hz = ISO 2631-1 alt bant sınırı). Filtre çıkışı titreşimdir; ham ivme − titreşim = yerçekimi, yani telefonun o anki "aşağı" yönü. Filtre ilk ~2 saniyede oturur.',
+              'DİKEY SARSINTI: titreşimin gerçek düşey yöndeki bileşeni. Telefon hangi açıda takılırsa takılsın aynı sarsıntı aynı değeri verir.',
+              'TOPLAM: üç eksendeki titreşimin büyüklüğü (dikey + yatay), yönden bağımsız.',
+              'Z-EKSENİ: yalnızca telefonun kendi Z ekseni (ekrana dik). Telefon yatay değilse düşey sarsıntının bir kısmını ölçer.',
+              'EĞİM: telefonun yataydan eğimi (ekran yukarı ve yatayken 0°).',
+              'Örnekleme: ~50 Hz istenir (gerçek sayı CSV\'de Ivme_Ornek_Sayisi).',
+              'CSV: Dikey_Net, Dikey_RMS, Dikey_Min, Dikey_Max, Toplam_RMS, Egim_derece, Z_Net, Z_Ham, Z_Ham_Ort, Z_Net_RMS, Z_Net_Min, Z_Net_Max, Ivme_Ornek_Sayisi',
             ],
           ),
           const _InfoCard(
@@ -91,8 +94,9 @@ class AboutPage extends StatelessWidget {
             lines: [
               'Her 0,5 saniyede bir CSV satırı yazılır (saniyede 2 satır).',
               'İvmeölçer ve jiroskop için o 0,5 sn içindeki tüm örneklerin istatistiği alınır.',
-              'Z_Net_RMS: yerçekimi çıkarılmış Z\'nin pencere içindeki RMS\'i = sarsıntı şiddeti.',
-              'Z_Ham_Ort: ham Z ortalaması ≈ yerçekiminin Z bileşeni; telefon eğildikçe 9,81\'den küçülür.',
+              'Dikey_RMS: dikey sarsıntının pencere içindeki RMS\'i = ana sarsıntı şiddeti ölçüsü.',
+              'Toplam_RMS: üç eksen titreşiminin RMS\'i. Egim_derece: pencere içindeki ortalama eğim.',
+              'Z_Net_RMS: yalnızca telefonun Z ekseni için aynı ölçü (telefon yatayken Dikey_RMS ile aynıdır).',
               'Doğruluğu 50 m\'den kötü GPS konumları atılır.',
             ],
           ),
@@ -108,7 +112,8 @@ class AboutPage extends StatelessWidget {
           const _InfoCard(
             title: 'Montaj',
             lines: [
-              'Telefon gidona sabit bir tutucuyla, ekranı yukarı bakacak şekilde yatay takılmalıdır.',
+              'Telefon araca sıkıca sabitlenmelidir; açısı önemli değildir (dikey sarsıntı açıdan bağımsız hesaplanır). Gevşek tutucu veya cep/çanta ölçümü bozar.',
+              'Montaj açısı her kayıtta Egim_derece sütununa yazılır.',
               'Kayıt boyunca uygulama açık ve ön planda kalmalıdır (ekran otomatik kapanmaz).',
             ],
           ),
