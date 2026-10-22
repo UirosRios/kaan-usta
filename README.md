@@ -27,7 +27,7 @@ Telefonun GPS'i ve ivmeölçeri ile mikromobilite (e-scooter, bisiklet vb.) sür
 | `Z_Ham_Ort` | 0,5 sn penceredeki ham Z ortalaması (≈ yerçekiminin Z bileşeni; telefon eğildikçe 9,81'den küçülür) |
 | `Z_Net_RMS` | Penceredeki yerçekimi çıkarılmış Z'nin RMS'i (telefon yatayken `Dikey_RMS` ile aynı) |
 | `Z_Net_Min`, `Z_Net_Max` | Penceredeki en düşük / en yüksek yerçekimsiz Z (darbe tepe değerleri) |
-| `Ivme_Ornek_Sayisi` | Penceredeki ivmeölçer örneği sayısı (~25 beklenir) |
+| `Ivme_Ornek_Sayisi` | Penceredeki ivmeölçer örneği sayısı (~200 Hz istenir → ~100 beklenir; telefon daha yavaş veriyorsa daha az) |
 | `Jiro_X_Ort`, `Jiro_Y_Ort`, `Jiro_Z_Ort` | Penceredeki ortalama açısal hız (rad/s); ekran yukarı, üst kenar ileri takılıysa X = öne/arkaya eğilme, Y = yana yatma, Z = sağa/sola dönüş |
 | `Jiro_Max_Bileske` | Penceredeki en büyük bileşke açısal hız √(x²+y²+z²) (rad/s). Jiroskop yoksa jiroskop sütunları boş kalır |
 | `GPS_Dogruluk_m` | Ham GPS yatay doğruluğu (m, %68 güven yarıçapı) |
@@ -52,8 +52,8 @@ hangi açıda takılırsa takılsın aynı sarsıntı aynı değeri verir. Filtr
 
 Uygulamada sağ üstteki **ⓘ** simgesine dokununca açılan *Hakkında / Teknik Bilgi* sayfasında da listelenir.
 
-1. **İvmeölçer** – Z ekseni ivmesi (m/s²), ~50 Hz; yerçekimi filtreyle çıkarılır
-2. **Jiroskop** – X/Y/Z açısal hız (rad/s), ~50 Hz
+1. **İvmeölçer** – Z ekseni ivmesi (m/s²), ~200 Hz; yerçekimi filtreyle çıkarılır
+2. **Jiroskop** – X/Y/Z açısal hız (rad/s), ~200 Hz
 3. **GNSS alıcısı (ham GPS)** – doğrudan GPS_PROVIDER; konum, Doppler hızı, doğruluk
 4. **Fused konum servisi (düzeltilmiş GPS)** – Google'ın birleşik konum servisi
 5. **Telefon saati** – zaman damgası

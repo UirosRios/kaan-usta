@@ -64,7 +64,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   bool _mapReady = false;
 
   // Kayıt penceresi (500 ms) içindeki tüm Z örnekleri.
-  // İvmeölçer ~50 Hz okunur; pencere başına istatistik çıkarılır ki
+  // İvmeölçer ~200 Hz okunur; pencere başına istatistik çıkarılır ki
   // 2 Hz kayıtta tek anlık değer alınmasından doğan örtüşme (aliasing) olmasın.
   final List<double> _zWindow = [];
   final List<double> _zNetWindow = [];
@@ -76,6 +76,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   // geçirilir (bilineer / Tustin dönüşümü). Filtre çıkışı titreşimdir; ham ivme − titreşim = yerçekimi vektörü,
   // yani telefonun o anki "aşağı" yönü. 0,4 Hz, ISO 2631-1 titreşim değerlendirmesinin alt bant sınırıdır.
   static const double gravityCutoffHz = 0.4;
+  static const Duration sensorSamplingPeriod = Duration(milliseconds: 5); // ~200 Hz
   static const double _gravityTau = 1 / (2 * pi * gravityCutoffHz);
   List<double>? _prevAcc; // önceki ham ivme [x, y, z]
   final List<double> _dynAcc = [0.0, 0.0, 0.0]; // titreşim bileşeni [x, y, z]
@@ -144,8 +145,9 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   // 2. Sensörleri (GPS ve Z-Ekseni) Başlatma Fonksiyonu
   Future<void> _initSensors() async {
     // Z-Ekseni (İvmeölçer) Sensörünü Başlat
-    // gameInterval = 20 ms (~50 Hz). Varsayılan (normalInterval) 200 ms olup sarsıntı için çok yavaştır.
-    accelSubscription = accelerometerEventStream(samplingPeriod: SensorInterval.gameInterval).listen((AccelerometerEvent event) {
+    // 5 ms (~200 Hz): kısa çukur darbelerinin (~30 ms) tepesi kaçmasın. Android 12+'da özel izin
+    // olmadan izin verilen en yüksek hız budur. Telefon daha yavaş verirse Ivme_Ornek_Sayisi'nda görülür.
+    accelSubscription = accelerometerEventStream(samplingPeriod: sensorSamplingPeriod).listen((AccelerometerEvent event) {
       zAxis = event.z;
       final acc = [event.x, event.y, event.z];
 
@@ -185,9 +187,9 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       }
     });
 
-    // Jiroskop (açısal hız) Sensörünü Başlat - ivmeölçerle aynı hızda (~50 Hz)
+    // Jiroskop (açısal hız) Sensörünü Başlat - ivmeölçerle aynı hızda (~200 Hz)
     // Telefonun tutucuda eğilmesi / dönmesi bu sensörle izlenir
-    gyroSubscription = gyroscopeEventStream(samplingPeriod: SensorInterval.gameInterval).listen((GyroscopeEvent event) {
+    gyroSubscription = gyroscopeEventStream(samplingPeriod: sensorSamplingPeriod).listen((GyroscopeEvent event) {
       gyroX = event.x;
       gyroY = event.y;
       gyroZ = event.z;
@@ -463,7 +465,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       ...DeviceInfo.describe(info),
       '',
       'Ölçüm ayarları:',
-      '  İstenen sensör örnekleme aralığı: 20 ms (~50 Hz), ivmeölçer ve jiroskop',
+      '  İstenen sensör örnekleme aralığı: 5 ms (~200 Hz), ivmeölçer ve jiroskop',
       '  Kayıt penceresi: 0,5 s (saniyede 2 satır)',
       '  Yerçekimi giderme: ivmenin üç eksenine birinci dereceden yüksek geçiren filtre (bilineer dönüşüm), kesim frekansı $gravityCutoffHz Hz',
       '  Yerçekimi yönü = ham ivme − filtre çıkışı; Dikey_* = titreşimin bu yöne izdüşümü (telefonun montaj açısından bağımsız)',

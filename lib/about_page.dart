@@ -43,7 +43,7 @@ class AboutPage extends StatelessWidget {
               'TOPLAM: üç eksendeki titreşimin büyüklüğü (dikey + yatay), yönden bağımsız.',
               'Z-EKSENİ: yalnızca telefonun kendi Z ekseni (ekrana dik). Telefon yatay değilse düşey sarsıntının bir kısmını ölçer.',
               'EĞİM: telefonun yataydan eğimi (ekran yukarı ve yatayken 0°).',
-              'Örnekleme: ~50 Hz istenir (gerçek sayı CSV\'de Ivme_Ornek_Sayisi).',
+              'Örnekleme: ~200 Hz istenir (5 ms; kısa çukur darbelerinin tepesi kaçmasın diye). Gerçek sayı CSV\'de Ivme_Ornek_Sayisi (~100 / 0,5 sn beklenir); telefonun verebildiği en yüksek hız BU CİHAZ bölümünde.',
               'CSV: Dikey_Net, Dikey_RMS, Dikey_Min, Dikey_Max, Toplam_RMS, Egim_derece, Z_Net, Z_Ham, Z_Ham_Ort, Z_Net_RMS, Z_Net_Min, Z_Net_Max, Ivme_Ornek_Sayisi',
             ],
           ),
@@ -52,7 +52,7 @@ class AboutPage extends StatelessWidget {
             lines: [
               'Ölçtüğü: Üç eksendeki açısal hız, rad/s. Telefon hareketsizken üçü de ≈ 0.',
               'Telefon ekranı yukarı, üst kenarı ileri bakacak şekilde takılıysa: X = öne/arkaya eğilme, Y = yana yatma, Z = sağa/sola dönüş.',
-              'Örnekleme: ~50 Hz istenir.',
+              'Örnekleme: ~200 Hz istenir.',
               'Ekranda: JİROSKOP X / Y / Z',
               'CSV: Jiro_X_Ort, Jiro_Y_Ort, Jiro_Z_Ort, Jiro_Max_Bileske',
             ],
