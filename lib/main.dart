@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -89,7 +88,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   // Türkçe Excel biçimi: sütun ayırıcı noktalı virgül, ondalık ayırıcı virgül
   // (Python: pd.read_csv(dosya, sep=';', decimal=','))
   static const String _csvHeader = "Tarih_Saat;Enlem;Boylam;GPS_Doppler_Hiz_kmh;Duzeltilmis_GPS_Hiz_kmh;"
-      "Dikey_RMS;Dikey_Min;Dikey_Max;Ivme_Ornek_Sayisi;GPS_Dogruluk_m;Isaret";
+      "Dikey_RMS;Dikey_Min;Dikey_Max;Ivme_Ornek_Sayisi;GPS_Dogruluk_m;Cukur";
 
   // Sayıyı CSV için ondalık virgülle yaz
   static String _num(double v, int digits) => v.toStringAsFixed(digits).replaceAll('.', ',');
@@ -101,13 +100,16 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   bool _writeError = false;
   bool _busy = false; // başlatma/durdurma sürerken düğmeye ikinci kez basılmasını engeller
 
-  // ÇUKUR İŞARETİ: sürücü çukurdan geçince butona basar; basılan 0,5 sn'lik satırın Isaret sütununa yazılır.
-  // Geri bildirim yalnızca sesle verilir: titreşim motoru ivmeölçere karışacağı için kullanılmaz.
-  final AudioPlayer _markPlayer = AudioPlayer();
-  int _markCount = 0; // bu kayıttaki toplam işaret
-  int _windowMarks = 0; // içinde bulunulan 0,5 sn'lik penceredeki işaret
-  DateTime? _lastMark;
-  bool _markFlash = false;
+  // ANLIK ÇUKUR UYARISI: 0,5 sn'lik penceredeki en büyük dikey ivme (|Dikey_Min| veya Dikey_Max) eşiği aşarsa
+  // sarsıntı kartı kırmızı yanar ve CSV'de o satırın Cukur sütununa 1 yazılır. Sabit eşik seçildi: kayıt sırasında
+  // yalnızca geçmiş bilinir; geçmişe göre (göreli) eşik gerçek sürüşlerde sabit eşikten daha iyi sonuç vermedi.
+  // Hız eşiği: duruşta scooter'ı elle çevirmek / itmek uyarı vermesin. Ayrıntılı tespit analiz betiğindedir.
+  static const double cukurEsik = 35.0; // m/s²
+  static const double cukurMinHiz = 3.0; // km/h
+  static const Duration cukurIsikSuresi = Duration(milliseconds: 1500);
+  int _cukurCount = 0; // bu kayıttaki uyarı sayısı
+  DateTime? _cukurIsikBitis;
+  bool get _cukurIsigi => _cukurIsikBitis != null && DateTime.now().isBefore(_cukurIsikBitis!);
 
   // Abonelikler
   // Ham GPS, Android tarafında (MainActivity.kt) GPS_PROVIDER'dan okunur
@@ -123,36 +125,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     DeviceInfo.load();
     _startClock();
     _initSensors();
-    _initMarkSound();
-  }
-
-  // Akbil sesi: düşük gecikmeli çalma; başka uygulamanın sesini (müzik, navigasyon) durdurmaz
-  Future<void> _initMarkSound() async {
-    try {
-      await _markPlayer.setAudioContext(AudioContextConfig(focus: AudioContextConfigFocus.mixWithOthers).build());
-      await _markPlayer.setPlayerMode(PlayerMode.lowLatency);
-      await _markPlayer.setReleaseMode(ReleaseMode.stop);
-      await _markPlayer.setSource(AssetSource('sesler/akbil.mp3'));
-    } catch (e) {
-      debugPrint('İşaret sesi yüklenemedi: $e');
-    }
-  }
-
-  // Çukur butonu: 1 sn içindeki ikinci basış sayılmaz (yanlışlıkla çift dokunma)
-  void _markPothole() {
-    if (!isRecording) return;
-    final now = DateTime.now();
-    if (_lastMark != null && now.difference(_lastMark!) < const Duration(seconds: 1)) return;
-    _lastMark = now;
-    _windowMarks++;
-    setState(() {
-      _markCount++;
-      _markFlash = true;
-    });
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) setState(() => _markFlash = false);
-    });
-    _markPlayer.stop().then((_) => _markPlayer.resume()).catchError((Object e) => debugPrint('İşaret sesi çalınamadı: $e'));
   }
 
   // 1. Canlı Saat ve Tarih Fonksiyonu
@@ -371,9 +343,8 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     WakelockPlus.enable();
 
     _verticalWindow.clear();
-    _windowMarks = 0;
-    _markCount = 0;
-    _lastMark = null;
+    _cukurCount = 0;
+    _cukurIsikBitis = null;
 
     // Saniyede 2 kez (500 milisaniye) veri örnekleme
     _recordTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
@@ -386,8 +357,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       // Dikey_RMS: ana sarsıntı ölçüsü; Dikey_Min / Dikey_Max: darbe tepe değerleri
       final vSamples = List<double>.from(_verticalWindow);
       _verticalWindow.clear();
-      final int marks = _windowMarks;
-      _windowMarks = 0;
       double vRms = 0, vMin = 0, vMax = 0;
       if (vSamples.isNotEmpty) {
         vRms = sqrt(vSamples.map((v) => v * v).reduce((a, b) => a + b) / vSamples.length);
@@ -400,6 +369,15 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       bool fresh(DateTime? t) => t != null && now.difference(t) <= gpsMaxAge;
       final bool gpsOk = fresh(lastFixTime);
       final bool fusedOk = fresh(lastFusedFixTime);
+
+      // Anlık çukur uyarısı (GPS hızı yoksa hareket bilinmediği için uyarı verilmez)
+      final bool cukur = gpsOk && currentRawSpeed >= cukurMinHiz && max(vMin.abs(), vMax) >= cukurEsik;
+      if (cukur) {
+        setState(() {
+          _cukurCount++;
+          _cukurIsikBitis = now.add(cukurIsikSuresi);
+        });
+      }
 
       // O anki sensör verilerini CSV formatında noktalı virgülle ayırarak kaydet
       // Tarih_Saat: 2026-10-23 14:05:31,512 (milisaniye de ondalık virgülle)
@@ -414,7 +392,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
         _num(vMax, 4),
         '${vSamples.length}',
         gpsOk ? _num(currentAccuracy, 1) : '',
-        marks > 0 ? '$marks' : '',
+        cukur ? '1' : '',
       ].join(';');
       _pendingRows.add(row);
       _rowCount++;
@@ -450,7 +428,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       'Kayıt başlangıcı: $_recordStart',
       'Kayıt bitişi: ${end ?? "(kayıt sürüyor veya düzgün kapatılmadı)"}',
       'Satır sayısı: ${end == null ? "(kayıt bitince yazılır; CSV'deki satırları sayın)" : _rowCount}',
-      'Çukur işareti sayısı: ${end == null ? "(kayıt bitince yazılır)" : _markCount}',
+      'Çukur uyarısı sayısı: ${end == null ? "(kayıt bitince yazılır)" : _cukurCount}',
       '',
       ...DeviceInfo.describe(info),
       '',
@@ -466,8 +444,8 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       '  GPS konum filtresi: doğruluğu 50 m\'den kötü konumlar atılır',
       '  GPS kesintisi: son konum ${gpsMaxAge.inSeconds} sn\'den eskiyse Enlem, Boylam, GPS_Doppler_Hiz_kmh ve GPS_Dogruluk_m boş bırakılır;',
       '  düzeltilmiş GPS ${gpsMaxAge.inSeconds} sn\'den eskiyse Duzeltilmis_GPS_Hiz_kmh boş bırakılır',
-      '  Isaret: çukur butonuna o 0,5 sn içinde kaç kez basıldığı (boş = basılmadı). Basış çukurdan 1-3 sn sonra gelir;',
-      '  analiz betiği basıştan önceki en büyük sarsıntı tepesini çukur olarak eşleştirir. Geri bildirim sesle verilir (titreşim yok).',
+      '  Cukur: anlık çukur uyarısı (1 = o 0,5 sn içinde |Dikey_Min| veya Dikey_Max ≥ ${cukurEsik.toStringAsFixed(0)} m/s² ve GPS hızı ≥ ${cukurMinHiz.toStringAsFixed(0)} km/h).',
+      '  Ayrıntılı darbe tespiti (çevredeki sarsıntıya göre, GPS gecikmesi düzeltilmiş) analiz betiğiyle yapılır.',
     ];
     await infoFileFor(file).writeAsString('${lines.join('\n')}\n', flush: true);
   }
@@ -531,7 +509,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     rawGpsSubscription?.cancel();
     geoSubscription?.cancel();
     accelSubscription?.cancel();
-    _markPlayer.dispose();
     WakelockPlus.disable();
     super.dispose();
   }
@@ -619,21 +596,25 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                    // Sarsıntı Kartı: büyük sayı dikey sarsıntı, altında küçük toplam ve eğim
+                    // Sarsıntı Kartı: büyük sayı dikey sarsıntı, altında küçük toplam ve eğim.
+                    // Kayıt sırasında çukur uyarısı gelince 1,5 sn kırmızı yanar.
                     Card(
                       elevation: 4,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                      color: Colors.white,
+                      color: _cukurIsigi ? const Color(0xFFDC3545) : Colors.white,
                       child: Padding(
                         padding: const EdgeInsets.all(20.0),
                         child: Column(
                           children: [
-                            const Text('DİKEY SARSINTI (m/s²)', style: TextStyle(fontSize: 14, color: Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
+                            Text(
+                              _cukurIsigi ? 'ÇUKUR!' : 'DİKEY SARSINTI (m/s²)',
+                              style: TextStyle(fontSize: 14, color: _cukurIsigi ? Colors.white : const Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1),
+                            ),
                             const SizedBox(height: 10),
                             // Yerçekimi çıkarılmış, gerçek düşey yöndeki titreşim: hareketsizken ≈ 0, telefonun açısından bağımsız
                             Text(
                               verticalNet.toStringAsFixed(3),
-                              style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Color(0xFF003366))
+                              style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: _cukurIsigi ? Colors.white : const Color(0xFF003366))
                             ),
                             const SizedBox(height: 8),
                             Row(
@@ -641,12 +622,13 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                                 for (final (label, value) in [
                                   ('TOPLAM', totalNet.toStringAsFixed(3)),
                                   ('EĞİM', '${tiltDeg.toStringAsFixed(0)}°'),
+                                  if (isRecording) ('ÇUKUR', '$_cukurCount'), // bu kayıttaki uyarı sayısı
                                 ])
                                   Expanded(
                                     child: Column(
                                       children: [
-                                        Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
-                                        Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF495057))),
+                                        Text(label, style: TextStyle(fontSize: 10, color: _cukurIsigi ? Colors.white70 : const Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
+                                        Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _cukurIsigi ? Colors.white : const Color(0xFF495057))),
                                       ],
                                     ),
                                   ),
@@ -795,46 +777,17 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                     ),
                     const SizedBox(height: 15),
 
-                    // ÇUKUR İŞARET Butonu (yalnızca kayıt sırasında): büyük, bakmadan basılabilir.
-                    // Dokunulduğu an (parmak kalkmadan) sayılır; sistem tık sesi / titreşimi kapalı.
-                    if (isRecording) ...[
-                      Material(
-                        color: _markFlash ? const Color(0xFFFFC107) : const Color(0xFFFD7E14),
-                        borderRadius: BorderRadius.circular(15),
-                        elevation: 4,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(15),
-                          enableFeedback: false,
-                          onTapDown: (_) => _markPothole(),
-                          child: SizedBox(
-                            height: 110,
-                            child: Center(
-                              child: Text(
-                                'ÇUKUR\n($_markCount işaret)',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 2),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-
-                    // BAŞLAT / DURDUR Butonu. Kayıt sırasında DURDUR basılı tutularak çalışır:
-                    // hemen üstündeki ÇUKUR butonuna basarken kayıt yanlışlıkla durmasın.
+                    // BAŞLAT / DURDUR Butonu
                     ElevatedButton(
-                      onPressed: isRecording ? () => _showMessage('Durdurmak için basılı tutun') : startRecording,
-                      onLongPress: isRecording ? stopRecording : null,
+                      onPressed: isRecording ? stopRecording : startRecording,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isRecording ? Colors.redAccent : const Color(0xFF198754),
-                        enableFeedback: false, // basılı tutunca titreşmesin (son satıra karışmasın)
                         padding: const EdgeInsets.symmetric(vertical: 20),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                         elevation: 4,
                       ),
                       child: Text(
-                        isRecording ? 'DURDUR - basılı tutun ($_rowCount satır)' : 'BAŞLAT',
+                        isRecording ? 'DURDUR ($_rowCount satır)' : 'BAŞLAT',
                         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 2),
                       ),
                     ),

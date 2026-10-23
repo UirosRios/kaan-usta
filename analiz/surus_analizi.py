@@ -93,7 +93,8 @@ def oku(yol):
                 dmin=sayi(d['Dikey_Min']),
                 dmax=sayi(d['Dikey_Max']),
                 ornek=int(d.get('Ivme_Ornek_Sayisi') or 0),
-                isaret=int(sayi(d.get('Isaret')) or 0),  # eski kayıtlarda sütun yok
+                isaret=int(sayi(d.get('Isaret')) or 0),  # eski sürümün çukur butonu (yeni kayıtlarda yok)
+                uyg_cukur=bool(sayi(d.get('Cukur'))),  # uygulamanın anlık çukur uyarısı (eski kayıtlarda yok)
             ))
     if not satirlar:
         sys.exit(f'{yol}: veri satırı yok')
@@ -422,49 +423,66 @@ def ozet_yaz(yol, ad, satirlar, r, tablo, ayar, osm_kaynak):
         except st.StatisticsError:
             pass
     y('')
+    uyarilar = [s for s in satirlar if s['uyg_cukur']]
+    if uyarilar:
+        darbe_t = [o['t'] for o in olaylar]
+        ortak = sum(1 for u in uyarilar if any(abs(u['t'] - t) <= 1.0 for t in darbe_t))
+        uyarisiz = sum(1 for t in darbe_t if not any(abs(u['t'] - t) <= 1.0 for u in uyarilar))
+        y(f'UYGULAMANIN ANLIK ÇUKUR UYARILARI ({len(uyarilar)} uyarı; Cukur sütunu)')
+        y(f'  {ortak} tanesi aşağıdaki otomatik darbelerle aynı an (±1 sn). Betiğin bulduğu {len(darbe_t)} darbenin '
+          f'{uyarisiz} tanesinde uyarı yanmamış: uygulama sabit ve yüksek bir eşik kullanır (en sert darbeler),')
+        y('  betik ise her darbeyi çevresindeki sarsıntıyla karşılaştırır.')
+        for u in uyarilar:
+            konum = f'{u["d_enlem"]:.6f}, {u["d_boylam"]:.6f}' if u['d_enlem'] is not None else 'konum yok'
+            y(f'  - {u["zaman_metin"][11:22]}  {konum}  hız {tr(u["d_hiz"], 1)} km/h  Min {tr(u["dmin"], 1)} / Max {tr(u["dmax"], 1)} m/s²'
+              f'{"  [betik: darbe]" if any(abs(u["t"] - t) <= 1.0 for t in darbe_t) else ""}')
+        y('')
     eslesen = [i for i in isaretler if i['cukur'] is not None]
-    y(f'ÇUKUR İŞARETLERİ ({len(isaretler)} basış, {len(eslesen)} tanesi bir sarsıntı tepesiyle eşleşti)')
-    if any(i['sonuc'] == 'belirsiz' for i in isaretler):
-        y('  "belirsiz": arama aralığında çukura benzer büyüklükte başka tepe(ler) de var (zemin çok pürüzlü);')
-        y('  konum yalnızca yaklaşıktır.')
-    for i in isaretler:
-        b = i['basis']
-        if i['cukur'] is None:
-            y(f'  Ç{i["no"]}: basış {b["zaman_metin"][11:22]} - {i["sonuc"]}'
-              + (f' (en büyük tepe çevre RMS\'nin {tr(i["oran"], 1)} katı)' if i['oran'] else ''))
-            x = i['tahmini']
-            if x is not None:
-                y(f'      yaklaşık konum (tipik tepki süresinden): {x["d_enlem"]:.6f}, {x["d_boylam"]:.6f} ±{i["tahmini_belirsizlik"]:.0f} m  '
-                  f'{maps_link(x["d_enlem"], x["d_boylam"])}')
-            continue
-        c = i['cukur']
-        y(f'  Ç{i["no"]}: {c["d_enlem"]:.6f}, {c["d_boylam"]:.6f}  {"yol boyunca " if c["yolda"] else ""}±{c["belirsizlik_m"]:.0f} m  '
-          f'çukur {c["zaman_metin"][11:22]}, basış {tr(i["tepki_s"], 1)} sn sonra')
-        y(f'      hız {tr(c["d_hiz"], 1)} km/h  Min {tr(c["dmin"], 1)} / Max {tr(c["dmax"], 1)} m/s²  '
-          f'(çevre RMS\'nin {tr(i["oran"], 1)} katı){"  otomatik darbe olarak da bulundu" if c["darbe"] else ""}')
-        y(f'      {maps_link(c["d_enlem"], c["d_boylam"])}')
-    if len(r['cukur_kumeleri']) < len(eslesen):
-        y('  Birden fazla geçişte işaretlenen çukurlar:')
-        for k in r['cukur_kumeleri']:
-            if len(k['olaylar']) > 1:
-                y(f'    {k["enlem"]:.6f}, {k["boylam"]:.6f} ±{k["belirsizlik_m"]:.0f} m ({len(k["olaylar"])} geçiş)  {maps_link(k["enlem"], k["boylam"])}')
-    if eslesen:
-        tepki = [i['tepki_s'] for i in eslesen]
-        bulunan = sum(1 for i in eslesen if i['cukur']['darbe'])
-        y(f'  Ortalama tepki süresi (çukur -> basış): {tr(st.mean(tepki), 1)} sn')
-        y(f'  Otomatik darbe tespiti işaretli çukurların {bulunan}/{len(eslesen)} tanesini buldu.')
-    y('')
+    if isaretler:
+        y(f'ÇUKUR İŞARETLERİ - eski çukur butonu ({len(isaretler)} basış, {len(eslesen)} tanesi bir sarsıntı tepesiyle eşleşti)')
+        if any(i['sonuc'] == 'belirsiz' for i in isaretler):
+            y('  "belirsiz": arama aralığında çukura benzer büyüklükte başka tepe(ler) de var (zemin çok pürüzlü);')
+            y('  konum yalnızca yaklaşıktır.')
+        for i in isaretler:
+            b = i['basis']
+            if i['cukur'] is None:
+                y(f'  Ç{i["no"]}: basış {b["zaman_metin"][11:22]} - {i["sonuc"]}'
+                  + (f' (en büyük tepe çevre RMS\'nin {tr(i["oran"], 1)} katı)' if i['oran'] else ''))
+                x = i['tahmini']
+                if x is not None:
+                    y(f'      yaklaşık konum (tipik tepki süresinden): {x["d_enlem"]:.6f}, {x["d_boylam"]:.6f} ±{i["tahmini_belirsizlik"]:.0f} m  '
+                      f'{maps_link(x["d_enlem"], x["d_boylam"])}')
+                continue
+            c = i['cukur']
+            y(f'  Ç{i["no"]}: {c["d_enlem"]:.6f}, {c["d_boylam"]:.6f}  {"yol boyunca " if c["yolda"] else ""}±{c["belirsizlik_m"]:.0f} m  '
+              f'çukur {c["zaman_metin"][11:22]}, basış {tr(i["tepki_s"], 1)} sn sonra')
+            y(f'      hız {tr(c["d_hiz"], 1)} km/h  Min {tr(c["dmin"], 1)} / Max {tr(c["dmax"], 1)} m/s²  '
+              f'(çevre RMS\'nin {tr(i["oran"], 1)} katı){"  otomatik darbe olarak da bulundu" if c["darbe"] else ""}')
+            y(f'      {maps_link(c["d_enlem"], c["d_boylam"])}')
+        if len(r['cukur_kumeleri']) < len(eslesen):
+            y('  Birden fazla geçişte işaretlenen çukurlar:')
+            for k in r['cukur_kumeleri']:
+                if len(k['olaylar']) > 1:
+                    y(f'    {k["enlem"]:.6f}, {k["boylam"]:.6f} ±{k["belirsizlik_m"]:.0f} m ({len(k["olaylar"])} geçiş)  {maps_link(k["enlem"], k["boylam"])}')
+        if eslesen:
+            tepki = [i['tepki_s'] for i in eslesen]
+            bulunan = sum(1 for i in eslesen if i['cukur']['darbe'])
+            y(f'  Ortalama tepki süresi (çukur -> basış): {tr(st.mean(tepki), 1)} sn')
+            y(f'  Otomatik darbe tespiti işaretli çukurların {bulunan}/{len(eslesen)} tanesini buldu.')
+        y('')
     dogrulanan = sum(1 for o in olaylar if o['cukur'])
-    y(f'OTOMATİK DARBELER ({len(olaylar)} darbe, {len(kumeler)} farklı nokta; {dogrulanan} tanesi işaretli bir çukurla aynı an)')
+    y(f'OTOMATİK DARBELER ({len(olaylar)} darbe, {len(kumeler)} farklı nokta'
+      + (f'; {dogrulanan} tanesi işaretli bir çukurla aynı an)' if isaretler else ')'))
     for n, k in enumerate(kumeler, 1):
         y(f'  Nokta {n}: {k["enlem"]:.6f}, {k["boylam"]:.6f}  ±{k["belirsizlik_m"]:.0f} m  '
           f'({len(k["olaylar"])} geçişte, en büyük tepe {tr(k["en_buyuk"], 1)} m/s²)')
         y(f'    {maps_link(k["enlem"], k["boylam"])}')
         for o in k['olaylar']:
             y(f'    - {o["zaman_metin"][11:22]}  hız {tr(o["d_hiz"], 1)} km/h  Min {tr(o["dmin"], 1)} / Max {tr(o["dmax"], 1)} m/s²  '
-              f'çevre RMS {tr(o["zemin_rms"], 1)}  konum ±{o["belirsizlik_m"]:.0f} m{"  [işaretli çukur]" if o["cukur"] else ""}')
+              f'çevre RMS {tr(o["zemin_rms"], 1)}  konum ±{o["belirsizlik_m"]:.0f} m{"  [işaretli çukur]" if o["cukur"] else ""}'
+              f'{"  [uygulama uyarısı]" if any(u["uyg_cukur"] and abs(u["t"] - o["t"]) <= 1.0 for u in satirlar) else ""}')
     y('')
-    y('NOT: İşaretlenmemiş darbeler yanlış alarm olmak zorunda değildir (rögar kapağı, kot farkı, ray vb.).')
+    y('NOT: Her darbe çukur olmak zorunda değildir (rögar kapağı, kot farkı, ray vb. de darbe verir).')
     y('Konumlar telefon GPS\'inin doğruluğuyla sınırlıdır; yerinde kontrol için noktayı belirsizlik')
     y('dairesi / aralığı içinde güzergâh boyunca arayın.')
     with open(yol, 'w', encoding='utf-8') as f:
@@ -476,13 +494,14 @@ def satirlar_yaz(yol, satirlar):
         w = csv.writer(f, delimiter=';')
         w.writerow(['Tarih_Saat', 'Duzeltilmis_Enlem', 'Duzeltilmis_Boylam', 'Yolda', 'Ham_Enlem', 'Ham_Boylam',
                     'Duzeltilmis_Hiz_kmh', 'GPS_Dogruluk_m', 'Dikey_RMS', 'Dikey_Min', 'Dikey_Max', 'Tepe', 'Cevre_RMS',
-                    'Durum', 'Isaret', 'Isaretli_Cukur', 'Darbe'])
+                    'Durum', 'Uygulama_Cukur', 'Darbe', 'Isaret', 'Isaretli_Cukur'])
         for s in satirlar:
             w.writerow([s['zaman_metin'], tr(s['d_enlem'], 6), tr(s['d_boylam'], 6),
                         '' if s['yolda'] is None else ('evet' if s['yolda'] else 'hayır'),
                         tr(s['h_enlem'], 6), tr(s['h_boylam'], 6), tr(s['d_hiz']), tr(s['d_dogruluk'], 1),
                         tr(s['rms'], 4), tr(s['dmin'], 4), tr(s['dmax'], 4), tr(s['tepe'], 4), tr(s['zemin_rms'], 4),
-                        s['durum'], s['isaret'] or '', 'evet' if s['cukur'] else '', 'evet' if s['darbe'] else ''])
+                        s['durum'], 'evet' if s['uyg_cukur'] else '', 'evet' if s['darbe'] else '',
+                        s['isaret'] or '', 'evet' if s['cukur'] else ''])
 
 
 def isaretler_yaz(yol, isaretler):
@@ -602,7 +621,10 @@ def harita_yaz(yol, ad, satirlar, r, ayar):
                f"Butona {tr(i['tepki_s'], 1)} sn sonra basıldı (gri çizgi: basış yeri)<br>"
                f"<a href='{maps_link(c['d_enlem'], c['d_boylam'])}' target='_blank'>Google Haritalar'da aç</a>")))
     oturtuldu = r['oturtma'] is not None
-    veri = json.dumps(dict(parcalar=parcalar, ham=ham, darbeler=darbeler, cukurlar=cukurlar), ensure_ascii=False)
+    uyarilar = [dict(p=[s['d_enlem'], s['d_boylam']],
+                     i=f"Uygulama uyarısı {s['zaman_metin'][11:22]} · {tr(s['d_hiz'], 1)} km/h · {tr(s['dmin'], 0)} / +{tr(s['dmax'], 0)} m/s²")
+                for s in noktalar if s['uyg_cukur']]
+    veri = json.dumps(dict(parcalar=parcalar, ham=ham, darbeler=darbeler, cukurlar=cukurlar, uyarilar=uyarilar), ensure_ascii=False)
     ad_h = html.escape(ad)
     sayfa = f"""<!doctype html>
 <html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -633,7 +655,8 @@ const sokak = L.tileLayer('https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png'
 const etiket = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{{z}}/{{y}}/{{x}}',
   {{ maxNativeZoom: 19, maxZoom: 21 }});
 uydu.addTo(harita);
-const guzergah = L.layerGroup().addTo(harita), hamGps = L.layerGroup(), darbe = L.layerGroup().addTo(harita), cukur = L.layerGroup().addTo(harita);
+const guzergah = L.layerGroup().addTo(harita), hamGps = L.layerGroup(), darbe = L.layerGroup().addTo(harita), cukur = L.layerGroup().addTo(harita),
+  uyari = L.layerGroup().addTo(harita);
 const sinir = [];
 for (const p of V.parcalar) {{
   L.polyline(p.p, {{ color: p.r, weight: 5, opacity: .95, dashArray: p.d ? '4 6' : null }}).bindTooltip(p.i).addTo(guzergah);
@@ -653,9 +676,14 @@ for (const c of V.cukurlar) {{
   }}
   L.marker([c.e, c.b], {{ icon: L.divIcon({{ className: c.yaklasik ? 'cukur yaklasik' : 'cukur', html: c.no, iconSize: [30, 22] }}), zIndexOffset: 1000 }}).bindPopup(c.h).addTo(cukur);
 }}
+for (const u of V.uyarilar)
+  L.circleMarker(u.p, {{ radius: 6, color: '#ffffff', weight: 2, fillColor: '#dc3545', fillOpacity: 1 }}).bindTooltip(u.i).addTo(uyari);
 harita.fitBounds(sinir.length ? sinir : [[0, 0]], {{ padding: [30, 30] }});
-L.control.layers({{ 'Uydu görüntüsü': uydu, 'Sokak haritası': sokak }},
-  {{ 'Yer adları': etiket, 'Güzergâh': guzergah, 'Ham GPS (oturtma öncesi)': hamGps, 'İşaretli çukurlar': cukur, 'Otomatik darbeler': darbe }}).addTo(harita);
+const katmanlar = {{ 'Yer adları': etiket, 'Güzergâh': guzergah, 'Ham GPS (oturtma öncesi)': hamGps }};
+if (V.uyarilar.length) katmanlar['Uygulama uyarıları'] = uyari;
+katmanlar['Otomatik darbeler'] = darbe;
+if (V.cukurlar.length) katmanlar['İşaretli çukurlar (eski buton)'] = cukur;
+L.control.layers({{ 'Uydu görüntüsü': uydu, 'Sokak haritası': sokak }}, katmanlar).addTo(harita);
 L.control.scale({{ imperial: false }}).addTo(harita);
 const aciklama = L.control({{ position: 'bottomleft' }});
 aciklama.onAdd = () => {{
@@ -663,9 +691,9 @@ aciklama.onAdd = () => {{
   k.innerHTML = `<b>{ad_h}</b><br>Güzergâh rengi: Dikey_RMS (m/s²){' - yola oturtulmuş' if oturtuldu else ''}
     <div class="serit">${{{json.dumps(RENKLER)}.map(c => `<span style="background:${{c}}"></span>`).join('')}}</div>
     <div class="uclar"><span>0</span><span>{tr(ust, 1)}+</span></div>
-    Kesikli gri: duruş / buton etkisi<br>
-    <span class="ornek" style="background:#c0182b;border-radius:3px"></span> Ç: butonla işaretlenen çukur; gri nokta: basış yeri<br>
-    <span class="ornek" style="background:#fcfcfb;border:2px dashed #c0182b"></span> Ç?: işaretli ama sarsıntıdan kesin anı bulunamayan (yaklaşık)<br>
+    Kesikli gri: duruş{' / buton etkisi' if r['isaretler'] else ''}<br>
+    {'<span class="ornek" style="background:#dc3545;border-radius:50%"></span> Uygulamanın anlık çukur uyarısı (kart kırmızı yandı)<br>' if any(s['uyg_cukur'] for s in noktalar) else ''}
+    {'<span class="ornek" style="background:#c0182b;border-radius:3px"></span> Ç: butonla işaretlenen çukur (eski sürüm); Ç?: yaklaşık<br>' if r['isaretler'] else ''}
     <span class="ornek" style="background:#eb6834;border-radius:50%"></span> Otomatik bulunan darbe noktası<br>
     Daireler: konum belirsizliği. Ayrıntı için işarete dokunun.`;
   return k;
@@ -848,9 +876,13 @@ def main():
     for yol in ayar.csv:
         print(yol)
         r = dosya_analiz(yol, ayar)
-        eslesen = sum(1 for i in r['isaretler'] if i['cukur'] is not None)
-        print(f'  {len(r["hareket"])} hareket satırı, {len(r["isaretler"])} basış ({eslesen} çukur eşleşti), '
-              f'{len(r["olaylar"])} otomatik darbe ({len(r["kumeler"])} nokta)')
+        uyari = sum(1 for s in r['satirlar'] if s['uyg_cukur'])
+        ek = ''
+        if r['isaretler']:
+            eslesen = sum(1 for i in r['isaretler'] if i['cukur'] is not None)
+            ek = f', {len(r["isaretler"])} buton basışı ({eslesen} çukur eşleşti)'
+        print(f'  {len(r["hareket"])} hareket satırı, {uyari} uygulama uyarısı, '
+              f'{len(r["olaylar"])} otomatik darbe ({len(r["kumeler"])} nokta){ek}')
 
 
 if __name__ == '__main__':

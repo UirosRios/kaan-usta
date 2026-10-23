@@ -25,7 +25,7 @@ Excel'de çift tıklayınca sütunlar doğrudan ayrılır. Python ile okumak iç
 | `Dikey_Min`, `Dikey_Max` | Penceredeki en düşük / en yüksek dikey sarsıntı (m/s², darbe tepe değerleri) |
 | `Ivme_Ornek_Sayisi` | Penceredeki ivmeölçer örneği sayısı (~200 Hz istenir → ~100 beklenir; telefon daha yavaş veriyorsa daha az) |
 | `GPS_Dogruluk_m` | GPS yatay konum doğruluğu (m, %68 güven yarıçapı) |
-| `Isaret` | Çukur butonuna o 0,5 sn içinde kaç kez basıldığı (boş = basılmadı) |
+| `Cukur` | Anlık çukur uyarısı: o 0,5 sn içinde en büyük dikey ivme ≥ 35 m/s² ve GPS hızı ≥ 3 km/h ise `1` (ekrandaki sarsıntı kartı kırmızı yanar) |
 
 **GPS kesintisi:** Son GPS konumu 3 saniyeden eskiyse (tünel, yüksek bina arası vb.) `Enlem`, `Boylam`,
 `GPS_Doppler_Hiz_kmh` ve `GPS_Dogruluk_m` hücreleri boş bırakılır; düzeltilmiş GPS 3 saniyeden eskiyse
@@ -43,17 +43,18 @@ Kayıtların analizi için `analiz/surus_analizi.py` betiği kullanılır: GPS g
 ayıklar, hıza göre sarsıntı tablosu çıkarır, darbeleri bulur ve uydu görüntüsü üzerinde harita üretir.
 Ayrıntılar: [analiz/README.md](analiz/README.md).
 
-## Çukur işaretleme
+## Anlık çukur uyarısı
 
-Kayıt sırasında ekranda büyük turuncu **ÇUKUR** butonu çıkar. Çukurdan geçtikten sonra butona basın; akbil sesi
-duyulur ve o an CSV'deki `Isaret` sütununa yazılır. Analiz betiği basıştan önceki 5 saniyedeki sarsıntı tepesini
-bularak çukurun tam anını ve konumunu çıkarır.
+Kayıt sırasında 0,5 saniyelik penceredeki en büyük dikey ivme (|Dikey_Min| veya Dikey_Max) **35 m/s²**'yi aşarsa
+ve GPS hızı 3 km/h'in üstündeyse ekrandaki sarsıntı kartı 1,5 saniye **kırmızı yanar**, CSV'de o satırın `Cukur`
+sütununa `1` yazılır. Kartın altında bu kayıttaki uyarı sayısı görünür.
 
-- **Titreşim yok:** Geri bildirim yalnızca sesle verilir. Titreşim motoru ivmeölçere karışırdı.
-- **Buton etkisi:** Ekrana dokunmak telefonu kısa bir an iter. Betik, basılan satırı ve sonraki 0,5 sn'yi analize katmaz.
-- **Çift dokunma:** 1 saniye içindeki ikinci basış sayılmaz.
-- **Durdurma:** Kayıt sırasında **DURDUR** butonu yanlışlıkla kaydı bitirmesin diye basılı tutularak çalışır.
-- **Ses:** Telefonun medya ses düzeyi kısıksa akbil sesi duyulmaz.
+- **Neden sabit eşik:** Kayıt sırasında yalnızca geçmiş bilinir. İki gerçek sürüşte, geçmişe göre ayarlanan (göreli)
+  eşikler sabit eşikten daha iyi sonuç vermedi; 35 m/s² en sert darbeleri az yanlış alarmla yakaladı.
+- **Hız şartı:** Duruşta scooter'ı elle çevirmek / itmek uyarı vermez. GPS hızı yoksa uyarı verilmez.
+- **Uyarı ile betiğin ilişkisi:** Uyarı yalnızca en sert darbeleri gösterir. Ayrıntılı tespiti analiz betiği yapar: her darbeyi
+  çevresindeki sarsıntıyla karşılaştırır ve GPS gecikmesini düzeltir. Betik, uygulamanın uyarılarını kendi bulduklarıyla karşılaştırıp
+  haritada ayrıca gösterir.
 
 ## Kayıt dosyaları
 

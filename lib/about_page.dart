@@ -91,12 +91,11 @@ class AboutPage extends StatelessWidget {
             ],
           ),
           const _InfoCard(
-            title: 'Çukur butonu',
+            title: 'Anlık çukur uyarısı',
             lines: [
-              'Kayıt sırasında çukurdan geçtikten sonra turuncu ÇUKUR butonuna basın; akbil sesi duyulur.',
-              'Basış CSV\'de Isaret sütununa yazılır. Analiz betiği basıştan önceki 5 sn\'deki sarsıntı tepesini bularak çukurun tam anını ve konumunu çıkarır.',
-              'Geri bildirim yalnızca sesledir: titreşim ivmeölçere karışırdı. Basılan an ve sonraki 0,5 sn analizde dışlanır (dokunma telefonu sarsar).',
-              '1 sn içindeki ikinci basış sayılmaz. Kayıt sırasında DURDUR basılı tutularak çalışır.',
+              'Kayıt sırasında 0,5 sn içindeki en büyük dikey ivme 35 m/s²\'yi aşarsa ve GPS hızı 3 km/h\'in üstündeyse sarsıntı kartı 1,5 sn kırmızı yanar.',
+              'O satırın CSV\'deki Cukur sütununa 1 yazılır. Kartın altındaki ÇUKUR sayısı bu kayıttaki uyarı sayısıdır.',
+              'Uyarı yalnızca en sert darbeleri gösterir; ayrıntılı darbe tespiti analiz betiğiyle yapılır.',
             ],
           ),
           const _InfoCard(

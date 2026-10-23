@@ -42,8 +42,6 @@ dependencies:
   flutter_map: ^8.3.2
   latlong2: ^0.10.1
   open_filex: ^5.0.0
-  audioplayers: ^6.8.1
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -65,10 +63,6 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
-
-  # Çukur işaret butonunun sesi
-  assets:
-    - assets/sesler/akbil.mp3
 
   # To add assets to your application, add an assets section, like this:
   # assets:
