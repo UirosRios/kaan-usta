@@ -1,4 +1,4 @@
-# Mikromobilite Sarsıntı Ölçer (Kaan Usta – YTÜ Harita Mühendisliği Tezi)
+# Mikromobilite Veri Aracı (Kaan Usta – YTÜ Harita Mühendisliği Tezi)
 
 Telefonun GPS'i ve ivmeölçeri ile mikromobilite (e-scooter, bisiklet vb.) sürüşünde
 **hıza göre dikey sarsıntıyı** ölçüp CSV olarak dışa aktaran Android uygulaması.
@@ -40,13 +40,13 @@ hangi açıda takılırsa takılsın aynı sarsıntı aynı değeri verir. Filtr
 ## Analiz
 
 Kayıtların analizi için `analiz/surus_analizi.py` betiği kullanılır: GPS gecikmesini düzeltir, duruşları
-ayıklar, hıza göre sarsıntı tablosu çıkarır, darbeleri bulur ve uydu görüntüsü üzerinde harita üretir.
+ayıklar, hıza göre sarsıntı tablosu çıkarır, darbeleri bulur ve sarsıntıya göre renklendirilmiş bir harita üretir.
 Ayrıntılar: [analiz/README.md](analiz/README.md).
 
 ## Anlık çukur uyarısı
 
 Kayıt sırasında 0,5 saniyelik penceredeki en büyük dikey ivme (|Dikey_Min| veya Dikey_Max) **35 m/s²**'yi aşarsa
-ve GPS hızı 3 km/h'in üstündeyse ekrandaki sarsıntı kartı 1,5 saniye **kırmızı yanar**, CSV'de o satırın `Cukur`
+ve GPS hızı 3 km/h'in üstündeyse ekrandaki sarsıntı kartı 1,5 saniye **kırmızı yanar** ve **sesli uyarı** verilir, CSV'de o satırın `Cukur`
 sütununa `1` yazılır. Kartın altında bu kayıttaki uyarı sayısı görünür.
 
 - **Neden sabit eşik:** Kayıt sırasında yalnızca geçmiş bilinir. İki gerçek sürüşte, geçmişe göre ayarlanan (göreli)

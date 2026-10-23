@@ -568,25 +568,33 @@ def geojson_yaz(yol, satirlar, r):
         json.dump({'type': 'FeatureCollection', 'features': ozellikler}, f, ensure_ascii=False)
 
 
-RENKLER = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b']  # açık -> koyu mavi
+# Sarsıntı renk sınıfları (Dikey_RMS, m/s²): az = yeşil, orta = sarı, çok = kırmızı. Sınırlar sabittir; böylece
+# farklı sürüşlerin haritaları aynı renk ölçeğiyle karşılaştırılabilir.
+SINIRLAR = [2, 4, 6, 8, 10]
+RENKLER = ['#1a9850', '#66bd63', '#fdd835', '#fb8c00', '#e53935', '#8e0000']
+MOR = '#6a1b9a'  # otomatik darbe işaretleri (sarsıntı renkleriyle karışmasın)
 
 
-def renk(rms, ust):
-    i = min(int(rms / ust * len(RENKLER)), len(RENKLER) - 1)
-    return RENKLER[max(i, 0)]
+def renk(rms):
+    return RENKLER[sum(1 for b in SINIRLAR if rms >= b)]
+
+
+def yumusat(satirlar, yaricap=2):
+    """Harita rengi için Dikey_RMS'nin kayan medyanı (±1 sn): tek tük tepeler sokağı alacalı göstermesin"""
+    return [st.median(s['rms'] for s in satirlar[max(0, i - yaricap):i + yaricap + 1]) for i in range(len(satirlar))]
 
 
 def harita_yaz(yol, ad, satirlar, r, ayar):
     noktalar = [s for s in satirlar if s['d_enlem'] is not None]
     if not noktalar:
         return
-    ust = max(1.0, sorted(s['rms'] for s in noktalar)[int(0.95 * (len(noktalar) - 1))])
+    duzgun = yumusat(noktalar)
     parcalar, ham = [], []
-    for a, b in zip(noktalar, noktalar[1:]):
+    for (a, b), rms in zip(zip(noktalar, noktalar[1:]), duzgun):
         if b['t'] - a['t'] > 1.5:
             continue
         parcalar.append(dict(p=[[a['d_enlem'], a['d_boylam']], [b['d_enlem'], b['d_boylam']]],
-                             r=renk(a['rms'], ust) if a['durum'] == 'hareket' else '#898781',
+                             r=renk(rms) if a['durum'] == 'hareket' else '#898781',
                              d=a['durum'] != 'hareket',
                              i=f"{a['zaman_metin'][11:22]} · {tr(a['d_hiz'], 1)} km/h · RMS {tr(a['rms'])} m/s²"))
         ham.append([[a['h_enlem'], a['h_boylam']], [b['h_enlem'], b['h_boylam']]])
@@ -636,40 +644,45 @@ def harita_yaz(yol, ad, satirlar, r, ayar):
   #harita {{ position: absolute; inset: 0; }}
   .kutu {{ background: rgba(252,252,251,.94); padding: 8px 10px; border-radius: 6px; font-size: 12px; color: #0b0b0b; line-height: 1.5; max-width: 270px; }}
   .kutu b {{ font-size: 13px; }}
-  .serit {{ display: flex; height: 10px; margin: 4px 0 2px; }} .serit span {{ flex: 1; }}
+  .serit {{ display: flex; height: 14px; margin: 4px 0 2px; }} .serit span {{ flex: 1; }}
   .uclar {{ display: flex; justify-content: space-between; color: #52514e; }}
   .no, .cukur {{ color: #fff; border: 2px solid #fff; border-radius: 50%; font: bold 11px/18px system-ui, sans-serif;
          text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.45); }}
-  .no {{ background: #eb6834; }}
-  .cukur {{ background: #c0182b; border-radius: 4px; }}
-  .cukur.yaklasik {{ background: #fcfcfb; color: #c0182b; border: 2px dashed #c0182b; }}
+  .no {{ background: {MOR}; }}
+  .cukur {{ background: #003366; border-radius: 4px; }}
+  .cukur.yaklasik {{ background: #fcfcfb; color: #003366; border: 2px dashed #003366; }}
+  .serit span {{ text-align: center; font-size: 10px; color: #0b0b0b; line-height: 14px; }}
   .ornek {{ display: inline-block; width: 12px; height: 12px; border: 2px solid #fff; box-shadow: 0 0 0 1px #898781; vertical-align: -2px; }}
 </style></head><body><div id="harita"></div>
 <script>
 const V = {veri};
 const harita = L.map('harita', {{ maxZoom: 21 }});
+const sade = L.tileLayer('https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png',
+  {{ subdomains: 'abcd', maxNativeZoom: 20, maxZoom: 21, attribution: '&copy; OpenStreetMap katkıcıları &copy; CARTO' }});
+const renkli = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{{z}}/{{y}}/{{x}}',
+  {{ maxNativeZoom: 19, maxZoom: 21, attribution: 'Esri, HERE, Garmin, &copy; OpenStreetMap katkıcıları' }});
 const uydu = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{{z}}/{{y}}/{{x}}',
   {{ maxNativeZoom: 19, maxZoom: 21, attribution: 'Uydu: Esri, Maxar, Earthstar Geographics' }});
-const sokak = L.tileLayer('https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png',
-  {{ maxNativeZoom: 19, maxZoom: 21, attribution: '&copy; OpenStreetMap katkıcıları' }});
 const etiket = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{{z}}/{{y}}/{{x}}',
   {{ maxNativeZoom: 19, maxZoom: 21 }});
-uydu.addTo(harita);
+sade.addTo(harita);
 const guzergah = L.layerGroup().addTo(harita), hamGps = L.layerGroup(), darbe = L.layerGroup().addTo(harita), cukur = L.layerGroup().addTo(harita),
   uyari = L.layerGroup().addTo(harita);
 const sinir = [];
+// Önce tüm güzergâhın koyu kenarı (açık altlıkta sarı da seçilsin), sonra renkli parçalar
+L.polyline(V.parcalar.map(p => p.p), {{ color: '#0b0b0b', weight: 8, opacity: .25 }}).addTo(guzergah);
 for (const p of V.parcalar) {{
-  L.polyline(p.p, {{ color: p.r, weight: 5, opacity: .95, dashArray: p.d ? '4 6' : null }}).bindTooltip(p.i).addTo(guzergah);
+  L.polyline(p.p, {{ color: p.r, weight: 5, opacity: 1, lineCap: 'butt', dashArray: p.d ? '4 6' : null }}).bindTooltip(p.i).addTo(guzergah);
   sinir.push(...p.p);
 }}
-for (const p of V.ham) L.polyline(p, {{ color: '#ffffff', weight: 1.5, opacity: .9, dashArray: '2 4' }}).addTo(hamGps);
+for (const p of V.ham) L.polyline(p, {{ color: '#52514e', weight: 1.5, opacity: .9, dashArray: '2 4' }}).addTo(hamGps);
 for (const d of V.darbeler) {{
-  L.circle([d.e, d.b], {{ radius: d.r, color: '#eb6834', weight: 2, fillOpacity: .10 }}).addTo(darbe);
-  for (const t of d.tek) L.circleMarker(t, {{ radius: 3, color: '#eb6834', weight: 1, fillOpacity: .8 }}).addTo(darbe);
+  L.circle([d.e, d.b], {{ radius: d.r, color: '{MOR}', weight: 2, fillOpacity: .08 }}).addTo(darbe);
+  for (const t of d.tek) L.circleMarker(t, {{ radius: 3, color: '{MOR}', weight: 1, fillOpacity: .8 }}).addTo(darbe);
   L.marker([d.e, d.b], {{ icon: L.divIcon({{ className: 'no', html: d.no, iconSize: [22, 22] }}) }}).bindPopup(d.h).addTo(darbe);
 }}
 for (const c of V.cukurlar) {{
-  L.circle([c.e, c.b], {{ radius: c.r, color: '#c0182b', weight: 2, fillOpacity: c.yaklasik ? .04 : .12, dashArray: c.yaklasik ? '5 5' : null }}).addTo(cukur);
+  L.circle([c.e, c.b], {{ radius: c.r, color: '#003366', weight: 2, fillOpacity: c.yaklasik ? .04 : .12, dashArray: c.yaklasik ? '5 5' : null }}).addTo(cukur);
   if (c.basis) {{
     L.polyline([[c.e, c.b], c.basis], {{ color: '#898781', weight: 2, dashArray: '3 5' }}).addTo(cukur);
     L.circleMarker(c.basis, {{ radius: 4, color: '#ffffff', weight: 1.5, fillColor: '#52514e', fillOpacity: 1 }}).bindTooltip('Basış: ' + c.no).addTo(cukur);
@@ -677,24 +690,25 @@ for (const c of V.cukurlar) {{
   L.marker([c.e, c.b], {{ icon: L.divIcon({{ className: c.yaklasik ? 'cukur yaklasik' : 'cukur', html: c.no, iconSize: [30, 22] }}), zIndexOffset: 1000 }}).bindPopup(c.h).addTo(cukur);
 }}
 for (const u of V.uyarilar)
-  L.circleMarker(u.p, {{ radius: 6, color: '#ffffff', weight: 2, fillColor: '#dc3545', fillOpacity: 1 }}).bindTooltip(u.i).addTo(uyari);
+  L.circleMarker(u.p, {{ radius: 6, color: '#ffffff', weight: 2, fillColor: '#0b0b0b', fillOpacity: 1 }}).bindTooltip(u.i).addTo(uyari);
 harita.fitBounds(sinir.length ? sinir : [[0, 0]], {{ padding: [30, 30] }});
 const katmanlar = {{ 'Yer adları': etiket, 'Güzergâh': guzergah, 'Ham GPS (oturtma öncesi)': hamGps }};
 if (V.uyarilar.length) katmanlar['Uygulama uyarıları'] = uyari;
 katmanlar['Otomatik darbeler'] = darbe;
 if (V.cukurlar.length) katmanlar['İşaretli çukurlar (eski buton)'] = cukur;
-L.control.layers({{ 'Uydu görüntüsü': uydu, 'Sokak haritası': sokak }}, katmanlar).addTo(harita);
+L.control.layers({{ 'Sokak haritası (sade)': sade, 'Sokak haritası (renkli)': renkli, 'Uydu görüntüsü': uydu }}, katmanlar).addTo(harita);
 L.control.scale({{ imperial: false }}).addTo(harita);
 const aciklama = L.control({{ position: 'bottomleft' }});
 aciklama.onAdd = () => {{
   const k = L.DomUtil.create('div', 'kutu');
   k.innerHTML = `<b>{ad_h}</b><br>Güzergâh rengi: Dikey_RMS (m/s²){' - yola oturtulmuş' if oturtuldu else ''}
-    <div class="serit">${{{json.dumps(RENKLER)}.map(c => `<span style="background:${{c}}"></span>`).join('')}}</div>
-    <div class="uclar"><span>0</span><span>{tr(ust, 1)}+</span></div>
+    <div class="serit">{''.join(f'<span style="background:{c}"></span>' for c in RENKLER)}</div>
+    <div class="uclar"><span>0</span>{''.join(f'<span>{b}</span>' for b in SINIRLAR)}<span>+</span></div>
+    yeşil: az, sarı: orta, kırmızı: çok sarsıntı<br>
     Kesikli gri: duruş{' / buton etkisi' if r['isaretler'] else ''}<br>
-    {'<span class="ornek" style="background:#dc3545;border-radius:50%"></span> Uygulamanın anlık çukur uyarısı (kart kırmızı yandı)<br>' if any(s['uyg_cukur'] for s in noktalar) else ''}
-    {'<span class="ornek" style="background:#c0182b;border-radius:3px"></span> Ç: butonla işaretlenen çukur (eski sürüm); Ç?: yaklaşık<br>' if r['isaretler'] else ''}
-    <span class="ornek" style="background:#eb6834;border-radius:50%"></span> Otomatik bulunan darbe noktası<br>
+    {'<span class="ornek" style="background:#0b0b0b;border-radius:50%"></span> Uygulamanın anlık çukur uyarısı<br>' if any(s['uyg_cukur'] for s in noktalar) else ''}
+    {'<span class="ornek" style="background:#003366;border-radius:3px"></span> Ç: butonla işaretlenen çukur (eski sürüm); Ç?: yaklaşık<br>' if r['isaretler'] else ''}
+    <span class="ornek" style="background:{MOR};border-radius:50%"></span> Otomatik bulunan darbe noktası (numaralı)<br>
     Daireler: konum belirsizliği. Ayrıntı için işarete dokunun.`;
   return k;
 }};
@@ -710,12 +724,12 @@ def grafik_yaz(yol, ad, satirlar, r, tablo):
         import matplotlib
         matplotlib.use('Agg')
         import matplotlib.pyplot as plt
-        from matplotlib.colors import LinearSegmentedColormap
+        from matplotlib.colors import BoundaryNorm, ListedColormap
     except ImportError:
         print('  (matplotlib kurulu değil, grafik atlandı: pip install matplotlib)')
         return
     INK, INK2, MUTED, GRID, AXIS, SURF = '#0b0b0b', '#52514e', '#898781', '#e1e0d9', '#c3c2b7', '#fcfcfb'
-    MAVI, TURUNCU, KIRMIZI = '#2a78d6', '#eb6834', '#c0182b'
+    MAVI, TURUNCU, KIRMIZI = '#2a78d6', '#eb6834', '#003366'
     plt.rcParams.update({'font.size': 10, 'axes.edgecolor': AXIS, 'axes.labelcolor': INK2, 'xtick.color': MUTED,
                          'ytick.color': MUTED, 'axes.facecolor': SURF, 'figure.facecolor': SURF, 'axes.grid': True,
                          'grid.color': GRID, 'grid.linewidth': 0.6, 'axes.spines.top': False, 'axes.spines.right': False,
@@ -777,11 +791,12 @@ def grafik_yaz(yol, ad, satirlar, r, tablo):
                      label='ham GPS')
         ax4.plot([X(s['d_boylam']) for s in noktalar], [Y(s['d_enlem']) for s in noktalar], color=AXIS, lw=0.8, zorder=0)
         hn = [s for s in noktalar if s['durum'] == 'hareket']
-        cmap = LinearSegmentedColormap.from_list('mavi', RENKLER)
-        sc = ax4.scatter([X(s['d_boylam']) for s in hn], [Y(s['d_enlem']) for s in hn], c=[s['rms'] for s in hn], cmap=cmap,
-                         vmin=0, s=26, edgecolors=SURF, linewidths=0.6)
+        duzgun = dict(zip(map(id, noktalar), yumusat(noktalar)))
+        sinir = [0] + SINIRLAR + [max(SINIRLAR[-1] + 2, max(s['rms'] for s in noktalar))]
+        sc = ax4.scatter([X(s['d_boylam']) for s in hn], [Y(s['d_enlem']) for s in hn], c=[duzgun[id(s)] for s in hn],
+                         cmap=ListedColormap(RENKLER), norm=BoundaryNorm(sinir, len(RENKLER)), s=26, edgecolors='#52514e', linewidths=0.4)
         for n, k in enumerate(r['kumeler'], 1):
-            ax4.add_patch(plt.Circle((X(k['boylam']), Y(k['enlem'])), k['belirsizlik_m'], fill=False, color=TURUNCU, lw=1.2))
+            ax4.add_patch(plt.Circle((X(k['boylam']), Y(k['enlem'])), k['belirsizlik_m'], fill=False, color=MOR, lw=1.2))
         for i in r['isaretler']:
             c = i['cukur']
             if c is not None:
@@ -794,12 +809,12 @@ def grafik_yaz(yol, ad, satirlar, r, tablo):
                 ax4.annotate(f'Ç{i["no"]}?', (X(x['d_boylam']), Y(x['d_enlem'])), xytext=(6, 4), textcoords='offset points',
                              fontsize=8.5, color=KIRMIZI)
         ax4.set_aspect('equal', adjustable='datalim')
-        cb = fig.colorbar(sc, ax=ax4, shrink=0.8)
+        cb = fig.colorbar(sc, ax=ax4, shrink=0.8, ticks=[0] + SINIRLAR)
         cb.set_label('Dikey_RMS (m/s²)', color=INK2)
         cb.outline.set_visible(False)
         if r['oturtma'] is not None:
             ax4.legend(loc='lower right', fontsize=8, frameon=False)
-    ax4.set_title('Güzergâh – kırmızı: işaretli çukur, turuncu: darbe')
+    ax4.set_title('Güzergâh – yeşil: az, sarı: orta, kırmızı: çok sarsıntı; mor: darbe')
     ax4.set_xlabel('Doğu (m)')
     ax4.set_ylabel('Kuzey (m)')
     fig.suptitle(f'Sürüş analizi – {ad}', x=0.06, ha='left', fontsize=13, fontweight='bold', color=INK)

@@ -20,7 +20,7 @@ class AboutPage extends StatelessWidget {
           const _InfoCard(
             title: 'UYGULAMA',
             lines: [
-              'Mikromobilitede (e-scooter, bisiklet vb.) hıza göre sarsıntı ölçümü.',
+              'Mikromobilite Veri Aracı: mikromobilitede (e-scooter, bisiklet vb.) hıza göre sarsıntı ölçümü.',
               'YTÜ Harita Mühendisliği tez çalışması - Kaan Usta.',
             ],
           ),
@@ -93,7 +93,7 @@ class AboutPage extends StatelessWidget {
           const _InfoCard(
             title: 'Anlık çukur uyarısı',
             lines: [
-              'Kayıt sırasında 0,5 sn içindeki en büyük dikey ivme 35 m/s²\'yi aşarsa ve GPS hızı 3 km/h\'in üstündeyse sarsıntı kartı 1,5 sn kırmızı yanar.',
+              'Kayıt sırasında 0,5 sn içindeki en büyük dikey ivme 35 m/s²\'yi aşarsa ve GPS hızı 3 km/h\'in üstündeyse sarsıntı kartı 1,5 sn kırmızı yanar ve uygulama sesli uyarı verir.',
               'O satırın CSV\'deki Cukur sütununa 1 yazılır. Kartın altındaki ÇUKUR sayısı bu kayıttaki uyarı sayısıdır.',
               'Uyarı yalnızca en sert darbeleri gösterir; ayrıntılı darbe tespiti analiz betiğiyle yapılır.',
             ],

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -23,6 +24,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(
+      title: 'Mikromobilite Veri Aracı',
       debugShowCheckedModeBanner: false,
       home: SensorDashboard(),
     );
@@ -101,7 +103,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   bool _busy = false; // başlatma/durdurma sürerken düğmeye ikinci kez basılmasını engeller
 
   // ANLIK ÇUKUR UYARISI: 0,5 sn'lik penceredeki en büyük dikey ivme (|Dikey_Min| veya Dikey_Max) eşiği aşarsa
-  // sarsıntı kartı kırmızı yanar ve CSV'de o satırın Cukur sütununa 1 yazılır. Sabit eşik seçildi: kayıt sırasında
+  // sarsıntı kartı kırmızı yanar, sesli uyarı verilir ve CSV'de o satırın Cukur sütununa 1 yazılır. Sabit eşik seçildi: kayıt sırasında
   // yalnızca geçmiş bilinir; geçmişe göre (göreli) eşik gerçek sürüşlerde sabit eşikten daha iyi sonuç vermedi.
   // Hız eşiği: duruşta scooter'ı elle çevirmek / itmek uyarı vermesin. Ayrıntılı tespit analiz betiğindedir.
   static const double cukurEsik = 35.0; // m/s²
@@ -110,6 +112,9 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   int _cukurCount = 0; // bu kayıttaki uyarı sayısı
   DateTime? _cukurIsikBitis;
   bool get _cukurIsigi => _cukurIsikBitis != null && DateTime.now().isBefore(_cukurIsikBitis!);
+  // Uyarı sesi: art arda gelen uyarılarda ses en fazla saniyede bir çalar
+  final AudioPlayer _uyariSesi = AudioPlayer();
+  DateTime? _sonSes;
 
   // Abonelikler
   // Ham GPS, Android tarafında (MainActivity.kt) GPS_PROVIDER'dan okunur
@@ -125,6 +130,25 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     DeviceInfo.load();
     _startClock();
     _initSensors();
+    _initUyariSesi();
+  }
+
+  // Düşük gecikmeli çalma; başka uygulamanın sesini (müzik, navigasyon) durdurmaz
+  Future<void> _initUyariSesi() async {
+    try {
+      await _uyariSesi.setAudioContext(AudioContextConfig(focus: AudioContextConfigFocus.mixWithOthers).build());
+      await _uyariSesi.setPlayerMode(PlayerMode.lowLatency);
+      await _uyariSesi.setReleaseMode(ReleaseMode.stop);
+      await _uyariSesi.setSource(AssetSource('sesler/uyari.mp3'));
+    } catch (e) {
+      debugPrint('Uyarı sesi yüklenemedi: $e');
+    }
+  }
+
+  void _uyariSesiCal(DateTime now) {
+    if (_sonSes != null && now.difference(_sonSes!) < const Duration(seconds: 1)) return;
+    _sonSes = now;
+    _uyariSesi.stop().then((_) => _uyariSesi.resume()).catchError((Object e) => debugPrint('Uyarı sesi çalınamadı: $e'));
   }
 
   // 1. Canlı Saat ve Tarih Fonksiyonu
@@ -377,6 +401,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
           _cukurCount++;
           _cukurIsikBitis = now.add(cukurIsikSuresi);
         });
+        _uyariSesiCal(now);
       }
 
       // O anki sensör verilerini CSV formatında noktalı virgülle ayırarak kaydet
@@ -423,7 +448,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     if (file == null) return;
     final info = await DeviceInfo.load();
     final lines = [
-      'Mikromobilite Sarsıntı Ölçer - kayıt bilgisi',
+      'Mikromobilite Veri Aracı - kayıt bilgisi',
       'Veri dosyası: ${file.uri.pathSegments.last}',
       'Kayıt başlangıcı: $_recordStart',
       'Kayıt bitişi: ${end ?? "(kayıt sürüyor veya düzgün kapatılmadı)"}',
@@ -444,7 +469,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       '  GPS konum filtresi: doğruluğu 50 m\'den kötü konumlar atılır',
       '  GPS kesintisi: son konum ${gpsMaxAge.inSeconds} sn\'den eskiyse Enlem, Boylam, GPS_Doppler_Hiz_kmh ve GPS_Dogruluk_m boş bırakılır;',
       '  düzeltilmiş GPS ${gpsMaxAge.inSeconds} sn\'den eskiyse Duzeltilmis_GPS_Hiz_kmh boş bırakılır',
-      '  Cukur: anlık çukur uyarısı (1 = o 0,5 sn içinde |Dikey_Min| veya Dikey_Max ≥ ${cukurEsik.toStringAsFixed(0)} m/s² ve GPS hızı ≥ ${cukurMinHiz.toStringAsFixed(0)} km/h).',
+      '  Cukur: anlık çukur uyarısı; ekranda kırmızı yanar ve sesli uyarı verilir (1 = o 0,5 sn içinde |Dikey_Min| veya Dikey_Max ≥ ${cukurEsik.toStringAsFixed(0)} m/s² ve GPS hızı ≥ ${cukurMinHiz.toStringAsFixed(0)} km/h).',
       '  Ayrıntılı darbe tespiti (çevredeki sarsıntıya göre, GPS gecikmesi düzeltilmiş) analiz betiğiyle yapılır.',
     ];
     await infoFileFor(file).writeAsString('${lines.join('\n')}\n', flush: true);
@@ -509,15 +534,24 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     rawGpsSubscription?.cancel();
     geoSubscription?.cancel();
     accelSubscription?.cancel();
+    _uyariSesi.dispose();
     WakelockPlus.disable();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    // Bildirim çubuğu başlıkla aynı lacivert, simgeleri beyaz
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.transparent),
+      child: Scaffold(
       backgroundColor: const Color(0xFFE9ECEF),
-      body: SafeArea(
+      body: Column(
+        children: [
+          Container(color: const Color(0xFF003366), height: MediaQuery.paddingOf(context).top),
+          Expanded(
+            child: SafeArea(
+        top: false,
         child: Column(
           children: [
             // YTÜ Özel Başlık Alanı (Genişletilmiş Logolu ve Boşluklu Tasarım)
@@ -797,6 +831,10 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
             ),
           ],
         ),
+            ),
+          ),
+        ],
+      ),
       ),
     );
   }

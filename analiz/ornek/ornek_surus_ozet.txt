@@ -28,7 +28,7 @@ HIZA GÖRE DİKEY SARSINTI (yalnızca hareket satırları)
   15-18           262         6,14       6,34          14,4
   Korelasyon r = 0,48   Doğrusal uyum: RMS ≈ 0,24 + 0,372 × hız
 
-ÇUKUR İŞARETLERİ (13 basış, 7 tanesi bir sarsıntı tepesiyle eşleşti)
+ÇUKUR İŞARETLERİ - eski çukur butonu (13 basış, 7 tanesi bir sarsıntı tepesiyle eşleşti)
   "belirsiz": arama aralığında çukura benzer büyüklükte başka tepe(ler) de var (zemin çok pürüzlü);
   konum yalnızca yaklaşıktır.
   Ç1: 40.980000, 29.020763  yol boyunca ±6 m  çukur 10:00:20,00, basış 2,5 sn sonra
@@ -107,6 +107,6 @@ OTOMATİK DARBELER (19 darbe, 8 farklı nokta; 7 tanesi işaretli bir çukurla a
     https://www.google.com/maps/search/?api=1&query=40.980000,29.022248
     - 10:04:09,00  hız 16,9 km/h  Min -20,6 / Max 15,9 m/s²  çevre RMS 5,0  konum ±6 m
 
-NOT: İşaretlenmemiş darbeler yanlış alarm olmak zorunda değildir (rögar kapağı, kot farkı, ray vb.).
+NOT: Her darbe çukur olmak zorunda değildir (rögar kapağı, kot farkı, ray vb. de darbe verir).
 Konumlar telefon GPS'inin doğruluğuyla sınırlıdır; yerinde kontrol için noktayı belirsizlik
 dairesi / aralığı içinde güzergâh boyunca arayın.

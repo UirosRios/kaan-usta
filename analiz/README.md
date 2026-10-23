@@ -5,7 +5,7 @@
 - GPS gecikmesini düzeltir ve konumu OpenStreetMap yollarına oturtur.
 - Duruşları ayıklar ve hıza göre sarsıntı tablosu çıkarır.
 - Darbeleri (çukur vb.) otomatik tespit eder ve uygulamanın sürüş sırasındaki anlık çukur uyarılarıyla karşılaştırır.
-- Sonuçları uydu görüntüsü üzerinde bir haritada gösterir.
+- Sonuçları sokak haritası üzerinde, sarsıntıya göre renklendirilmiş bir haritada gösterir.
 
 ## Adım adım kullanım (Windows)
 
@@ -33,15 +33,15 @@
    ```
    İpucu: `python surus_analizi.py ` yazdıktan sonra CSV dosyasını pencereye sürükleyip bırakırsanız adı kendiliğinden yazılır.
 6. **Sonuçlara bakın:** CSV'nin yanında `mikromobilite_..._analiz` klasörü oluşur.
-   - **`..._harita.html`** dosyasına çift tıklayın. Tarayıcıda uydu görüntüsü üzerinde güzergâh, otomatik bulunan
-     darbeler (turuncu numaralı) ve uygulamanın anlık uyarıları (kırmızı nokta) açılır. İşaretlere dokununca ayrıntılar
+   - **`..._harita.html`** dosyasına çift tıklayın. Tarayıcıda sokak haritası üzerinde güzergâh (yeşil: az, sarı: orta, kırmızı: çok sarsıntı), otomatik bulunan
+     darbeler (mor numaralı) ve uygulamanın anlık uyarıları (siyah nokta) açılır. Sağ üstten renkli sokak haritasına veya uydu görüntüsüne geçilebilir. İşaretlere dokununca ayrıntılar
      ve Google Haritalar bağlantısı çıkar.
    - **`..._ozet.txt`** sürüşün özeti: hız-sarsıntı tablosu ve çukur listesi.
    - **`..._grafik.png`** grafikler.
    - **`..._satirlar.csv`** ve **`..._olaylar.csv`** Excel ile açılır.
 
 İnternet gerekir: yollar ilk çalıştırmada OpenStreetMap'ten indirilir ve `..._osm.json` olarak saklanır.
-Harita da uydu görüntüsünü internetten yükler. İnternet yoksa betik haritaya oturtmayı atlar, geri kalan her şeyi yapar.
+Harita da altlığı internetten yükler. İnternet yoksa betik haritaya oturtmayı atlar, geri kalan her şeyi yapar.
 
 Birden fazla dosya aynı anda verilebilir: `python surus_analizi.py *.csv`. Tüm ayarları görmek için: `python surus_analizi.py -h`.
 
@@ -50,7 +50,7 @@ Birden fazla dosya aynı anda verilebilir: `python surus_analizi.py *.csv`. Tüm
 | Çıktı | İçerik |
 |---|---|
 | `_ozet.txt` | Veri kalitesi, haritaya oturtma, hıza göre sarsıntı tablosu, uygulamanın anlık uyarıları, otomatik darbeler |
-| `_harita.html` | Uydu görüntüsü üzerinde güzergâh (renk = Dikey_RMS). İşaretli çukurlar, basış yerleri, darbe noktaları ve konum belirsizliği daireleri. Katman menüsünden oturtma öncesi ham GPS de gösterilebilir. |
+| `_harita.html` | Sokak haritası üzerinde güzergâh. Renk Dikey_RMS'ye göre sabit sınıflardır (0-2-4-6-8-10 m/s²: koyu yeşilden koyu kırmızıya); böylece farklı sürüşler karşılaştırılabilir. Renk, tek tük tepeler sokağı alacalı göstermesin diye ±1 sn'lik kayan medyanla hesaplanır. Darbe noktaları, uygulama uyarıları ve konum belirsizliği daireleri. Katman menüsünden renkli sokak haritası, uydu görüntüsü ve oturtma öncesi ham GPS seçilebilir. |
 | `_harita.geojson` | Aynı veri, QGIS / ArcGIS için (WGS84) |
 | `_satirlar.csv` | Tüm satırlar: oturtulmuş ve ham konum, düzeltilmiş hız, durum (hareket / durus / gps_yok), uygulama uyarısı ve darbe işaretleri |
 | `_isaretler.csv` | Yalnızca eski sürümün çukur butonuyla yapılmış kayıtlar için: basışlar ve eşleşen çukurlar |
@@ -116,4 +116,4 @@ python simulasyon.py --ornek ornek         # ayrıca örnek sürüş ve tüm ana
 ```
 
 Son sonuçlar ve örnek çıktı: [ornek/simulasyon_raporu.md](ornek/simulasyon_raporu.md), `ornek/` klasörü.
-Örnek sürüş yapaydır. Yolları gerçek bir yere ait değildir; uydu görüntüsü yalnızca altlıktır.
+Örnek sürüş yapaydır. Yolları gerçek bir yere ait değildir; harita altlığı yalnızca arka plandır.
