@@ -37,7 +37,6 @@ class SensorDashboard extends StatefulWidget {
 
 class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingObserver {
   // Sensör ve Veri Değişkenleri
-  double zAxis = 0.0; // Ham Z ivmesi (yerçekimi dahil)
   double zNet = 0.0; // Yerçekimi çıkarılmış Z ivmesi (telefonun kendi ekseni)
   double verticalNet = 0.0; // Dikey sarsıntı: titreşimin gerçek düşey (yerçekimi) yönündeki bileşeni
   double totalNet = 0.0; // Toplam sarsıntı: üç eksendeki titreşimin büyüklüğü (yönden bağımsız)
@@ -46,11 +45,10 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   bool gyroAvailable = true;
   double currentLat = 0.0;
   double currentLon = 0.0;
-  double currentRawSpeed = 0.0; // Ham (Seken) GPS Hızı - doğrudan GPS donanımı
+  double currentRawSpeed = 0.0; // GPS Doppler Hızı - doğrudan GPS donanımı (yumuşatma yok)
   double currentFusedSpeed = 0.0; // Düzeltilmiş GPS Hızı - Fused (birleşik) konum servisi
   double currentAccuracy = 0.0; // Ham GPS yatay konum doğruluğu (m)
   DateTime? lastFixTime; // Son geçerli ham GPS konumunun zamanı
-  DateTime? lastFusedFixTime; // Son geçerli düzeltilmiş GPS konumunun zamanı
   bool isRecording = false;
   String _gpsStatus = "GPS bekleniyor...";
   // GPS tanı bilgisi: uydu sayısı, 50 m filtresine takılan son doğruluk, durum yazısına dokununca açılacak ayar
@@ -63,14 +61,10 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   final MapController _mapController = MapController();
   bool _mapReady = false;
 
-  // Kayıt penceresi (500 ms) içindeki tüm Z örnekleri.
+  // Kayıt penceresi (500 ms) içindeki tüm dikey sarsıntı örnekleri.
   // İvmeölçer ~200 Hz okunur; pencere başına istatistik çıkarılır ki
   // 2 Hz kayıtta tek anlık değer alınmasından doğan örtüşme (aliasing) olmasın.
-  final List<double> _zWindow = [];
-  final List<double> _zNetWindow = [];
   final List<double> _verticalWindow = [];
-  final List<double> _totalWindow = [];
-  final List<double> _tiltWindow = [];
 
   // YERÇEKİMİ GİDERME: ivmenin üç ekseni de 0,4 Hz kesim frekanslı birinci dereceden yüksek geçiren filtreden
   // geçirilir (bilineer / Tustin dönüşümü). Filtre çıkışı titreşimdir; ham ivme − titreşim = yerçekimi vektörü,
@@ -81,8 +75,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   List<double>? _prevAcc; // önceki ham ivme [x, y, z]
   final List<double> _dynAcc = [0.0, 0.0, 0.0]; // titreşim bileşeni [x, y, z]
   DateTime? _lastAccelTime;
-  // Aynı pencere içindeki jiroskop örnekleri [x, y, z]
-  final List<List<double>> _gyroWindow = [];
 
   // Zamanlayıcı ve Veri Kayıt Değişkenleri
   String _liveDate = "Tarih Yükleniyor...";
@@ -94,11 +86,8 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   // Kayıt dosyası: satırlar 5 saniyede bir dosyaya eklenir (uygulama kapanırsa en fazla son 5 sn kaybolur)
   // Türkçe Excel biçimi: sütun ayırıcı noktalı virgül, ondalık ayırıcı virgül
   // (Python: pd.read_csv(dosya, sep=';', decimal=','))
-  static const String _csvHeader = "Tarih_Saat;Enlem;Boylam;Ham_Hiz_kmh;Duzeltilmis_GPS_Hiz_kmh;"
-      "Dikey_Net;Dikey_RMS;Dikey_Min;Dikey_Max;Toplam_RMS;Egim_derece;"
-      "Z_Net;Z_Ham;Z_Ham_Ort;Z_Net_RMS;Z_Net_Min;Z_Net_Max;Ivme_Ornek_Sayisi;"
-      "Jiro_X_Ort;Jiro_Y_Ort;Jiro_Z_Ort;Jiro_Max_Bileske;"
-      "GPS_Dogruluk_m;GPS_Yasi_s;Duzeltilmis_GPS_Yasi_s";
+  static const String _csvHeader = "Tarih_Saat;Enlem;Boylam;GPS_Doppler_Hiz_kmh;Duzeltilmis_GPS_Hiz_kmh;"
+      "Dikey_RMS;Dikey_Min;Dikey_Max;Ivme_Ornek_Sayisi;GPS_Dogruluk_m";
 
   // Sayıyı CSV için ondalık virgülle yaz
   static String _num(double v, int digits) => v.toStringAsFixed(digits).replaceAll('.', ',');
@@ -153,7 +142,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     // 5 ms (~200 Hz): kısa çukur darbelerinin (~30 ms) tepesi kaçmasın. Android 12+'da özel izin
     // olmadan izin verilen en yüksek hız budur. Telefon daha yavaş verirse Ivme_Ornek_Sayisi'nda görülür.
     accelSubscription = accelerometerEventStream(samplingPeriod: sensorSamplingPeriod).listen((AccelerometerEvent event) {
-      zAxis = event.z;
       final acc = [event.x, event.y, event.z];
 
       // Her eksene yüksek geçiren filtre: y = k/(k+1)·(a − a_önceki) + (k−1)/(k+1)·y_önceki, k = 2τ/dt
@@ -183,13 +171,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       // Z sarsıntısı (telefonun kendi ekseni): Z ekseninin titreşim bileşeni
       zNet = _dynAcc[2];
 
-      if (isRecording) {
-        _zWindow.add(event.z);
-        _zNetWindow.add(zNet);
-        _verticalWindow.add(verticalNet);
-        _totalWindow.add(totalNet);
-        _tiltWindow.add(tiltDeg);
-      }
+      if (isRecording) _verticalWindow.add(verticalNet);
     });
 
     // Jiroskop (açısal hız) Sensörünü Başlat - ivmeölçerle aynı hızda (~200 Hz)
@@ -198,7 +180,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       gyroX = event.x;
       gyroY = event.y;
       gyroZ = event.z;
-      if (isRecording) _gyroWindow.add([event.x, event.y, event.z]);
     }, onError: (Object e) {
       // Bazı ucuz telefonlarda jiroskop bulunmaz
       if (mounted) setState(() => gyroAvailable = false);
@@ -288,7 +269,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
           currentAccuracy = accuracy;
           lastFixTime = DateTime.now();
 
-          // Uydudan gelen gerçek (sekme payı olan) ham hız
+          // GPS Doppler hızı: uydu sinyalinin Doppler kaymasından, yumuşatmasız (sekme payı olabilir)
           currentRawSpeed = speed < 0 ? 0.0 : speed * 3.6;
         });
         // Haritayı yeni konuma kaydır (yakınlaştırma düzeyi korunur)
@@ -310,7 +291,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
           if (position.accuracy > 50.0) return;
 
           setState(() {
-            lastFusedFixTime = DateTime.now();
             currentFusedSpeed = position.speed < 0 ? 0.0 : position.speed * 3.6;
           });
         }
@@ -363,12 +343,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     // Kayıt sırasında ekranın kapanıp sensörlerin durmasını engelle
     WakelockPlus.enable();
 
-    _zWindow.clear();
-    _zNetWindow.clear();
     _verticalWindow.clear();
-    _totalWindow.clear();
-    _tiltWindow.clear();
-    _gyroWindow.clear();
 
     // Saniyede 2 kez (500 milisaniye) veri örnekleme
     _recordTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
@@ -377,62 +352,22 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
         return;
       }
 
-      // Pencere içindeki Z örneklerinin istatistikleri
-      // Z_Ham_Ort: ham Z ortalaması (≈ yerçekiminin Z bileşeni, telefonun eğimini gösterir)
-      // Z_Net_RMS: yerçekimi çıkarılmış Z'nin RMS'i = sarsıntı şiddeti
-      final samples = List<double>.from(_zWindow);
-      final netSamples = List<double>.from(_zNetWindow);
-      _zWindow.clear();
-      _zNetWindow.clear();
-      double zMean = 0, zRms = 0, zMin = 0, zMax = 0;
-      if (samples.isNotEmpty) {
-        zMean = samples.reduce((a, b) => a + b) / samples.length;
-        zRms = sqrt(netSamples.map((z) => z * z).reduce((a, b) => a + b) / netSamples.length);
-        zMin = netSamples.reduce(min);
-        zMax = netSamples.reduce(max);
-      }
-
-      // Dikey sarsıntı (telefonun açısından bağımsız), toplam sarsıntı ve ortalama eğim
-      // Dikey_RMS: ana sarsıntı ölçüsü. Toplam_RMS: üç eksenin birlikte RMS'i (dikey + yatay titreşim)
+      // Pencere içindeki dikey sarsıntı istatistikleri (telefonun açısından bağımsız)
+      // Dikey_RMS: ana sarsıntı ölçüsü; Dikey_Min / Dikey_Max: darbe tepe değerleri
       final vSamples = List<double>.from(_verticalWindow);
-      final tSamples = List<double>.from(_totalWindow);
-      final tiltSamples = List<double>.from(_tiltWindow);
       _verticalWindow.clear();
-      _totalWindow.clear();
-      _tiltWindow.clear();
-      double vRms = 0, vMin = 0, vMax = 0, tRms = 0, tiltMean = 0;
+      double vRms = 0, vMin = 0, vMax = 0;
       if (vSamples.isNotEmpty) {
         vRms = sqrt(vSamples.map((v) => v * v).reduce((a, b) => a + b) / vSamples.length);
         vMin = vSamples.reduce(min);
         vMax = vSamples.reduce(max);
-        tRms = sqrt(tSamples.map((v) => v * v).reduce((a, b) => a + b) / tSamples.length);
-        tiltMean = tiltSamples.reduce((a, b) => a + b) / tiltSamples.length;
       }
-
-      // Pencere içindeki jiroskop istatistikleri (rad/s): eksen ortalamaları ve en büyük bileşke açısal hız
-      // Jiroskop yoksa sütunlar boş bırakılır
-      final gyroSamples = List<List<double>>.from(_gyroWindow);
-      _gyroWindow.clear();
-      String gyroCols = ";;;";
-      if (gyroSamples.isNotEmpty) {
-        final n = gyroSamples.length;
-        final double gxMean = gyroSamples.map((g) => g[0]).reduce((a, b) => a + b) / n;
-        final double gyMean = gyroSamples.map((g) => g[1]).reduce((a, b) => a + b) / n;
-        final double gzMean = gyroSamples.map((g) => g[2]).reduce((a, b) => a + b) / n;
-        final double gMax = gyroSamples.map((g) => sqrt(g[0] * g[0] + g[1] * g[1] + g[2] * g[2])).reduce(max);
-        gyroCols = [gxMean, gyMean, gzMean, gMax].map((v) => _num(v, 4)).join(';');
-      }
-
-      // Son GPS konumundan bu yana geçen süre (GPS kesilirse eski konum tekrarlanır, bu sütunla ayıklanabilir)
-      final String gpsAge = lastFixTime == null ? "" : _num(DateTime.now().difference(lastFixTime!).inMilliseconds / 1000, 1);
-      final String fusedAge = lastFusedFixTime == null ? "" : _num(DateTime.now().difference(lastFusedFixTime!).inMilliseconds / 1000, 1);
 
       // O anki sensör verilerini CSV formatında noktalı virgülle ayırarak kaydet
       // Tarih_Saat: 2026-10-23 14:05:31,512 (milisaniye de ondalık virgülle)
       String timestamp = DateTime.now().toString().replaceAll('.', ',');
       String row = "$timestamp;${_num(currentLat, 6)};${_num(currentLon, 6)};${_num(currentRawSpeed, 2)};${_num(currentFusedSpeed, 2)};"
-          "${_num(verticalNet, 4)};${_num(vRms, 4)};${_num(vMin, 4)};${_num(vMax, 4)};${_num(tRms, 4)};${_num(tiltMean, 1)};"
-          "${_num(zNet, 4)};${_num(zAxis, 4)};${_num(zMean, 4)};${_num(zRms, 4)};${_num(zMin, 4)};${_num(zMax, 4)};${samples.length};$gyroCols;${_num(currentAccuracy, 1)};$gpsAge;$fusedAge";
+          "${_num(vRms, 4)};${_num(vMin, 4)};${_num(vMax, 4)};${vSamples.length};${_num(currentAccuracy, 1)}";
       _pendingRows.add(row);
       _rowCount++;
       // 10 satırda bir (5 sn) dosyaya ekle
@@ -477,9 +412,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       '  Kayıt penceresi: 0,5 s (saniyede 2 satır)',
       '  Yerçekimi giderme: ivmenin üç eksenine birinci dereceden yüksek geçiren filtre (bilineer dönüşüm), kesim frekansı $gravityCutoffHz Hz',
       '  Yerçekimi yönü = ham ivme − filtre çıkışı; Dikey_* = titreşimin bu yöne izdüşümü (telefonun montaj açısından bağımsız)',
-      '  Toplam_RMS = üç eksen titreşim vektörünün RMS büyüklüğü; Egim_derece = telefon Z ekseni ile düşey arasındaki açı',
-      '  Z_* = yalnızca telefonun kendi Z ekseni (telefon yatay değilse düşey sarsıntının bir kısmı)',
-      '  Ham GPS: Android GPS_PROVIDER, istenen aralık 500 ms',
+      '  GPS Doppler hızı ve konum: doğrudan GPS donanımı (Android GPS_PROVIDER), yumuşatma yok, istenen aralık 500 ms',
       '  Düzeltilmiş GPS: Fused konum servisi, istenen aralık 500 ms',
       '  GPS konum filtresi: doğruluğu 50 m\'den kötü konumlar atılır',
     ];
@@ -716,13 +649,13 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                         padding: const EdgeInsets.all(20.0),
                         child: Column(
                           children: [
-                            // Ham (Seken) GPS Hızı ve Düzeltilmiş (Fused) GPS Hızı yan yana
+                            // GPS Doppler Hızı ve Düzeltilmiş (Fused) GPS Hızı yan yana
                             Row(
                               children: [
                                 Expanded(
                                   child: Column(
                                     children: [
-                                      const Text('HAM GPS HIZI\n(km/h)', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
+                                      const Text('GPS DOPPLER\nHIZI (km/h)', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
                                       const SizedBox(height: 4),
                                       Text(
                                         currentRawSpeed.toStringAsFixed(1),

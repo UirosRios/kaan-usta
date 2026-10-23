@@ -44,7 +44,8 @@ class AboutPage extends StatelessWidget {
               'Z-EKSENİ: yalnızca telefonun kendi Z ekseni (ekrana dik). Telefon yatay değilse düşey sarsıntının bir kısmını ölçer.',
               'EĞİM: telefonun yataydan eğimi (ekran yukarı ve yatayken 0°).',
               'Örnekleme: ~200 Hz istenir (5 ms; kısa çukur darbelerinin tepesi kaçmasın diye). Gerçek sayı CSV\'de Ivme_Ornek_Sayisi (~100 / 0,5 sn beklenir); telefonun verebildiği en yüksek hız BU CİHAZ bölümünde.',
-              'CSV: Dikey_Net, Dikey_RMS, Dikey_Min, Dikey_Max, Toplam_RMS, Egim_derece, Z_Net, Z_Ham, Z_Ham_Ort, Z_Net_RMS, Z_Net_Min, Z_Net_Max, Ivme_Ornek_Sayisi',
+              'TOPLAM, Z-EKSENİ ve EĞİM yalnızca ekranda gösterilir, CSV\'ye yazılmaz.',
+              'CSV: Dikey_RMS, Dikey_Min, Dikey_Max, Ivme_Ornek_Sayisi',
             ],
           ),
           const _InfoCard(
@@ -54,16 +55,16 @@ class AboutPage extends StatelessWidget {
               'Telefon ekranı yukarı, üst kenarı ileri bakacak şekilde takılıysa: X = öne/arkaya eğilme, Y = yana yatma, Z = sağa/sola dönüş.',
               'Örnekleme: ~200 Hz istenir.',
               'Ekranda: JİROSKOP X / Y / Z',
-              'CSV: Jiro_X_Ort, Jiro_Y_Ort, Jiro_Z_Ort, Jiro_Max_Bileske',
+              'Yalnızca ekranda gösterilir, CSV\'ye yazılmaz.',
             ],
           ),
           const _InfoCard(
-            title: '3. GNSS alıcısı (ham GPS)',
+            title: '3. GNSS alıcısı (GPS Doppler hızı)',
             lines: [
               'Doğrudan GPS donanımı okunur (Android GPS_PROVIDER); yumuşatma yapılmaz. Yonga destekliyorsa GLONASS, Galileo ve BeiDou da kullanılır.',
               'Hız, uydu sinyalinin Doppler kaymasından ölçülür. Konum çoğu telefonda saniyede 1 kez gelir.',
-              'Ekranda: HAM GPS HIZI, KOORDİNATLAR, Doğruluk, HARİTA',
-              'CSV: Enlem, Boylam, Ham_Hiz_kmh, GPS_Dogruluk_m, GPS_Yasi_s',
+              'Ekranda: GPS DOPPLER HIZI, KOORDİNATLAR, Doğruluk, HARİTA',
+              'CSV: Enlem, Boylam, GPS_Doppler_Hiz_kmh, GPS_Dogruluk_m',
             ],
           ),
           const _InfoCard(
@@ -71,13 +72,13 @@ class AboutPage extends StatelessWidget {
             lines: [
               'Sensör değil, Google\'ın yazılım servisi: GPS\'i Wi-Fi, baz istasyonu ve olası hareket sensörleriyle harmanlar ve yumuşatır.',
               'Ekranda: DÜZELTİLMİŞ GPS',
-              'CSV: Duzeltilmis_GPS_Hiz_kmh, Duzeltilmis_GPS_Yasi_s',
+              'CSV: Duzeltilmis_GPS_Hiz_kmh',
             ],
           ),
           const _InfoCard(
             title: '5. Telefonun saati',
             lines: [
-              'CSV\'deki Tarih_Saat ve GPS yaşı hesapları telefonun sistem saatinden gelir (uydu saati değildir).',
+              'CSV\'deki Tarih_Saat telefonun sistem saatinden gelir (uydu saati değildir).',
             ],
           ),
           const _InfoCard(
@@ -94,10 +95,9 @@ class AboutPage extends StatelessWidget {
             lines: [
               'Her 0,5 saniyede bir CSV satırı yazılır (saniyede 2 satır).',
               'CSV Türkçe Excel biçimindedir: sütunlar noktalı virgülle (;), ondalıklar virgülle (,) ayrılır.',
-              'İvmeölçer ve jiroskop için o 0,5 sn içindeki tüm örneklerin istatistiği alınır.',
+              'Dikey sarsıntı için o 0,5 sn içindeki tüm örneklerin (~100) istatistiği alınır.',
               'Dikey_RMS: dikey sarsıntının pencere içindeki RMS\'i = ana sarsıntı şiddeti ölçüsü.',
-              'Toplam_RMS: üç eksen titreşiminin RMS\'i. Egim_derece: pencere içindeki ortalama eğim.',
-              'Z_Net_RMS: yalnızca telefonun Z ekseni için aynı ölçü (telefon yatayken Dikey_RMS ile aynıdır).',
+              'Dikey_Min / Dikey_Max: pencere içindeki en büyük aşağı / yukarı darbe.',
               'Doğruluğu 50 m\'den kötü GPS konumları atılır.',
             ],
           ),
@@ -114,7 +114,7 @@ class AboutPage extends StatelessWidget {
             title: 'Montaj',
             lines: [
               'Telefon araca sıkıca sabitlenmelidir; açısı önemli değildir (dikey sarsıntı açıdan bağımsız hesaplanır). Gevşek tutucu veya cep/çanta ölçümü bozar.',
-              'Montaj açısı her kayıtta Egim_derece sütununa yazılır.',
+              'Montaj açısı ana ekranda EĞİM olarak görülebilir.',
               'Kayıt boyunca uygulama açık ve ön planda kalmalıdır (ekran otomatik kapanmaz).',
             ],
           ),
