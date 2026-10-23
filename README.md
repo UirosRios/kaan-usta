@@ -11,6 +11,10 @@ Telefonun GPS'i ve ivmeölçeri ile mikromobilite (e-scooter, bisiklet vb.) sür
 
 ## CSV sütunları (her 0,5 sn'de bir satır)
 
+Dosya Türkçe Excel biçimindedir: sütun ayırıcı **noktalı virgül (;)**, ondalık ayırıcı **virgül (,)**.
+Excel'de çift tıklayınca sütunlar doğrudan ayrılır. Python ile okumak için:
+`pd.read_csv("dosya.csv", sep=";", decimal=",")`.
+
 | Sütun | Açıklama |
 |---|---|
 | `Tarih_Saat` | Kayıt zamanı |

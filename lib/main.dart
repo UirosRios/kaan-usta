@@ -92,11 +92,16 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   Timer? _recordTimer;
 
   // Kayıt dosyası: satırlar 5 saniyede bir dosyaya eklenir (uygulama kapanırsa en fazla son 5 sn kaybolur)
-  static const String _csvHeader = "Tarih_Saat,Enlem,Boylam,Ham_Hiz_kmh,Duzeltilmis_GPS_Hiz_kmh,"
-      "Dikey_Net,Dikey_RMS,Dikey_Min,Dikey_Max,Toplam_RMS,Egim_derece,"
-      "Z_Net,Z_Ham,Z_Ham_Ort,Z_Net_RMS,Z_Net_Min,Z_Net_Max,Ivme_Ornek_Sayisi,"
-      "Jiro_X_Ort,Jiro_Y_Ort,Jiro_Z_Ort,Jiro_Max_Bileske,"
-      "GPS_Dogruluk_m,GPS_Yasi_s,Duzeltilmis_GPS_Yasi_s";
+  // Türkçe Excel biçimi: sütun ayırıcı noktalı virgül, ondalık ayırıcı virgül
+  // (Python: pd.read_csv(dosya, sep=';', decimal=','))
+  static const String _csvHeader = "Tarih_Saat;Enlem;Boylam;Ham_Hiz_kmh;Duzeltilmis_GPS_Hiz_kmh;"
+      "Dikey_Net;Dikey_RMS;Dikey_Min;Dikey_Max;Toplam_RMS;Egim_derece;"
+      "Z_Net;Z_Ham;Z_Ham_Ort;Z_Net_RMS;Z_Net_Min;Z_Net_Max;Ivme_Ornek_Sayisi;"
+      "Jiro_X_Ort;Jiro_Y_Ort;Jiro_Z_Ort;Jiro_Max_Bileske;"
+      "GPS_Dogruluk_m;GPS_Yasi_s;Duzeltilmis_GPS_Yasi_s";
+
+  // Sayıyı CSV için ondalık virgülle yaz
+  static String _num(double v, int digits) => v.toStringAsFixed(digits).replaceAll('.', ',');
   File? _csvFile;
   DateTime? _recordStart;
   int _rowCount = 0;
@@ -408,25 +413,26 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       // Jiroskop yoksa sütunlar boş bırakılır
       final gyroSamples = List<List<double>>.from(_gyroWindow);
       _gyroWindow.clear();
-      String gyroCols = ",,,";
+      String gyroCols = ";;;";
       if (gyroSamples.isNotEmpty) {
         final n = gyroSamples.length;
         final double gxMean = gyroSamples.map((g) => g[0]).reduce((a, b) => a + b) / n;
         final double gyMean = gyroSamples.map((g) => g[1]).reduce((a, b) => a + b) / n;
         final double gzMean = gyroSamples.map((g) => g[2]).reduce((a, b) => a + b) / n;
         final double gMax = gyroSamples.map((g) => sqrt(g[0] * g[0] + g[1] * g[1] + g[2] * g[2])).reduce(max);
-        gyroCols = "${gxMean.toStringAsFixed(4)},${gyMean.toStringAsFixed(4)},${gzMean.toStringAsFixed(4)},${gMax.toStringAsFixed(4)}";
+        gyroCols = [gxMean, gyMean, gzMean, gMax].map((v) => _num(v, 4)).join(';');
       }
 
       // Son GPS konumundan bu yana geçen süre (GPS kesilirse eski konum tekrarlanır, bu sütunla ayıklanabilir)
-      final String gpsAge = lastFixTime == null ? "" : (DateTime.now().difference(lastFixTime!).inMilliseconds / 1000).toStringAsFixed(1);
-      final String fusedAge = lastFusedFixTime == null ? "" : (DateTime.now().difference(lastFusedFixTime!).inMilliseconds / 1000).toStringAsFixed(1);
+      final String gpsAge = lastFixTime == null ? "" : _num(DateTime.now().difference(lastFixTime!).inMilliseconds / 1000, 1);
+      final String fusedAge = lastFusedFixTime == null ? "" : _num(DateTime.now().difference(lastFusedFixTime!).inMilliseconds / 1000, 1);
 
-      // O anki sensör verilerini CSV formatında virgülle ayırarak kaydet
-      String timestamp = DateTime.now().toString();
-      String row = "$timestamp,${currentLat.toStringAsFixed(6)},${currentLon.toStringAsFixed(6)},${currentRawSpeed.toStringAsFixed(2)},${currentFusedSpeed.toStringAsFixed(2)},"
-          "${verticalNet.toStringAsFixed(4)},${vRms.toStringAsFixed(4)},${vMin.toStringAsFixed(4)},${vMax.toStringAsFixed(4)},${tRms.toStringAsFixed(4)},${tiltMean.toStringAsFixed(1)},"
-          "${zNet.toStringAsFixed(4)},${zAxis.toStringAsFixed(4)},${zMean.toStringAsFixed(4)},${zRms.toStringAsFixed(4)},${zMin.toStringAsFixed(4)},${zMax.toStringAsFixed(4)},${samples.length},$gyroCols,${currentAccuracy.toStringAsFixed(1)},$gpsAge,$fusedAge";
+      // O anki sensör verilerini CSV formatında noktalı virgülle ayırarak kaydet
+      // Tarih_Saat: 2026-10-23 14:05:31,512 (milisaniye de ondalık virgülle)
+      String timestamp = DateTime.now().toString().replaceAll('.', ',');
+      String row = "$timestamp;${_num(currentLat, 6)};${_num(currentLon, 6)};${_num(currentRawSpeed, 2)};${_num(currentFusedSpeed, 2)};"
+          "${_num(verticalNet, 4)};${_num(vRms, 4)};${_num(vMin, 4)};${_num(vMax, 4)};${_num(tRms, 4)};${_num(tiltMean, 1)};"
+          "${_num(zNet, 4)};${_num(zAxis, 4)};${_num(zMean, 4)};${_num(zRms, 4)};${_num(zMin, 4)};${_num(zMax, 4)};${samples.length};$gyroCols;${_num(currentAccuracy, 1)};$gpsAge;$fusedAge";
       _pendingRows.add(row);
       _rowCount++;
       // 10 satırda bir (5 sn) dosyaya ekle
@@ -463,6 +469,8 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       'Satır sayısı: ${end == null ? "(kayıt bitince yazılır; CSV'deki satırları sayın)" : _rowCount}',
       '',
       ...DeviceInfo.describe(info),
+      '',
+      'CSV biçimi: sütun ayırıcı noktalı virgül (;), ondalık ayırıcı virgül (,) - Türkçe Excel ile doğrudan açılır',
       '',
       'Ölçüm ayarları:',
       '  İstenen sensör örnekleme aralığı: 5 ms (~200 Hz), ivmeölçer ve jiroskop',

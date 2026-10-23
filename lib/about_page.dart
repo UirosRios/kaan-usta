@@ -93,6 +93,7 @@ class AboutPage extends StatelessWidget {
             title: 'Örnekleme ve filtreler',
             lines: [
               'Her 0,5 saniyede bir CSV satırı yazılır (saniyede 2 satır).',
+              'CSV Türkçe Excel biçimindedir: sütunlar noktalı virgülle (;), ondalıklar virgülle (,) ayrılır.',
               'İvmeölçer ve jiroskop için o 0,5 sn içindeki tüm örneklerin istatistiği alınır.',
               'Dikey_RMS: dikey sarsıntının pencere içindeki RMS\'i = ana sarsıntı şiddeti ölçüsü.',
               'Toplam_RMS: üç eksen titreşiminin RMS\'i. Egim_derece: pencere içindeki ortalama eğim.',
