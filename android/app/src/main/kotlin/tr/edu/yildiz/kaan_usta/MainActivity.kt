@@ -101,7 +101,6 @@ class MainActivity : FlutterActivity() {
             "appVersion" to pi.versionName,
             "appBuild" to (if (Build.VERSION.SDK_INT >= 28) pi.longVersionCode else pi.versionCode.toLong()),
             "accelerometer" to sensorInfo(sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)),
-            "gyroscope" to sensorInfo(sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE)),
         )
     }
 

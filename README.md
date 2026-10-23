@@ -26,6 +26,10 @@ Excel'de çift tıklayınca sütunlar doğrudan ayrılır. Python ile okumak iç
 | `Ivme_Ornek_Sayisi` | Penceredeki ivmeölçer örneği sayısı (~200 Hz istenir → ~100 beklenir; telefon daha yavaş veriyorsa daha az) |
 | `GPS_Dogruluk_m` | GPS yatay konum doğruluğu (m, %68 güven yarıçapı) |
 
+**GPS kesintisi:** Son GPS konumu 3 saniyeden eskiyse (tünel, yüksek bina arası vb.) `Enlem`, `Boylam`,
+`GPS_Doppler_Hiz_kmh` ve `GPS_Dogruluk_m` hücreleri boş bırakılır; düzeltilmiş GPS 3 saniyeden eskiyse
+`Duzeltilmis_GPS_Hiz_kmh` boş kalır. Böylece eski konum/hız tekrar yazılmaz; sarsıntı sütunları yine doldurulur.
+
 **Yerçekimi giderme ve dikey sarsıntı:** İvmenin üç ekseni de 0,4 Hz kesim frekanslı birinci
 dereceden yüksek geçiren filtreden (bilineer/Tustin dönüşümü) geçirilir; 0,4 Hz, ISO 2631-1'in alt
 bant sınırıdır. Filtre çıkışı titreşim, ham ivme − titreşim ise yerçekimi vektörüdür (telefonun o anki
@@ -45,10 +49,9 @@ hangi açıda takılırsa takılsın aynı sarsıntı aynı değeri verir. Filtr
 Uygulamada sağ üstteki **ⓘ** simgesine dokununca açılan *Hakkında / Teknik Bilgi* sayfasında da listelenir.
 
 1. **İvmeölçer** – üç eksen ivme (m/s²), ~200 Hz; yerçekimi filtreyle çıkarılır, dikey sarsıntı hesaplanır
-2. **Jiroskop** – X/Y/Z açısal hız (rad/s), ~200 Hz; yalnızca ekranda gösterilir, CSV'ye yazılmaz
-3. **GNSS alıcısı** – doğrudan GPS_PROVIDER; konum, GPS Doppler hızı, doğruluk
-4. **Fused konum servisi (düzeltilmiş GPS)** – Google'ın birleşik konum servisi
-5. **Telefon saati** – zaman damgası
+2. **GNSS alıcısı** – doğrudan GPS_PROVIDER; konum, GPS Doppler hızı, doğruluk
+3. **Fused konum servisi (düzeltilmiş GPS)** – Google'ın birleşik konum servisi
+4. **Telefon saati** – zaman damgası
 
 ## Ölçüm notları
 

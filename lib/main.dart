@@ -41,14 +41,15 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   double verticalNet = 0.0; // Dikey sarsıntı: titreşimin gerçek düşey (yerçekimi) yönündeki bileşeni
   double totalNet = 0.0; // Toplam sarsıntı: üç eksendeki titreşimin büyüklüğü (yönden bağımsız)
   double tiltDeg = 0.0; // Telefonun yataydan eğimi (derece); ekran yukarı ve yatayken 0
-  double gyroX = 0.0, gyroY = 0.0, gyroZ = 0.0; // Jiroskop açısal hızı (rad/s)
-  bool gyroAvailable = true;
   double currentLat = 0.0;
   double currentLon = 0.0;
   double currentRawSpeed = 0.0; // GPS Doppler Hızı - doğrudan GPS donanımı (yumuşatma yok)
   double currentFusedSpeed = 0.0; // Düzeltilmiş GPS Hızı - Fused (birleşik) konum servisi
   double currentAccuracy = 0.0; // Ham GPS yatay konum doğruluğu (m)
   DateTime? lastFixTime; // Son geçerli ham GPS konumunun zamanı
+  DateTime? lastFusedFixTime; // Son geçerli düzeltilmiş GPS konumunun zamanı
+  // Son konum bundan eskiyse (GPS kesildiyse) CSV'de konum / hız hücreleri boş bırakılır
+  static const Duration gpsMaxAge = Duration(seconds: 3);
   bool isRecording = false;
   String _gpsStatus = "GPS bekleniyor...";
   // GPS tanı bilgisi: uydu sayısı, 50 m filtresine takılan son doğruluk, durum yazısına dokununca açılacak ayar
@@ -105,7 +106,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   StreamSubscription<dynamic>? rawGpsSubscription;
   StreamSubscription<Position>? geoSubscription;
   StreamSubscription<AccelerometerEvent>? accelSubscription;
-  StreamSubscription<GyroscopeEvent>? gyroSubscription;
 
   @override
   void initState() {
@@ -172,17 +172,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       zNet = _dynAcc[2];
 
       if (isRecording) _verticalWindow.add(verticalNet);
-    });
-
-    // Jiroskop (açısal hız) Sensörünü Başlat - ivmeölçerle aynı hızda (~200 Hz)
-    // Telefonun tutucuda eğilmesi / dönmesi bu sensörle izlenir
-    gyroSubscription = gyroscopeEventStream(samplingPeriod: sensorSamplingPeriod).listen((GyroscopeEvent event) {
-      gyroX = event.x;
-      gyroY = event.y;
-      gyroZ = event.z;
-    }, onError: (Object e) {
-      // Bazı ucuz telefonlarda jiroskop bulunmaz
-      if (mounted) setState(() => gyroAvailable = false);
     });
 
     await _initLocation();
@@ -291,6 +280,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
           if (position.accuracy > 50.0) return;
 
           setState(() {
+            lastFusedFixTime = DateTime.now();
             currentFusedSpeed = position.speed < 0 ? 0.0 : position.speed * 3.6;
           });
         }
@@ -363,11 +353,26 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
         vMax = vSamples.reduce(max);
       }
 
+      // GPS 3 sn'den uzun süredir konum vermiyorsa eski konum / hız tekrarlanmasın: hücreler boş kalır
+      final now = DateTime.now();
+      bool fresh(DateTime? t) => t != null && now.difference(t) <= gpsMaxAge;
+      final bool gpsOk = fresh(lastFixTime);
+      final bool fusedOk = fresh(lastFusedFixTime);
+
       // O anki sensör verilerini CSV formatında noktalı virgülle ayırarak kaydet
       // Tarih_Saat: 2026-10-23 14:05:31,512 (milisaniye de ondalık virgülle)
-      String timestamp = DateTime.now().toString().replaceAll('.', ',');
-      String row = "$timestamp;${_num(currentLat, 6)};${_num(currentLon, 6)};${_num(currentRawSpeed, 2)};${_num(currentFusedSpeed, 2)};"
-          "${_num(vRms, 4)};${_num(vMin, 4)};${_num(vMax, 4)};${vSamples.length};${_num(currentAccuracy, 1)}";
+      String row = [
+        now.toString().replaceAll('.', ','),
+        gpsOk ? _num(currentLat, 6) : '',
+        gpsOk ? _num(currentLon, 6) : '',
+        gpsOk ? _num(currentRawSpeed, 2) : '',
+        fusedOk ? _num(currentFusedSpeed, 2) : '',
+        _num(vRms, 4),
+        _num(vMin, 4),
+        _num(vMax, 4),
+        '${vSamples.length}',
+        gpsOk ? _num(currentAccuracy, 1) : '',
+      ].join(';');
       _pendingRows.add(row);
       _rowCount++;
       // 10 satırda bir (5 sn) dosyaya ekle
@@ -408,13 +413,15 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       'CSV biçimi: sütun ayırıcı noktalı virgül (;), ondalık ayırıcı virgül (,) - Türkçe Excel ile doğrudan açılır',
       '',
       'Ölçüm ayarları:',
-      '  İstenen sensör örnekleme aralığı: 5 ms (~200 Hz), ivmeölçer ve jiroskop',
+      '  İstenen ivmeölçer örnekleme aralığı: 5 ms (~200 Hz)',
       '  Kayıt penceresi: 0,5 s (saniyede 2 satır)',
       '  Yerçekimi giderme: ivmenin üç eksenine birinci dereceden yüksek geçiren filtre (bilineer dönüşüm), kesim frekansı $gravityCutoffHz Hz',
       '  Yerçekimi yönü = ham ivme − filtre çıkışı; Dikey_* = titreşimin bu yöne izdüşümü (telefonun montaj açısından bağımsız)',
       '  GPS Doppler hızı ve konum: doğrudan GPS donanımı (Android GPS_PROVIDER), yumuşatma yok, istenen aralık 500 ms',
       '  Düzeltilmiş GPS: Fused konum servisi, istenen aralık 500 ms',
       '  GPS konum filtresi: doğruluğu 50 m\'den kötü konumlar atılır',
+      '  GPS kesintisi: son konum ${gpsMaxAge.inSeconds} sn\'den eskiyse Enlem, Boylam, GPS_Doppler_Hiz_kmh ve GPS_Dogruluk_m boş bırakılır;',
+      '  düzeltilmiş GPS ${gpsMaxAge.inSeconds} sn\'den eskiyse Duzeltilmis_GPS_Hiz_kmh boş bırakılır',
     ];
     await infoFileFor(file).writeAsString('${lines.join('\n')}\n', flush: true);
   }
@@ -478,7 +485,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     rawGpsSubscription?.cancel();
     geoSubscription?.cancel();
     accelSubscription?.cancel();
-    gyroSubscription?.cancel();
     WakelockPlus.disable();
     super.dispose();
   }
@@ -604,36 +610,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                                   ),
                               ],
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-
-                    // Jiroskop Kartı (açısal hız, rad/s) - tek satır, küçük
-                    Card(
-                      elevation: 4,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                      color: Colors.white,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-                        child: Row(
-                          children: [
-                            const Text('JİROSKOP\n(rad/s)', style: TextStyle(fontSize: 11, color: Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
-                            const SizedBox(width: 10),
-                            if (!gyroAvailable)
-                              const Expanded(child: Text('Bu telefonda jiroskop yok', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: Colors.redAccent)))
-                            else
-                              for (final (label, value) in [('X', gyroX), ('Y', gyroY), ('Z', gyroZ)])
-                                Expanded(
-                                  child: Text.rich(
-                                    TextSpan(children: [
-                                      TextSpan(text: '$label ', style: const TextStyle(fontSize: 11, color: Color(0xFF6C757D), fontWeight: FontWeight.bold)),
-                                      TextSpan(text: value.toStringAsFixed(3), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF6F42C1))),
-                                    ]),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
                           ],
                         ),
                       ),

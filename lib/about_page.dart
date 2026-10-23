@@ -49,26 +49,16 @@ class AboutPage extends StatelessWidget {
             ],
           ),
           const _InfoCard(
-            title: '2. Jiroskop (dönme / eğilme)',
-            lines: [
-              'Ölçtüğü: Üç eksendeki açısal hız, rad/s. Telefon hareketsizken üçü de ≈ 0.',
-              'Telefon ekranı yukarı, üst kenarı ileri bakacak şekilde takılıysa: X = öne/arkaya eğilme, Y = yana yatma, Z = sağa/sola dönüş.',
-              'Örnekleme: ~200 Hz istenir.',
-              'Ekranda: JİROSKOP X / Y / Z',
-              'Yalnızca ekranda gösterilir, CSV\'ye yazılmaz.',
-            ],
-          ),
-          const _InfoCard(
-            title: '3. GNSS alıcısı (GPS Doppler hızı)',
+            title: '2. GNSS alıcısı (GPS Doppler hızı)',
             lines: [
               'Doğrudan GPS donanımı okunur (Android GPS_PROVIDER); yumuşatma yapılmaz. Yonga destekliyorsa GLONASS, Galileo ve BeiDou da kullanılır.',
               'Hız, uydu sinyalinin Doppler kaymasından ölçülür. Konum çoğu telefonda saniyede 1 kez gelir.',
               'Ekranda: GPS DOPPLER HIZI, KOORDİNATLAR, Doğruluk, HARİTA',
-              'CSV: Enlem, Boylam, GPS_Doppler_Hiz_kmh, GPS_Dogruluk_m',
+              'CSV: Enlem, Boylam, GPS_Doppler_Hiz_kmh, GPS_Dogruluk_m. Son konum 3 sn\'den eskiyse (GPS kesildiyse) bu hücreler boş bırakılır.',
             ],
           ),
           const _InfoCard(
-            title: '4. Fused konum servisi (düzeltilmiş GPS)',
+            title: '3. Fused konum servisi (düzeltilmiş GPS)',
             lines: [
               'Sensör değil, Google\'ın yazılım servisi: GPS\'i Wi-Fi, baz istasyonu ve olası hareket sensörleriyle harmanlar ve yumuşatır.',
               'Ekranda: DÜZELTİLMİŞ GPS',
@@ -76,7 +66,7 @@ class AboutPage extends StatelessWidget {
             ],
           ),
           const _InfoCard(
-            title: '5. Telefonun saati',
+            title: '4. Telefonun saati',
             lines: [
               'CSV\'deki Tarih_Saat telefonun sistem saatinden gelir (uydu saati değildir).',
             ],

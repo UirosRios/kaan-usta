@@ -24,7 +24,6 @@ class DeviceInfo {
       'Cihaz: ${info['manufacturer']} ${info['model']}',
       'Android: ${info['android']} (API ${info['sdk']})',
       ..._sensorLines('İvmeölçer', info['accelerometer'], 'm/s²'),
-      ..._sensorLines('Jiroskop', info['gyroscope'], 'rad/s'),
     ];
   }
 
