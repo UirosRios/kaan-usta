@@ -91,6 +91,15 @@ class AboutPage extends StatelessWidget {
             ],
           ),
           const _InfoCard(
+            title: 'Çukur butonu',
+            lines: [
+              'Kayıt sırasında çukurdan geçtikten sonra turuncu ÇUKUR butonuna basın; akbil sesi duyulur.',
+              'Basış CSV\'de Isaret sütununa yazılır. Analiz betiği basıştan önceki 5 sn\'deki sarsıntı tepesini bularak çukurun tam anını ve konumunu çıkarır.',
+              'Geri bildirim yalnızca sesledir: titreşim ivmeölçere karışırdı. Basılan an ve sonraki 0,5 sn analizde dışlanır (dokunma telefonu sarsar).',
+              '1 sn içindeki ikinci basış sayılmaz. Kayıt sırasında DURDUR basılı tutularak çalışır.',
+            ],
+          ),
+          const _InfoCard(
             title: 'Kayıt dosyaları',
             lines: [
               'Veriler kayıt sırasında 5 saniyede bir dosyaya yazılır; uygulama kapanırsa en fazla son 5 saniye kaybolur.',

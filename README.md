@@ -25,6 +25,7 @@ Excel'de çift tıklayınca sütunlar doğrudan ayrılır. Python ile okumak iç
 | `Dikey_Min`, `Dikey_Max` | Penceredeki en düşük / en yüksek dikey sarsıntı (m/s², darbe tepe değerleri) |
 | `Ivme_Ornek_Sayisi` | Penceredeki ivmeölçer örneği sayısı (~200 Hz istenir → ~100 beklenir; telefon daha yavaş veriyorsa daha az) |
 | `GPS_Dogruluk_m` | GPS yatay konum doğruluğu (m, %68 güven yarıçapı) |
+| `Isaret` | Çukur butonuna o 0,5 sn içinde kaç kez basıldığı (boş = basılmadı) |
 
 **GPS kesintisi:** Son GPS konumu 3 saniyeden eskiyse (tünel, yüksek bina arası vb.) `Enlem`, `Boylam`,
 `GPS_Doppler_Hiz_kmh` ve `GPS_Dogruluk_m` hücreleri boş bırakılır; düzeltilmiş GPS 3 saniyeden eskiyse
@@ -41,6 +42,18 @@ hangi açıda takılırsa takılsın aynı sarsıntı aynı değeri verir. Filtr
 Kayıtların analizi için `analiz/surus_analizi.py` betiği kullanılır: GPS gecikmesini düzeltir, duruşları
 ayıklar, hıza göre sarsıntı tablosu çıkarır, darbeleri bulur ve uydu görüntüsü üzerinde harita üretir.
 Ayrıntılar: [analiz/README.md](analiz/README.md).
+
+## Çukur işaretleme
+
+Kayıt sırasında ekranda büyük turuncu **ÇUKUR** butonu çıkar. Çukurdan geçtikten sonra butona basın; akbil sesi
+duyulur ve o an CSV'deki `Isaret` sütununa yazılır. Analiz betiği basıştan önceki 5 saniyedeki sarsıntı tepesini
+bularak çukurun tam anını ve konumunu çıkarır.
+
+- **Titreşim yok:** Geri bildirim yalnızca sesle verilir. Titreşim motoru ivmeölçere karışırdı.
+- **Buton etkisi:** Ekrana dokunmak telefonu kısa bir an iter. Betik, basılan satırı ve sonraki 0,5 sn'yi analize katmaz.
+- **Çift dokunma:** 1 saniye içindeki ikinci basış sayılmaz.
+- **Durdurma:** Kayıt sırasında **DURDUR** butonu yanlışlıkla kaydı bitirmesin diye basılı tutularak çalışır.
+- **Ses:** Telefonun medya ses düzeyi kısıksa akbil sesi duyulmaz.
 
 ## Kayıt dosyaları
 
