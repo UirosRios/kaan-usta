@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -71,6 +72,19 @@ class _RecordingsPageState extends State<RecordingsPage> {
     _load();
   }
 
+  // CSV'yi telefondaki bir uygulamayla aç (Excel, Google E-Tablolar vb.)
+  Future<void> _open(File csv) async {
+    var result = await OpenFilex.open(csv.path, type: 'text/csv');
+    // Bazı uygulamalar CSV'yi yalnızca Excel türüyle tanır
+    if (result.type == ResultType.noAppToOpen) result = await OpenFilex.open(csv.path, type: 'application/vnd.ms-excel');
+    if (result.type != ResultType.done && mounted) {
+      final text = result.type == ResultType.noAppToOpen
+          ? 'CSV açabilecek uygulama bulunamadı (Excel veya Google E-Tablolar yükleyin ya da Paylaş ile gönderin)'
+          : 'Dosya açılamadı: ${result.message}';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    }
+  }
+
   String _size(int bytes) => bytes < 1024 * 1024 ? '${(bytes / 1024).toStringAsFixed(0)} KB' : '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
 
   @override
@@ -97,7 +111,8 @@ class _RecordingsPageState extends State<RecordingsPage> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       child: ListTile(
                         title: Text(f.uri.pathSegments.last, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                        subtitle: Text(_size(stat.size)),
+                        subtitle: Text('${_size(stat.size)} · açmak için dokunun'),
+                        onTap: () => _open(f),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [

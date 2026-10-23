@@ -11,6 +11,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'about_page.dart';
 import 'device_info.dart';
 import 'recordings_page.dart';
+import 'trimmed_logo.dart';
 
 void main() {
   runApp(const MyApp());
@@ -37,7 +38,6 @@ class SensorDashboard extends StatefulWidget {
 
 class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingObserver {
   // Sensör ve Veri Değişkenleri
-  double zNet = 0.0; // Yerçekimi çıkarılmış Z ivmesi (telefonun kendi ekseni)
   double verticalNet = 0.0; // Dikey sarsıntı: titreşimin gerçek düşey (yerçekimi) yönündeki bileşeni
   double totalNet = 0.0; // Toplam sarsıntı: üç eksendeki titreşimin büyüklüğü (yönden bağımsız)
   double tiltDeg = 0.0; // Telefonun yataydan eğimi (derece); ekran yukarı ve yatayken 0
@@ -168,8 +168,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       totalNet = sqrt(_dynAcc[0] * _dynAcc[0] + _dynAcc[1] * _dynAcc[1] + _dynAcc[2] * _dynAcc[2]);
       // Eğim: telefonun Z ekseni (ekrana dik) ile gerçek düşey arasındaki açı
       tiltDeg = gNorm > 0 ? acos((gz / gNorm).clamp(-1.0, 1.0)) * 180 / pi : 0.0;
-      // Z sarsıntısı (telefonun kendi ekseni): Z ekseninin titreşim bileşeni
-      zNet = _dynAcc[2];
 
       if (isRecording) _verticalWindow.add(verticalNet);
     });
@@ -547,13 +545,9 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                       shape: BoxShape.circle,
                       boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 5, offset: Offset(-2, 0))],
                     ),
-                    padding: const EdgeInsets.all(2),
-                    child: ClipOval(
-                      child: Image.network(
-                        "https://upload.wikimedia.org/wikipedia/commons/3/37/Y%C4%B1ld%C4%B1z_Technical_University_Logo.png",
-                        fit: BoxFit.contain,
-                        // İnternet yoksa (sahada) uygulama çökmesin, boş daire göster
-                        errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                    child: const ClipOval(
+                      child: TrimmedLogo(
+                        url: "https://upload.wikimedia.org/wikipedia/commons/3/37/Y%C4%B1ld%C4%B1z_Technical_University_Logo.png",
                       ),
                     ),
                   ),
@@ -576,7 +570,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                    // Sarsıntı Kartı: büyük sayı dikey sarsıntı, altında küçük Z-ekseni, toplam ve eğim
+                    // Sarsıntı Kartı: büyük sayı dikey sarsıntı, altında küçük toplam ve eğim
                     Card(
                       elevation: 4,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -596,7 +590,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                             Row(
                               children: [
                                 for (final (label, value) in [
-                                  ('Z-EKSENİ', zNet.toStringAsFixed(3)),
                                   ('TOPLAM', totalNet.toStringAsFixed(3)),
                                   ('EĞİM', '${tiltDeg.toStringAsFixed(0)}°'),
                                 ])

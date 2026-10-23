@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- GPS (konum ve hız) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
@@ -6,6 +7,12 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Kayıt sırasında ekranın kapanmasını engellemek için -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <!-- open_filex eklentisinin eklediği medya/depolama izinleri gereksiz: kayıtlar uygulamanın kendi
+         klasöründe olduğu için CSV'yi açmak izin istemez -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" tools:node="remove"/>
     <application
         android:label="Mikromobilite Sarsıntı"
         android:name="${applicationName}"
