@@ -76,18 +76,20 @@ class Ag:
 def izgara(paralel=False, meydan=False):
     """Ana cadde y=0 (x 0-300 m), dik sokaklar x=50,150,250; isteğe bağlı 15 m yanda paralel sokak / meydan."""
     ag = Ag()
+    ana = {'highway': 'residential', 'name': 'Ana Cadde'}
     if meydan:  # x 100-160 arası meydan: haritada yol yok, yalnızca alan sınırı
-        ag.yol([(0, 0), (50, 0), (100, 0)])
-        ag.yol([(160, 0), (250, 0), (300, 0)])
+        ag.yol([(0, 0), (50, 0), (100, 0)], ana)
+        ag.yol([(160, 0), (250, 0), (300, 0)], ana)
         ag.yol([(100, -30), (160, -30), (160, 30), (100, 30), (100, -30)], {'highway': 'pedestrian', 'area': 'yes'})
     else:
-        ag.yol([(0, 0), (50, 0), (150, 0), (250, 0), (300, 0)])
+        ag.yol([(0, 0), (50, 0), (150, 0), (250, 0), (300, 0)], ana)
     for x in (50, 150, 250):
         if meydan and x == 150:
             continue
-        ag.yol([(x, -60), (x, 0), (x, 15) if paralel else (x, 60), (x, 60)] if paralel else [(x, -60), (x, 0), (x, 60)])
+        ag.yol([(x, -60), (x, 0), (x, 15) if paralel else (x, 60), (x, 60)] if paralel else [(x, -60), (x, 0), (x, 60)],
+               {'highway': 'residential', 'name': f'{x // 50}. Sokak'})
     if paralel:
-        ag.yol([(0, 15), (50, 15), (150, 15), (250, 15), (300, 15)])
+        ag.yol([(0, 15), (50, 15), (150, 15), (250, 15), (300, 15)], {'highway': 'residential', 'name': 'Paralel Sokak'})
     ag.yol([(0, 0), (0, 15) if paralel else (0, -40)], {'highway': 'footway'})
     return ag
 
@@ -289,7 +291,8 @@ def kayit_uret(sen, rnd, yol):
     for tb, v in basislar:
         if tb < T[-1] - 1 and (not filtreli or tb - filtreli[-1][0] >= 1.0):
             filtreli.append((tb, v))
-    sinyal, vurus_hepsi = ivme_uret(T, S, V, g, sen['zemin'], kusurlar, [b[0] for b in filtreli], rnd)
+    zemin = (lambda s: sen['zemin_xy'](*g.konum(s))) if 'zemin_xy' in sen else sen['zemin']
+    sinyal, vurus_hepsi = ivme_uret(T, S, V, g, zemin, kusurlar, [b[0] for b in filtreli], rnd)
 
     # GPS ölçümleri (1 Hz): gerçek konum (gecikmeli) + zamanla ilişkili hata + bölgesel sapma
     sigma, tau = sen['gps_sigma'], sen.get('gps_tau', 15.0)
@@ -552,12 +555,53 @@ def calistir(tekrar, ornek_klasor=None):
     return metin
 
 
+def birlesik_ornek(klasor):
+    """Birleştirme doğrulaması: yüzeyi bilinen sokaklarda 3 sürüş üret, birlestir.py ile birleştir, gerçekle karşılaştır.
+    Ana Cadde'nin batı yarısı parke, doğu yarısı asfalt; 3. Sokak (x=150, kuzey) arnavut kaldırımı."""
+    import subprocess
+    kayit = os.path.join(klasor, 'kayitlar')
+    os.makedirs(kayit, exist_ok=True)
+    ag = izgara()
+    osm_yol = os.path.join(klasor, 'osm.json')
+    with open(osm_yol, 'w', encoding='utf-8') as f:
+        json.dump(ag.osm(), f)
+
+    def zemin(x, y):
+        if abs(x - 150) < 1 and y > 1:
+            return ARNAVUT
+        return PARKE if x < 150 else ASFALT
+    ortak = dict(ag=ag, zemin=lambda s: 0, zemin_xy=zemin, cukurlar=[(70, 0, 3.0), (150, 40, 3.0), (240, 0, 2.5)],
+                 rogarlar=ROGAR, gps_sigma=5.0, fark_etme=0.0)
+    suruslar = [
+        ('mikromobilite_20261101_100000', dict(ortak, guzergah=ileri_geri(ANA), hiz=16)),
+        ('mikromobilite_20261102_100000', dict(ortak, guzergah=ileri_geri([(0, 0), (150, 0), (150, 60)]), hiz=12)),
+        ('mikromobilite_20261103_100000', dict(ortak, guzergah=ileri_geri([(150, 60), (150, 0), (300, 0)]), hiz=18)),
+    ]
+    for i, (ad, sen) in enumerate(suruslar):
+        kayit_uret(sen, random.Random(500 + i), os.path.join(kayit, ad + '.csv'))
+        with open(os.path.join(kayit, ad + '_bilgi.txt'), 'w', encoding='utf-8') as f:
+            f.write(f'Scooter: Örnek Scooter\nHava durumu: Açık, {18 + i},0 °C, yağış 0,0 mm, rüzgâr 8 km/h, nem %55 (Open-Meteo)\n')
+    cikti = os.path.join(klasor, 'birlesik_analiz')
+    subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'birlestir.py'), kayit,
+                    '--osm', osm_yol, '--cikti', cikti], check=True)
+    with open(os.path.join(cikti, 'birlesik_ozet.txt'), encoding='utf-8') as f:
+        ozet = f.read()
+    print(ozet)
+    print('GERÇEK: hız üssü 0,8; Ana Cadde batısı parke (3,5), doğusu asfalt (1,2), 3. Sokak arnavut kaldırımı (6,5),')
+    print(f'10 km/h\'teki RMS; 15 km/h\'te beklenen: parke {PARKE * 1.5 ** 0.8:.1f}, asfalt {ASFALT * 1.5 ** 0.8:.1f}, '
+          f'arnavut {ARNAVUT * 1.5 ** 0.8:.1f} m/s² (zeminin yer yer ±%40 değişmesi hariç).')
+
+
 def main():
     p = argparse.ArgumentParser(description='Analiz betiğinin simülasyonla doğrulanması')
     p.add_argument('--tekrar', type=int, default=12, help='Her senaryonun tekrar sayısı (varsayılan 12)')
     p.add_argument('--ornek', help='Örnek sürüş CSV\'si ve analiz çıktılarının yazılacağı klasör')
+    p.add_argument('--birlesik', help='Birleştirme doğrulaması: 3 yapay sürüş üret ve birlestir.py ile bu klasörde birleştir')
     a = p.parse_args()
-    calistir(a.tekrar, a.ornek)
+    if a.birlesik:
+        birlesik_ornek(a.birlesik)
+    else:
+        calistir(a.tekrar, a.ornek)
 
 
 if __name__ == '__main__':

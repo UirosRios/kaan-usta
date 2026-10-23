@@ -27,85 +27,81 @@ HIZA GÖRE DİKEY SARSINTI (yalnızca hareket satırları)
   12-15           276         5,20       5,32          12,3
   15-18           262         6,14       6,34          14,4
   Korelasyon r = 0,48   Doğrusal uyum: RMS ≈ 0,24 + 0,372 × hız
+  Not: farklı sokaklarda farklı hızla gidildiyse bu tablo hız ile yüzeyin etkisini karıştırır;
+  yüzey karşılaştırması için aşağıdaki sokak tablosuna bakın.
+
+SOKAKLARA GÖRE SARSINTI (en bozuktan en düzgüne)
+  İndeks: hız düzeltmeli Dikey_RMS = bu sokakta 15 km/h'te beklenen sarsıntı (m/s²). Sarsıntının hıza bağlılığı
+  aynı 25 m'lik parçadaki hız farklarından tahmin edildi: RMS ∝ hız^0,87.
+  Sokak                               Yol (m)    Hız    RMS  İndeks  Darbe  Darbe/100m
+  Ana Cadde                              1129   14,7   5,66    5,72     11         1,0
+  İsimsiz footway (OSM 1004)               11   10,4   3,42    5,07      0         0,0
+  5. Sokak                                  4   14,7   4,59    4,68      0         0,0
 
 ÇUKUR İŞARETLERİ - eski çukur butonu (13 basış, 7 tanesi bir sarsıntı tepesiyle eşleşti)
   "belirsiz": arama aralığında çukura benzer büyüklükte başka tepe(ler) de var (zemin çok pürüzlü);
   konum yalnızca yaklaşıktır.
   Ç1: 40.980000, 29.020763  yol boyunca ±6 m  çukur 10:00:20,00, basış 2,5 sn sonra
-      hız 16,8 km/h  Min -38,1 / Max 19,9 m/s²  (çevre RMS'nin 6,3 katı)  otomatik darbe olarak da bulundu
+      hız 16,8 km/h  Min -38,1 / Max 19,9 m/s²  (çevre RMS'nin 5,8 katı)  otomatik darbe olarak da bulundu
       https://www.google.com/maps/search/?api=1&query=40.980000,29.020763
   Ç2: 40.980000, 29.022153  yol boyunca ±6 m  çukur 10:00:46,50, basış 1,0 sn sonra
-      hız 16,7 km/h  Min -27,6 / Max 25,9 m/s²  (çevre RMS'nin 4,5 katı)  otomatik darbe olarak da bulundu
+      hız 16,7 km/h  Min -27,6 / Max 25,9 m/s²  (çevre RMS'nin 4,3 katı)  otomatik darbe olarak da bulundu
       https://www.google.com/maps/search/?api=1&query=40.980000,29.022153
-  Ç3: basış 10:00:53,00 - belirgin tepe yok (en büyük tepe çevre RMS'nin 2,8 katı)
+  Ç3: basış 10:00:53,00 - belirgin tepe yok (en büyük tepe çevre RMS'nin 2,5 katı)
       yaklaşık konum (tipik tepki süresinden): 40.980000, 29.022426 ±7 m  https://www.google.com/maps/search/?api=1&query=40.980000,29.022426
   Ç4: 40.980000, 29.022849  yol boyunca ±6 m  çukur 10:01:01,00, basış 1,0 sn sonra
-      hız 14,3 km/h  Min -23,1 / Max 17,9 m/s²  (çevre RMS'nin 4,1 katı)  otomatik darbe olarak da bulundu
+      hız 14,3 km/h  Min -23,1 / Max 17,9 m/s²  (çevre RMS'nin 3,8 katı)
       https://www.google.com/maps/search/?api=1&query=40.980000,29.022849
   Ç5: 40.980000, 29.022096  yol boyunca ±6 m  çukur 10:01:44,50, basış 1,0 sn sonra
-      hız 13,3 km/h  Min -30,0 / Max 14,9 m/s²  (çevre RMS'nin 4,8 katı)  otomatik darbe olarak da bulundu
+      hız 13,3 km/h  Min -30,0 / Max 14,9 m/s²  (çevre RMS'nin 4,3 katı)  otomatik darbe olarak da bulundu
       https://www.google.com/maps/search/?api=1&query=40.980000,29.022096
   Ç6: 40.980000, 29.020897  yol boyunca ±5 m  çukur 10:02:11,50, basış 2,0 sn sonra
-      hız 15,2 km/h  Min -30,5 / Max 22,0 m/s²  (çevre RMS'nin 6,0 katı)  otomatik darbe olarak da bulundu
+      hız 15,2 km/h  Min -30,5 / Max 22,0 m/s²  (çevre RMS'nin 4,8 katı)  otomatik darbe olarak da bulundu
       https://www.google.com/maps/search/?api=1&query=40.980000,29.020897
-  Ç7: basış 10:02:46,00 - belirsiz (en büyük tepe çevre RMS'nin 5,0 katı)
+  Ç7: basış 10:02:46,00 - belirsiz (en büyük tepe çevre RMS'nin 4,7 katı)
       yaklaşık konum (tipik tepki süresinden): 40.980000, 29.020789 ±7 m  https://www.google.com/maps/search/?api=1&query=40.980000,29.020789
   Ç8: 40.980000, 29.022023  yol boyunca ±6 m  çukur 10:03:11,50, basış 3,0 sn sonra
       hız 13,2 km/h  Min -26,6 / Max 13,7 m/s²  (çevre RMS'nin 4,5 katı)  otomatik darbe olarak da bulundu
       https://www.google.com/maps/search/?api=1&query=40.980000,29.022023
-  Ç9: basış 10:03:27,00 - belirsiz (en büyük tepe çevre RMS'nin 4,0 katı)
+  Ç9: basış 10:03:27,00 - belirsiz (en büyük tepe çevre RMS'nin 3,3 katı)
       yaklaşık konum (tipik tepki süresinden): 40.980000, 29.022741 ±8 m  https://www.google.com/maps/search/?api=1&query=40.980000,29.022741
-  Ç10: basış 10:03:42,50 - belirgin tepe yok (en büyük tepe çevre RMS'nin 2,8 katı)
+  Ç10: basış 10:03:42,50 - belirgin tepe yok (en büyük tepe çevre RMS'nin 2,6 katı)
       yaklaşık konum (tipik tepki süresinden): 40.980000, 29.023525 ±7 m  https://www.google.com/maps/search/?api=1&query=40.980000,29.023525
-  Ç11: basış 10:03:57,50 - belirsiz (en büyük tepe çevre RMS'nin 3,7 katı)
+  Ç11: basış 10:03:57,50 - belirsiz (en büyük tepe çevre RMS'nin 3,6 katı)
       yaklaşık konum (tipik tepki süresinden): 40.980000, 29.022951 ±7 m  https://www.google.com/maps/search/?api=1&query=40.980000,29.022951
-  Ç12: basış 10:04:11,00 - belirsiz (en büyük tepe çevre RMS'nin 4,1 katı)
+  Ç12: basış 10:04:11,00 - belirsiz (en büyük tepe çevre RMS'nin 3,5 katı)
       yaklaşık konum (tipik tepki süresinden): 40.980000, 29.022216 ±7 m  https://www.google.com/maps/search/?api=1&query=40.980000,29.022216
   Ç13: 40.980000, 29.020830  yol boyunca ±6 m  çukur 10:04:36,50, basış 1,5 sn sonra
-      hız 17,1 km/h  Min -39,1 / Max 15,6 m/s²  (çevre RMS'nin 6,6 katı)  otomatik darbe olarak da bulundu
+      hız 17,1 km/h  Min -39,1 / Max 15,6 m/s²  (çevre RMS'nin 5,9 katı)  otomatik darbe olarak da bulundu
       https://www.google.com/maps/search/?api=1&query=40.980000,29.020830
   Birden fazla geçişte işaretlenen çukurlar:
     40.980000, 29.020836 ±3 m (3 geçiş)  https://www.google.com/maps/search/?api=1&query=40.980000,29.020836
     40.980000, 29.022091 ±3 m (3 geçiş)  https://www.google.com/maps/search/?api=1&query=40.980000,29.022091
   Ortalama tepki süresi (çukur -> basış): 1,7 sn
-  Otomatik darbe tespiti işaretli çukurların 7/7 tanesini buldu.
+  Otomatik darbe tespiti işaretli çukurların 6/7 tanesini buldu.
 
-OTOMATİK DARBELER (19 darbe, 8 farklı nokta; 7 tanesi işaretli bir çukurla aynı an)
+OTOMATİK DARBELER (11 darbe, 5 farklı nokta; 6 tanesi işaretli bir çukurla aynı an)
   Nokta 1: 40.980000, 29.020806  ±3 m  (5 geçişte, en büyük tepe 39,1 m/s²)
     https://www.google.com/maps/search/?api=1&query=40.980000,29.020806
-    - 10:00:20,00  hız 16,8 km/h  Min -38,1 / Max 19,9 m/s²  çevre RMS 6,0  konum ±6 m  [işaretli çukur]
-    - 10:02:11,50  hız 15,2 km/h  Min -30,5 / Max 22,0 m/s²  çevre RMS 5,1  konum ±5 m  [işaretli çukur]
-    - 10:02:15,50  hız 17,3 km/h  Min -14,8 / Max 27,0 m/s²  çevre RMS 5,6  konum ±6 m
-    - 10:02:45,00  hız 15,6 km/h  Min -31,3 / Max 11,8 m/s²  çevre RMS 6,3  konum ±5 m
-    - 10:04:36,50  hız 17,1 km/h  Min -39,1 / Max 15,6 m/s²  çevre RMS 5,9  konum ±6 m  [işaretli çukur]
+    - 10:00:20,00  hız 16,8 km/h  Min -38,1 / Max 19,9 m/s²  çevre RMS 6,6  konum ±6 m  [işaretli çukur]
+    - 10:02:11,50  hız 15,2 km/h  Min -30,5 / Max 22,0 m/s²  çevre RMS 6,4  konum ±5 m  [işaretli çukur]
+    - 10:02:15,50  hız 17,3 km/h  Min -14,8 / Max 27,0 m/s²  çevre RMS 6,1  konum ±6 m
+    - 10:02:45,00  hız 15,6 km/h  Min -31,3 / Max 11,8 m/s²  çevre RMS 7,5  konum ±5 m
+    - 10:04:36,50  hız 17,1 km/h  Min -39,1 / Max 15,6 m/s²  çevre RMS 6,6  konum ±6 m  [işaretli çukur]
   Nokta 2: 40.980000, 29.022091  ±3 m  (3 geçişte, en büyük tepe 30,0 m/s²)
     https://www.google.com/maps/search/?api=1&query=40.980000,29.022091
-    - 10:00:46,50  hız 16,7 km/h  Min -27,6 / Max 25,9 m/s²  çevre RMS 6,1  konum ±6 m  [işaretli çukur]
-    - 10:01:44,50  hız 13,3 km/h  Min -30,0 / Max 14,9 m/s²  çevre RMS 6,2  konum ±6 m  [işaretli çukur]
+    - 10:00:46,50  hız 16,7 km/h  Min -27,6 / Max 25,9 m/s²  çevre RMS 6,4  konum ±6 m  [işaretli çukur]
+    - 10:01:44,50  hız 13,3 km/h  Min -30,0 / Max 14,9 m/s²  çevre RMS 7,0  konum ±6 m  [işaretli çukur]
     - 10:03:11,50  hız 13,2 km/h  Min -26,6 / Max 13,7 m/s²  çevre RMS 5,9  konum ±6 m  [işaretli çukur]
-  Nokta 3: 40.980000, 29.020627  ±3 m  (3 geçişte, en büyük tepe 30,0 m/s²)
-    https://www.google.com/maps/search/?api=1&query=40.980000,29.020627
-    - 10:00:18,00  hız 16,1 km/h  Min -12,5 / Max 24,4 m/s²  çevre RMS 5,9  konum ±6 m
-    - 10:02:41,00  hız 17,0 km/h  Min -17,1 / Max 30,0 m/s²  çevre RMS 6,3  konum ±6 m
-    - 10:04:39,00  hız 15,7 km/h  Min -16,2 / Max 25,3 m/s²  çevre RMS 5,5  konum ±6 m
-  Nokta 4: 40.980000, 29.021479  ±4 m  (2 geçişte, en büyük tepe 27,4 m/s²)
-    https://www.google.com/maps/search/?api=1&query=40.980000,29.021479
-    - 10:01:59,50  hız 15,2 km/h  Min -21,5 / Max 13,5 m/s²  çevre RMS 5,3  konum ±6 m
-    - 10:02:59,50  hız 16,7 km/h  Min -27,4 / Max 15,4 m/s²  çevre RMS 6,0  konum ±5 m
-  Nokta 5: 40.980000, 29.022805  ±4 m  (2 geçişte, en büyük tepe 23,1 m/s²)
-    https://www.google.com/maps/search/?api=1&query=40.980000,29.022805
-    - 10:01:01,00  hız 14,3 km/h  Min -23,1 / Max 17,9 m/s²  çevre RMS 5,7  konum ±6 m  [işaretli çukur]
-    - 10:03:26,00  hız 17,2 km/h  Min -18,7 / Max 15,7 m/s²  çevre RMS 4,6  konum ±6 m
-  Nokta 6: 40.980000, 29.023237  ±4 m  (2 geçişte, en büyük tepe 21,7 m/s²)
-    https://www.google.com/maps/search/?api=1&query=40.980000,29.023237
-    - 10:01:06,50  hız 17,0 km/h  Min -21,7 / Max 14,9 m/s²  çevre RMS 5,3  konum ±6 m
-    - 10:03:48,00  hız 17,1 km/h  Min -18,6 / Max 9,6 m/s²  çevre RMS 4,5  konum ±6 m
-  Nokta 7: 40.980000, 29.022384  ±6 m  (1 geçişte, en büyük tepe 23,5 m/s²)
+  Nokta 3: 40.980000, 29.020586  ±6 m  (1 geçişte, en büyük tepe 30,0 m/s²)
+    https://www.google.com/maps/search/?api=1&query=40.980000,29.020586
+    - 10:02:41,00  hız 17,0 km/h  Min -17,1 / Max 30,0 m/s²  çevre RMS 6,4  konum ±6 m
+  Nokta 4: 40.980000, 29.021507  ±5 m  (1 geçişte, en büyük tepe 27,4 m/s²)
+    https://www.google.com/maps/search/?api=1&query=40.980000,29.021507
+    - 10:02:59,50  hız 16,7 km/h  Min -27,4 / Max 15,4 m/s²  çevre RMS 6,1  konum ±5 m
+  Nokta 5: 40.980000, 29.022384  ±6 m  (1 geçişte, en büyük tepe 23,5 m/s²)
     https://www.google.com/maps/search/?api=1&query=40.980000,29.022384
     - 10:03:19,00  hız 14,5 km/h  Min -16,4 / Max 23,5 m/s²  çevre RMS 5,6  konum ±6 m
-  Nokta 8: 40.980000, 29.022248  ±6 m  (1 geçişte, en büyük tepe 20,6 m/s²)
-    https://www.google.com/maps/search/?api=1&query=40.980000,29.022248
-    - 10:04:09,00  hız 16,9 km/h  Min -20,6 / Max 15,9 m/s²  çevre RMS 5,0  konum ±6 m
 
 NOT: Her darbe çukur olmak zorunda değildir (rögar kapağı, kot farkı, ray vb. de darbe verir).
 Konumlar telefon GPS'inin doğruluğuyla sınırlıdır; yerinde kontrol için noktayı belirsizlik

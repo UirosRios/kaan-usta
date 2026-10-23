@@ -39,11 +39,14 @@ Kullanım:
 
 import argparse
 import csv
+import glob
 import html
 import json
 import math
 import os
+import re
 import statistics as st
+from collections import defaultdict
 import sys
 from datetime import datetime
 
@@ -113,7 +116,7 @@ def gps_olcumleri(satirlar):
         anahtar = (s['enlem'], s['boylam'], s['hiz'], s['dogruluk'])
         if anahtar != onceki:
             olcumler.append(dict(t=s['t'], enlem=s['enlem'], boylam=s['boylam'], hiz=s['hiz'], dogruluk=s['dogruluk'],
-                                 o_enlem=s['enlem'], o_boylam=s['boylam'], yolda=None, kayma_m=0.0))
+                                 o_enlem=s['enlem'], o_boylam=s['boylam'], yolda=None, kayma_m=0.0, yol=None))
             onceki = anahtar
     return olcumler
 
@@ -140,6 +143,7 @@ def gps_degeri(olcumler, tq, max_bosluk=3.0):
     sonuc = {alan: a[alan] + k * (b[alan] - a[alan]) if a[alan] is not None and b[alan] is not None else a[alan]
              for alan in ('enlem', 'boylam', 'hiz', 'dogruluk', 'o_enlem', 'o_boylam')}
     sonuc['yolda'] = (a if k < 0.5 else b)['yolda']
+    sonuc['yol'] = (a if k < 0.5 else b)['yol']
     return sonuc
 
 
@@ -199,6 +203,7 @@ def analiz_et(satirlar, ayar, osm=None):
         s['d_enlem'] = g['o_enlem'] if g else None  # + yola oturtulmuş konum
         s['d_boylam'] = g['o_boylam'] if g else None
         s['yolda'] = g['yolda'] if g else None
+        s['yol'] = g['yol'] if g else None  # oturtulduğu OSM yolu (id, ad, tür)
         s['d_hiz'] = g['hiz'] if g else None
         s['d_dogruluk'] = g['dogruluk'] if g else None
         s['tepe'] = max(abs(s['dmin']), s['dmax'])
@@ -228,8 +233,12 @@ def analiz_et(satirlar, ayar, osm=None):
 
     # Çevre sarsıntısı (±10 sn hareket satırlarının RMS medyanı) ve otomatik darbe tespiti
     for s in hareket:
-        komsu = [k['rms'] for k in hareket if k is not s and abs(k['t'] - s['t']) <= 10.0]
-        s['zemin_rms'] = st.median(komsu) if len(komsu) >= 5 else genel_rms
+        # Önceki ve sonraki 10 sn ayrı ayrı: büyük olanı taban. Düzgünden bozuk zemine geçişte bozuk kısmın
+        # sıradan tepeleri, düzgün kısmın düşük tabanına göre "darbe" sayılmasın (simülasyonda yanlış alarmlar ~3 kat azaldı).
+        once = [k['rms'] for k in hareket if 0 < s['t'] - k['t'] <= 10.0]
+        sonra = [k['rms'] for k in hareket if 0 < k['t'] - s['t'] <= 10.0]
+        yanlar = [st.median(g) for g in (once, sonra) if len(g) >= 3]
+        s['zemin_rms'] = max(yanlar) if yanlar else genel_rms
         if s['tepe'] >= ayar.darbe_orani * s['zemin_rms'] and s['tepe'] >= ayar.darbe_esik:
             s['darbe'] = True
 
@@ -256,7 +265,9 @@ def analiz_et(satirlar, ayar, osm=None):
     for c in cukurlar:
         c['belirsizlik_m'] = belirsizlik(c, c['yolda'])
 
-    return dict(olcumler=olcumler, oturtma=oturtma, hareket=hareket, olaylar=olaylar,
+    b = hiz_ussu(hareket)
+    sokaklar = sokak_tablosu(hareket, olaylar, b)
+    return dict(olcumler=olcumler, oturtma=oturtma, hareket=hareket, olaylar=olaylar, hiz_ussu=b, sokaklar=sokaklar,
                 kumeler=kumele(olaylar, ayar.kume_yaricap), isaretler=isaretler,
                 cukur_kumeleri=kumele(cukurlar, ayar.kume_yaricap))
 
@@ -342,6 +353,90 @@ def kumele(olaylar, yaricap):
     return kumeler
 
 
+# ---------------------------------------------------------------- sokak ve hücre bazında özet
+
+HIZ_REF = 15.0  # km/h: hız düzeltmeli sarsıntı indeksinin başvuru hızı
+HUCRE_M = 25.0  # m: konum hücresi (sokak bilgisi olmayan yerlerde ve birleşik haritada)
+YOL_DISI = 'Yol dışı / haritaya oturtulmadı'
+
+
+def sokak_adi(s):
+    y = s.get('yol')
+    if y is None:
+        return YOL_DISI
+    return y['ad'] or f"İsimsiz {y['tur'] or 'yol'} (OSM {y['id']})"
+
+
+def hucre(s):
+    """25 m'lik sabit konum hücresi (aynı yer farklı sürüşlerde aynı hücreye düşer)"""
+    kx = DEG_M * math.cos(math.radians(round(s['d_enlem'])))
+    return (math.floor(s['d_enlem'] * DEG_M / HUCRE_M), math.floor(s['d_boylam'] * kx / HUCRE_M))
+
+
+def hucre_sinirlari(h, enlem_ornek):
+    kx = DEG_M * math.cos(math.radians(round(enlem_ornek)))
+    return [[h[0] * HUCRE_M / DEG_M, h[1] * HUCRE_M / kx], [(h[0] + 1) * HUCRE_M / DEG_M, (h[1] + 1) * HUCRE_M / kx]]
+
+
+def hiz_ussu(hareket):
+    """Sarsıntının hıza bağlılığı: RMS ∝ hız^b. Aynı 25 m'lik hücre içinde (yüzey sabitken) log-log eğimi;
+    farklı yüzeylerde farklı hızla gidilmesinin karıştırıcı etkisi böylece dışarıda kalır. Sokak bazında
+    tahmin edilmez: uzun bir sokağın bir kısmı bozuk, bir kısmı düzgün olabilir. Yetersiz veride None."""
+    gruplar = defaultdict(list)
+    for s in hareket:
+        if s['rms'] > 0 and s['d_hiz'] > 0:
+            gruplar[hucre(s)].append((math.log(s['d_hiz']), math.log(s['rms'])))
+    xs, ys = [], []
+    for g in gruplar.values():
+        if len(g) < 5:
+            continue
+        mx, my = st.mean(x for x, _ in g), st.mean(y for _, y in g)
+        xs += [x - mx for x, _ in g]
+        ys += [y - my for _, y in g]
+    sxx = sum(x * x for x in xs)
+    if len(xs) < 40 or sxx < 1.0:  # hız aralığı çok dar veya veri az
+        return None
+    return max(0.0, min(1.5, sum(x * y for x, y in zip(xs, ys)) / sxx))
+
+
+def duzeltilmis_rms(s, b):
+    """Hız düzeltmeli sarsıntı: bu satırın 15 km/h'te beklenen Dikey_RMS'si"""
+    return s['rms'] * (HIZ_REF / s['d_hiz']) ** b
+
+
+def sokak_tablosu(hareket, olaylar, b, anahtar=sokak_adi):
+    """Sokak (veya başka gruplama) başına: satır, yaklaşık yol, medyan hız / RMS, hız düzeltmeli indeks, darbe"""
+    gruplar = defaultdict(list)
+    for s in hareket:
+        gruplar[anahtar(s)].append(s)
+    darbe = defaultdict(int)
+    for o in olaylar:
+        darbe[anahtar(o)] += 1
+    tablo = []
+    for ad, g in gruplar.items():
+        yol_m = sum(s['d_hiz'] / 3.6 * 0.5 for s in g)
+        tablo.append(dict(ad=ad, n=len(g), yol_m=yol_m, hiz=st.median(s['d_hiz'] for s in g),
+                          rms=st.median(s['rms'] for s in g),
+                          indeks=st.median(duzeltilmis_rms(s, b) for s in g) if b is not None else None,
+                          darbe=darbe[ad], darbe_100m=100 * darbe[ad] / yol_m if yol_m > 0 else 0.0,
+                          suruslar={s.get('surus') for s in g}))
+    tablo.sort(key=lambda t: -(t['indeks'] if t['indeks'] is not None else t['rms']))
+    return tablo
+
+
+def bilgi_oku(csv_yol):
+    """Kaydın _bilgi.txt dosyasından scooter ve hava durumu etiketleri (yoksa boş)"""
+    yol = re.sub(r'\.csv$', '', csv_yol) + '_bilgi.txt'
+    etiket = {}
+    if os.path.exists(yol):
+        with open(yol, encoding='utf-8', errors='replace') as f:
+            for satir in f:
+                for anahtar, ad in (('Scooter:', 'scooter'), ('Hava durumu:', 'hava')):
+                    if satir.startswith(anahtar):
+                        etiket[ad] = satir[len(anahtar):].strip()
+    return etiket
+
+
 def hiz_tablosu(hareket, aralik):
     if not hareket:
         return []
@@ -381,6 +476,9 @@ def ozet_yaz(yol, ad, satirlar, r, tablo, ayar, osm_kaynak):
     y = satir.append
     y(f'SÜRÜŞ ANALİZİ - {ad}')
     y(f'Başlangıç: {satirlar[0]["zaman_metin"]}   Süre: {tr(sure, 0)} s   Satır: {len(satirlar)}')
+    etiket = r.get('etiket', {})
+    if etiket:
+        y(f'Scooter: {etiket.get("scooter", "-")}   Hava durumu: {etiket.get("hava", "alınamadı")}')
     y(f'GPS ile ölçülen yol: ~{yol_m:.0f} m   En yüksek hız: {tr(max((o["hiz"] for o in olcumler), default=0), 1)} km/h')
     y('')
     y('AYARLAR')
@@ -422,7 +520,24 @@ def ozet_yaz(yol, ad, satirlar, r, tablo, ayar, osm_kaynak):
             y(f'  Korelasyon r = {tr(rr)}   Doğrusal uyum: RMS ≈ {tr(fit.intercept)} + {tr(fit.slope, 3)} × hız')
         except st.StatisticsError:
             pass
+        y('  Not: farklı sokaklarda farklı hızla gidildiyse bu tablo hız ile yüzeyin etkisini karıştırır;')
+        y('  yüzey karşılaştırması için aşağıdaki sokak tablosuna bakın.')
     y('')
+    sokaklar = r['sokaklar']
+    if sokaklar:
+        y('SOKAKLARA GÖRE SARSINTI (en bozuktan en düzgüne)')
+        if r['hiz_ussu'] is not None:
+            y(f'  İndeks: hız düzeltmeli Dikey_RMS = bu sokakta {tr(HIZ_REF, 0)} km/h\'te beklenen sarsıntı (m/s²). Sarsıntının hıza bağlılığı')
+            y(f'  aynı 25 m\'lik parçadaki hız farklarından tahmin edildi: RMS ∝ hız^{tr(r["hiz_ussu"])}.')
+        else:
+            y('  Hız düzeltmesi için veri yetersiz (aynı yerden yeterince farklı hızda geçilmemiş); sıralama medyan RMS\'ye göre.')
+        y(f'  {"Sokak":<34}{"Yol (m)":>9}{"Hız":>7}{"RMS":>7}{"İndeks":>8}{"Darbe":>7}{"Darbe/100m":>12}')
+        for t in sokaklar:
+            y(f'  {t["ad"][:33]:<34}{t["yol_m"]:>9.0f}{tr(t["hiz"], 1):>7}{tr(t["rms"]):>7}{tr(t["indeks"]) or "-":>8}'
+              f'{t["darbe"]:>7}{tr(t["darbe_100m"], 1):>12}')
+        if r['oturtma'] is None:
+            y('  (Haritaya oturtma yapılmadığı için sokak adları yok; internet bağlantısıyla yeniden çalıştırın.)')
+        y('')
     uyarilar = [s for s in satirlar if s['uyg_cukur']]
     if uyarilar:
         darbe_t = [o['t'] for o in olaylar]
@@ -537,6 +652,16 @@ def olaylar_yaz(yol, kumeler):
                             tr(o['d_hiz']), tr(o['dmin'], 2), tr(o['dmax'], 2), tr(o['zemin_rms'], 2),
                             'evet' if o['cukur'] else '', tr(k['enlem'], 6), tr(k['boylam'], 6),
                             tr(k['belirsizlik_m'], 1), len(k['olaylar']), maps_link(k['enlem'], k['boylam'])])
+
+
+def sokaklar_yaz(yol, sokaklar, surus_sayisi=False):
+    with open(yol, 'w', encoding='utf-8-sig', newline='') as f:
+        w = csv.writer(f, delimiter=';')
+        w.writerow(['Sira', 'Sokak', 'Satir', 'Yol_m', 'Medyan_Hiz_kmh', 'Medyan_Dikey_RMS', f'Indeks_{HIZ_REF:.0f}kmh',
+                    'Darbe', 'Darbe_100m'] + (['Surus_Sayisi'] if surus_sayisi else []))
+        for i, t in enumerate(sokaklar, 1):
+            w.writerow([i, t['ad'], t['n'], f'{t["yol_m"]:.0f}', tr(t['hiz'], 1), tr(t['rms'], 3), tr(t['indeks'], 3),
+                        t['darbe'], tr(t['darbe_100m'], 2)] + ([len(t['suruslar'])] if surus_sayisi else []))
 
 
 def geojson_yaz(yol, satirlar, r):
@@ -850,6 +975,20 @@ def ayristirici():
     return p
 
 
+def dosyalari_bul(girdiler):
+    """Dosya adları, klasörler (içindeki mikromobilite_*.csv) ve joker karakterli adlar (*.csv: Windows komut
+    satırı bunları kendisi açmaz)"""
+    dosyalar = []
+    for g in girdiler:
+        if os.path.isdir(g):
+            dosyalar += sorted(glob.glob(os.path.join(g, 'mikromobilite_*.csv')))
+        elif any(c in g for c in '*?['):
+            dosyalar += sorted(glob.glob(g))
+        else:
+            dosyalar.append(g)
+    return list(dict.fromkeys(dosyalar))
+
+
 def varsayilan_ayar(**degisiklik):
     """Komut satırı varsayılanlarıyla ayar nesnesi (başka betiklerden çağırmak için)"""
     ayar = ayristirici().parse_args([])
@@ -869,6 +1008,7 @@ def dosya_analiz(yol, ayar, klasor=None, yaz=True):
     osm, osm_kaynak = osm_yukle(gps_olcumleri(satirlar), ayar, onbellek)
     r = analiz_et(satirlar, ayar, osm)
     r['satirlar'] = satirlar
+    r['etiket'] = bilgi_oku(yol)
     if yaz:
         def cikti(son):
             return os.path.join(klasor, f'{ad}_{son}')
@@ -877,6 +1017,7 @@ def dosya_analiz(yol, ayar, klasor=None, yaz=True):
         satirlar_yaz(cikti('satirlar.csv'), satirlar)
         isaretler_yaz(cikti('isaretler.csv'), r['isaretler'])
         olaylar_yaz(cikti('olaylar.csv'), r['kumeler'])
+        sokaklar_yaz(cikti('sokaklar.csv'), r['sokaklar'])
         geojson_yaz(cikti('harita.geojson'), satirlar, r)
         harita_yaz(cikti('harita.html'), ad, satirlar, r, ayar)
         grafik_yaz(cikti('grafik.png'), ad, satirlar, r, tablo)
@@ -886,9 +1027,10 @@ def dosya_analiz(yol, ayar, klasor=None, yaz=True):
 def main():
     p = ayristirici()
     ayar = p.parse_args()
-    if not ayar.csv:
-        p.error('en az bir CSV dosyası verin')
-    for yol in ayar.csv:
+    dosyalar = dosyalari_bul(ayar.csv)
+    if not dosyalar:
+        p.error('en az bir CSV dosyası veya kayıtların bulunduğu klasörü verin')
+    for yol in dosyalar:
         print(yol)
         r = dosya_analiz(yol, ayar)
         uyari = sum(1 for s in r['satirlar'] if s['uyg_cukur'])

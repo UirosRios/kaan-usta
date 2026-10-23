@@ -1,0 +1,2 @@
+Scooter: Örnek Scooter
+Hava durumu: Açık, 18,0 °C, yağış 0,0 mm, rüzgâr 8 km/h, nem %55 (Open-Meteo)

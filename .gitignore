@@ -50,3 +50,4 @@ app.*.map.json
 # Analiz betiğinin çıktıları ve Python önbelleği
 *_analiz/
 __pycache__/
+!analiz/ornek_birlesik/birlesik_analiz/

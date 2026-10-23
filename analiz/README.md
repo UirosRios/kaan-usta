@@ -43,7 +43,29 @@
 İnternet gerekir: yollar ilk çalıştırmada OpenStreetMap'ten indirilir ve `..._osm.json` olarak saklanır.
 Harita da altlığı internetten yükler. İnternet yoksa betik haritaya oturtmayı atlar, geri kalan her şeyi yapar.
 
-Birden fazla dosya aynı anda verilebilir: `python surus_analizi.py *.csv`. Tüm ayarları görmek için: `python surus_analizi.py -h`.
+Birden fazla dosya veya kayıtların bulunduğu klasör verilebilir: `python surus_analizi.py *.csv` ya da
+`python surus_analizi.py kayitlar`. Tüm ayarları görmek için: `python surus_analizi.py -h`.
+
+Kaydın `_bilgi.txt` dosyası CSV'nin yanındaysa (uygulamanın paylaştığı gibi) scooter ve hava durumu özete eklenir.
+
+## Birden fazla sürüşü birleştirme (yol kalitesi haritası)
+
+Bütün sürüşlerin CSV'lerini (ve `_bilgi.txt` dosyalarını) bir klasöre, örneğin `kayitlar`, koyun ve:
+```
+python birlestir.py kayitlar
+```
+`birlesik_analiz` klasöründe:
+
+| Çıktı | İçerik |
+|---|---|
+| `birlesik_harita.html` | **Yol kalitesi haritası:** 25 m'lik hücreler, renk = hız düzeltmeli sarsıntı indeksi (yeşil düzgün, kırmızı bozuk); yalnızca tek sürüşte geçilen hücreler soluk. Mor işaretler darbe noktaları (dokununca kaç farklı sürüşte görüldüğü). |
+| `birlesik_ozet.txt` | Sürüşler (scooter, hava durumu), en bozuktan en düzgüne sokaklar, en az 2 sürüşte tekrar eden darbe noktaları |
+| `birlesik_sokaklar.csv` | Sokak sıralaması: sürüş sayısı, yol, medyan hız ve sarsıntı, indeks, 100 m başına darbe |
+| `birlesik_suruslar.csv` | Sürüş listesi |
+| `birlesik_darbeler.csv` | Darbe noktaları, kaç sürüşte ve hangi sürüşlerde görüldükleri |
+| `birlesik_hucreler.geojson` | Hücreler, QGIS / ArcGIS için |
+
+`--tek-tek` eklenirse her sürüşün ayrı analizi de bu klasöre yazılır.
 
 ## Çıktılar
 
@@ -55,6 +77,7 @@ Birden fazla dosya aynı anda verilebilir: `python surus_analizi.py *.csv`. Tüm
 | `_satirlar.csv` | Tüm satırlar: oturtulmuş ve ham konum, düzeltilmiş hız, durum (hareket / durus / gps_yok), uygulama uyarısı ve darbe işaretleri |
 | `_isaretler.csv` | Yalnızca eski sürümün çukur butonuyla yapılmış kayıtlar için: basışlar ve eşleşen çukurlar |
 | `_olaylar.csv` | Otomatik bulunan darbeler ve gruplandıkları noktalar |
+| `_sokaklar.csv` | Sokaklara göre sarsıntı: yol, medyan hız ve Dikey_RMS, hız düzeltmeli indeks, darbe sayısı (en bozuktan en düzgüne) |
 | `_grafik.png` | Hız, sarsıntı (otomatik darbeler işaretli), hız-sarsıntı ilişkisi, güzergâh |
 | `_osm.json` | İndirilen yol verisi (önbellek) |
 
@@ -92,10 +115,23 @@ değeri çevresindeki sarsıntıya göre en büyük olan aranır. Bir önceki ba
 - **belirgin tepe yok**, **GPS kesintisi**, **hareket yok:** Yaklaşık konum yine verilir (GPS varsa).
 
 **Otomatik darbe tespiti:**
-- **Ölçüt:** Tepe değer = max(|Dikey_Min|, Dikey_Max). Çevresindeki ±10 sn'lik hareket satırlarının Dikey_RMS medyanı o yolun
-  "normal" sarsıntısıdır. Tepe bunun 4 katını (`--darbe-orani`) ve 10 m/s²'yi (`--darbe-esik`) aşıyorsa satır darbe sayılır.
+- **Ölçüt:** Tepe değer = max(|Dikey_Min|, Dikey_Max). Yolun "normal" sarsıntısı (taban): önceki 10 sn ve sonraki 10 sn'lik hareket
+  satırlarının Dikey_RMS medyanlarından büyük olanı. Tepe bunun 4 katını (`--darbe-orani`) ve 10 m/s²'yi (`--darbe-esik`)
+  aşıyorsa satır darbe sayılır. İki yana ayrı bakmak, düzgünden bozuk zemine geçerken bozuk kısmın sıradan tepelerinin
+  "darbe" sayılmasını önler (simülasyonda yanlış alarmlar ~3 kat azaldı, çukur bulma oranı birkaç puan düştü).
 - **Gruplama:** Farklı geçişlerde, merkezine 10 m'den (`--kume-yaricap`) yakın darbeler / çukurlar aynı nokta olarak gruplanır.
   Aynı yerden ne kadar çok, özellikle iki yönde geçilirse konum o kadar iyileşir.
+
+**Sokaklara göre özet ve hız düzeltmeli indeks:**
+- **Sokak:** Satırlar haritaya oturtulduğu OpenStreetMap yoluna göre gruplanır (oturtma yoksa tek grup "yol dışı").
+- **Neden düzeltme:** Sarsıntı hem yüzeye hem hıza bağlıdır. Bozuk sokakta yavaş, düzgün sokakta hızlı gidildiyse ham
+  ortalamalar yüzey farkını gizler.
+- **Hıza bağlılığın tahmini:** Aynı 25 m'lik hücreden farklı hızlarla geçişlerden tahmin edilir (RMS ∝ hız^b; hücre
+  içinde yüzey sabit kabul edilir).
+- **İndeks:** Her ölçüm 15 km/h'e çevrilir; sokağın ya da hücrenin medyanıdır.
+- **Sınır:** GPS hız gürültüsü b'yi biraz düşük tahmin ettirir; simülasyonda gerçek 0,8 iken 0,5 bulundu. İndeks hız
+  farkını eksik düzeltir, ama sokak sıralaması doğru çıktı. Veri yetersizse (aynı yerden yeterince farklı hızda
+  geçilmemişse) düzeltme yapılmaz, medyan RMS kullanılır.
 
 **Belirsizlik:** GPS doğruluğu, darbenin 0,5 sn'lik pencere içindeki yeri (±0,25 sn) ve gecikme belirsizliğinin (±0,5 sn)
 birleşimidir (~%68). Yola oturtulmuş noktalarda yalnızca yol boyunca bileşen verilir.
@@ -113,7 +149,12 @@ Simülasyon eski çukur butonunu da içerir. Haritaya oturtma ve otomatik darbe 
 ```
 python simulasyon.py                       # 9 senaryo x 12 tekrar, sonuç tablosu
 python simulasyon.py --ornek ornek         # ayrıca örnek sürüş ve tüm analiz çıktıları
+python simulasyon.py --birlesik ornek_birlesik   # yüzeyi bilinen sokaklarda 3 sürüş üret ve birleştir
 ```
+
+Birleştirme doğrulamasında (Ana Cadde'nin yarısı parke, yarısı asfalt; 3. Sokak arnavut kaldırımı) sokak sıralaması ve
+indeksler gerçekle uyuştu (3. Sokak 8,8 / gerçek 9,0 m/s²); tekrar eden 3 darbe noktasının üçü de gerçek kusurdu (2-3 m içinde).
+Arnavut kaldırımındaki çukur zeminden ayırt edilemedi (bilinen fiziksel sınır).
 
 Son sonuçlar ve örnek çıktı: [ornek/simulasyon_raporu.md](ornek/simulasyon_raporu.md), `ornek/` klasörü.
 Örnek sürüş yapaydır. Yolları gerçek bir yere ait değildir; harita altlığı yalnızca arka plandır.

@@ -1,0 +1,23 @@
+BİRLEŞİK ANALİZ - 3 sürüş
+
+SÜRÜŞLER
+  Kayıt                                Süre     Yol    Hız    RMS  Darbe  Scooter / Hava durumu
+  mikromobilite_20261101_100000        275s   1198m   16,0   2,68      8  Örnek Scooter / Açık, 18,0 °C, yağış 0,0 mm, rüzgâr 8 km/h, nem %55 (Open-Meteo)
+  mikromobilite_20261102_100000        259s    838m   11,6   4,77      8  Örnek Scooter / Açık, 19,0 °C, yağış 0,0 mm, rüzgâr 8 km/h, nem %55 (Open-Meteo)
+  mikromobilite_20261103_100000        182s    840m   16,6   1,73      6  Örnek Scooter / Açık, 20,0 °C, yağış 0,0 mm, rüzgâr 8 km/h, nem %55 (Open-Meteo)
+
+Haritaya oturtma: osm.json
+Hız düzeltmesi: RMS ∝ hız^0,51 (aynı 25 m'lik hücredeki hız farklarından); İndeks = 15 km/h'te beklenen Dikey_RMS.
+
+SOKAKLAR (en bozuktan en düzgüne)
+  Sokak                              Sürüş  Yol (m)    Hız    RMS  İndeks  Darbe/100m
+  3. Sokak                               2      474   12,5   7,92    8,78         0,6
+  Ana Cadde                              3     2389   14,9   3,16    3,42         0,8
+  (30 m'den kısa geçilen 1 yol özette gösterilmedi; birlesik_sokaklar.csv'de var.)
+
+TEKRAR EDEN DARBE NOKTALARI (3 nokta en az 2 farklı sürüşte; toplam 5 nokta)
+  Nokta 1: 40.980000, 29.022847 ±2 m  2 sürüş, 8 geçiş, en büyük tepe 27,7 m/s²  https://www.google.com/maps/search/?api=1&query=40.980000,29.022847
+  Nokta 2: 40.980000, 29.020875 ±2 m  2 sürüş, 7 geçiş, en büyük tepe 31,2 m/s²  https://www.google.com/maps/search/?api=1&query=40.980000,29.020875
+  Nokta 3: 40.980000, 29.021429 ±3 m  2 sürüş, 4 geçiş, en büyük tepe 22,4 m/s²  https://www.google.com/maps/search/?api=1&query=40.980000,29.021429
+
+Haritada 16 hücre (25 m, en az 4 satır). Tek sürüşte geçilen hücreler daha soluk gösterilir.

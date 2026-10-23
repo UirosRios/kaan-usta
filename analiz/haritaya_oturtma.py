@@ -55,7 +55,8 @@ class YolAgi:
         self.kx = DEG_M * math.cos(math.radians(enlem0))
         dugum = {e['id']: (e['lat'], e['lon']) for e in osm.get('elements', []) if e.get('type') == 'node'}
         self.xy = {i: self.yerel(*p) for i, p in dugum.items()}
-        self.parcalar = []  # (u, v, uzunluk)
+        self.parcalar = []  # (u, v, uzunluk, yol no)
+        self.yollar = []  # yol no -> dict(id, ad, tur)
         self.komsu = {}
         for e in osm.get('elements', []):
             if e.get('type') != 'way':
@@ -64,6 +65,8 @@ class YolAgi:
             if etiket.get('highway') in HARIC or etiket.get('area') == 'yes':
                 continue  # alan (meydan) kenarları yol sayılmaz; içi "yol dışı" adayıyla karşılanır
             n = [i for i in e.get('nodes', []) if i in self.xy]
+            yol_no = len(self.yollar)
+            self.yollar.append(dict(id=e.get('id'), ad=etiket.get('name') or etiket.get('ref'), tur=etiket.get('highway')))
             for u, v in zip(n, n[1:]):
                 if u == v:
                     continue
@@ -71,11 +74,11 @@ class YolAgi:
                 L = math.hypot(bx - ax, by - ay)
                 if L < 0.01:
                     continue
-                self.parcalar.append((u, v, L))
+                self.parcalar.append((u, v, L, yol_no))
                 self.komsu.setdefault(u, []).append((v, L))
                 self.komsu.setdefault(v, []).append((u, L))  # scooter için tek yön kısıtı uygulanmaz
         self.izgara = {}
-        for i, (u, v, _) in enumerate(self.parcalar):
+        for i, (u, v, _, _) in enumerate(self.parcalar):
             (ax, ay), (bx, by) = self.xy[u], self.xy[v]
             for gx in range(int(math.floor(min(ax, bx) / self.HUCRE)), int(math.floor(max(ax, bx) / self.HUCRE)) + 1):
                 for gy in range(int(math.floor(min(ay, by) / self.HUCRE)), int(math.floor(max(ay, by) / self.HUCRE)) + 1):
@@ -100,7 +103,7 @@ class YolAgi:
                     if i in gorulen:
                         continue
                     gorulen.add(i)
-                    u, v, L = self.parcalar[i]
+                    u, v, L, _ = self.parcalar[i]
                     (ax, ay), (bx, by) = self.xy[u], self.xy[v]
                     k = max(0.0, min(1.0, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / (L * L)))
                     px, py = ax + k * (bx - ax), ay + k * (by - ay)
@@ -139,8 +142,8 @@ class YolAgi:
         ib, _, _, ob, _ = b
         if ia == ib:
             return abs(oa - ob)
-        ua, va, La = self.parcalar[ia]
-        ub, vb, Lb = self.parcalar[ib]
+        ua, va, La, _ = self.parcalar[ia]
+        ub, vb, Lb, _ = self.parcalar[ib]
         en_iyi = math.inf
         for na, da in ((ua, oa), (va, La - oa)):
             uzak = self._uzakliklar(na)
@@ -153,8 +156,9 @@ class YolAgi:
 def oturt(olcumler, osm, yaricap=None, beta=5.0, yol_disi_ceza=2.5, max_bosluk=3.0):
     """GPS ölçümlerini (t, enlem, boylam, dogruluk) yola oturt.
 
-    Her ölçüme 'o_enlem', 'o_boylam' (oturtulmuş konum), 'yolda' (True/False) ve
-    'kayma_m' (ham konumdan uzaklık) alanlarını ekler. Ağ kuruluş özetini döndürür.
+    Her ölçüme 'o_enlem', 'o_boylam' (oturtulmuş konum), 'yolda' (True/False), 'kayma_m' (ham konumdan
+    uzaklık) ve 'yol' (oturtulduğu OSM yolu: dict(id, ad, tur); yol dışıysa None) alanlarını ekler.
+    Ağ kuruluş özetini döndürür.
     """
     if not olcumler:
         return dict(parca=0, yolda=0, toplam=0)
@@ -235,4 +239,5 @@ def _viterbi(ag, zincir, yaricap, beta, yol_disi_ceza):
         a = liste[j]
         o['o_enlem'], o['o_boylam'] = ag.cografi(a['x'], a['y'])
         o['yolda'] = a['yol'] is not None
+        o['yol'] = ag.yollar[ag.parcalar[a['yol'][0]][3]] if a['yol'] is not None else None
         o['kayma_m'] = math.hypot(a['x'] - x, a['y'] - y)
