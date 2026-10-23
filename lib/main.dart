@@ -58,7 +58,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   VoidCallback? _gpsStatusAction;
   bool _initializingLocation = false;
 
-  // Harita (OpenStreetMap / flutter_map): o anki ham GPS konumunu takip eder
+  // Harita (Esri Light Gray Canvas / flutter_map): o anki ham GPS konumunu takip eder
   final MapController _mapController = MapController();
   bool _mapReady = false;
 
@@ -686,7 +686,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                     ),
                     const SizedBox(height: 15),
 
-                    // Harita Kartı: o anki ham GPS konumu ve doğruluk dairesi (OpenStreetMap)
+                    // Harita Kartı: o anki ham GPS konumu ve doğruluk dairesi (Esri Light Gray Canvas)
                     Card(
                       elevation: 4,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -700,15 +700,25 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                                 mapController: _mapController,
                                 options: MapOptions(
                                   initialCenter: LatLng(currentLat, currentLon),
-                                  initialZoom: 17,
+                                  initialZoom: 16,
+                                  maxZoom: 19,
                                   onMapReady: () => _mapReady = true,
                                   // Sürükleme kapalı (sayfa kaydırmasıyla çakışmasın); harita konumu kendisi takip eder, yakınlaştırılabilir
                                   interactionOptions: const InteractionOptions(flags: InteractiveFlag.pinchZoom | InteractiveFlag.doubleTapZoom),
                                 ),
                                 children: [
+                                  // Esri Light Gray Canvas: sade gri altlık + ayrı katman olarak sokak adları.
+                                  // Esri karo adresinde sıra {z}/{y}/{x}'tir. Altlık en fazla 16. seviyeye kadar
+                                  // karo verir; daha yakın seviyelerde 16. seviye karoları büyütülür.
                                   TileLayer(
-                                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                    urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
                                     userAgentPackageName: 'tr.edu.yildiz.kaan_usta',
+                                    maxNativeZoom: 16,
+                                  ),
+                                  TileLayer(
+                                    urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+                                    userAgentPackageName: 'tr.edu.yildiz.kaan_usta',
+                                    maxNativeZoom: 16,
                                   ),
                                   CircleLayer(
                                     circles: [
@@ -731,7 +741,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                                       ),
                                     ],
                                   ),
-                                  const SimpleAttributionWidget(source: Text('OpenStreetMap katkıcıları')),
+                                  const SimpleAttributionWidget(source: Text('Esri, HERE, Garmin, © OpenStreetMap katkıcıları')),
                                 ],
                               ),
                       ),

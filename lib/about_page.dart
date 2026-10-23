@@ -74,7 +74,7 @@ class AboutPage extends StatelessWidget {
           const _InfoCard(
             title: 'Harita',
             lines: [
-              'OpenStreetMap haritası (flutter_map). Mavi nokta o anki ham GPS konumu, açık mavi daire GPS doğruluğu (yarıçap = doğruluk, m).',
+              'Esri Light Gray Canvas altlık haritası (açık gri, sokak adlarıyla; flutter_map). Mavi nokta o anki GPS konumu (doğrudan GPS donanımından), açık mavi daire GPS doğruluğu (yarıçap = doğruluk, m).',
               'Harita konumu kendisi takip eder; iki parmakla veya çift dokunarak yakınlaştırılabilir.',
               'Harita karoları internetten yüklenir; ölçümü ve kaydı etkilemez.',
             ],
