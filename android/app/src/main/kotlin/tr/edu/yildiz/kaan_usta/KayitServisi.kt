@@ -62,6 +62,12 @@ class KayitServisi : Service() {
         return Notification.Builder(this, KANAL)
     }
 
+    // Uygulama son uygulamalar listesinden kaydırılınca ölçüm de biter: hizmet asılı kalmasın
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null

@@ -13,6 +13,9 @@ Future<Directory> recordingsDirectory() async {
   return dir;
 }
 
+// Şu an kaydı süren dosya (ana ekran ayarlar): Kayıtlar sayfasında silinemez
+String? aktifKayitYolu;
+
 // Kayda ait cihaz/sensör bilgi dosyası (aynı ad + _bilgi.txt)
 File infoFileFor(File csv) => File(csv.path.replaceAll(RegExp(r'\.csv$'), '_bilgi.txt'));
 
@@ -111,13 +114,17 @@ class _RecordingsPageState extends State<RecordingsPage> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       child: ListTile(
                         title: Text(f.uri.pathSegments.last, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                        subtitle: Text('${_size(stat.size)} · açmak için dokunun'),
+                        subtitle: Text(f.path == aktifKayitYolu ? 'Kayıt sürüyor' : '${_size(stat.size)} · açmak için dokunun'),
                         onTap: () => _open(f),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(icon: const Icon(Icons.share, color: Color(0xFF003366)), tooltip: 'Paylaş', onPressed: () => shareRecording(f)),
-                            IconButton(icon: const Icon(Icons.delete_outline, color: Colors.redAccent), tooltip: 'Sil', onPressed: () => _delete(f)),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                              tooltip: 'Sil',
+                              onPressed: f.path == aktifKayitYolu ? null : () => _delete(f),
+                            ),
                           ],
                         ),
                       ),

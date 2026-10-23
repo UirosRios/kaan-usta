@@ -299,11 +299,11 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
           currentLon = (m['lon'] as num).toDouble();
           currentAccuracy = accuracy;
           lastFixTime = DateTime.now();
-          if (_havaBekleniyor) _havaDurumuAl();
 
           // GPS Doppler hızı: uydu sinyalinin Doppler kaymasından, yumuşatmasız (sekme payı olabilir)
           currentRawSpeed = speed < 0 ? 0.0 : speed * 3.6;
         });
+        if (_havaBekleniyor) _havaDurumuAl();
         // Haritayı yeni konuma kaydır (yakınlaştırma düzeyi korunur)
         if (_mapReady) _mapController.move(LatLng(currentLat, currentLon), _mapController.camera.zoom);
       }, onError: (Object e) {
@@ -358,6 +358,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       final file = File('${dir.path}/mikromobilite_${_fileStamp(now)}.csv');
       await file.writeAsString('$_csvHeader\n', flush: true);
       _csvFile = file;
+      aktifKayitYolu = file.path;
       _recordStart = now;
       _rowCount = 0;
       _pendingRows.clear();
@@ -367,6 +368,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       await _writeInfoFile(null);
     } catch (e) {
       _busy = false;
+      aktifKayitYolu = null;
       _showMessage("Kayıt başlatılamadı: $e");
       return;
     }
@@ -378,7 +380,9 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     // Kayıt sırasında ekranın kapanıp sensörlerin durmasını engelle
     WakelockPlus.enable();
     // Ekran kilitlenir veya başka uygulamaya geçilirse kayıt arka planda sürsün
-    _kayitServisi.invokeMethod('baslat').catchError((Object e) => debugPrint('Kayıt hizmeti başlatılamadı: $e'));
+    _kayitServisi.invokeMethod<bool>('baslat').then((basladi) {
+      if (basladi != true) _showMessage('Konum izni olmadığı için arka planda kayıt yapılamıyor: ekranı açık tutun.');
+    }).catchError((Object e) => _showMessage('Arka planda kayıt başlatılamadı: ekranı açık tutun. ($e)'));
     // Hava durumu: GPS konumu varsa hemen, yoksa ilk konum gelince (kayıt başından en fazla 60 sn sonra)
     _havaBekleniyor = true;
     if (lastFixTime != null && DateTime.now().difference(lastFixTime!) <= const Duration(seconds: 60)) _havaDurumuAl();
@@ -517,7 +521,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     final baslangic = _recordStart;
     _havaBekleniyor = false;
     if (!isRecording || baslangic == null || DateTime.now().difference(baslangic) > const Duration(seconds: 60)) return;
-    final hava = await HavaDurumu.al(currentLat, currentLon);
+    final hava = await HavaDurumu.al(currentLat, currentLon).timeout(const Duration(seconds: 15), onTimeout: () => null);
     // Bu arada kayıt bittiyse veya yeni kayıt başladıysa yazma
     if (hava == null || !isRecording || _recordStart != baslangic) return;
     _hava = hava;
@@ -534,6 +538,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     WakelockPlus.disable();
     _havaBekleniyor = false;
     _kayitServisi.invokeMethod('durdur').catchError((Object e) => debugPrint('Kayıt hizmeti durdurulamadı: $e'));
+    aktifKayitYolu = null;
 
     final file = _csvFile;
     try {

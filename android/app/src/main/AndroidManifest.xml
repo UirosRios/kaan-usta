@@ -51,6 +51,7 @@
         <service
             android:name=".KayitServisi"
             android:exported="false"
+            android:stopWithTask="true"
             android:foregroundServiceType="location"/>
     </application>
     <!-- Required to query activities that can process text, see:

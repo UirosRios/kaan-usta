@@ -163,6 +163,8 @@ class MainActivity : FlutterActivity() {
 
     override fun onDestroy() {
         stopRawGps()
+        // Ekran yok edilince ölçüm (Dart tarafı) da biter; kayıt hizmeti ve bildirimi asılı kalmasın
+        stopService(Intent(this, KayitServisi::class.java))
         super.onDestroy()
     }
 }
