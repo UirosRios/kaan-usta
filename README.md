@@ -36,6 +36,12 @@ bant sınırıdır. Filtre çıkışı titreşim, ham ivme − titreşim ise yer
 "aşağı" yönü). Dikey sarsıntı, titreşim vektörünün yerçekimi yönüne izdüşümüdür; bu sayede telefon
 hangi açıda takılırsa takılsın aynı sarsıntı aynı değeri verir. Filtre ilk ~2 saniyede oturur.
 
+## Analiz
+
+Kayıtların analizi için `analiz/surus_analizi.py` betiği kullanılır: GPS gecikmesini düzeltir, duruşları
+ayıklar, hıza göre sarsıntı tablosu çıkarır, darbeleri bulur ve uydu görüntüsü üzerinde harita üretir.
+Ayrıntılar: [analiz/README.md](analiz/README.md).
+
 ## Kayıt dosyaları
 
 - Veriler kayıt sırasında **5 saniyede bir** dosyaya yazılır; uygulama kapanırsa en fazla son 5 saniye kaybolur.
