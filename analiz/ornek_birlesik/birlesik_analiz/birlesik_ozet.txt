@@ -6,7 +6,7 @@ SÜRÜŞLER
   mikromobilite_20261102_100000        259s    838m   11,6   4,77      8  Örnek Scooter / Açık, 19,0 °C, yağış 0,0 mm, rüzgâr 8 km/h, nem %55 (Open-Meteo)
   mikromobilite_20261103_100000        182s    840m   16,6   1,73      6  Örnek Scooter / Açık, 20,0 °C, yağış 0,0 mm, rüzgâr 8 km/h, nem %55 (Open-Meteo)
 
-Haritaya oturtma: osm.json
+Haritaya oturtma (yol verisi): 3 sürüş: osm.json
 Hız düzeltmesi: RMS ∝ hız^0,51 (aynı 25 m'lik hücredeki hız farklarından); İndeks = 15 km/h'te beklenen Dikey_RMS.
 
 SOKAKLAR (en bozuktan en düzgüne)

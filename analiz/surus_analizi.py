@@ -38,6 +38,7 @@ Kullanım:
 """
 
 import argparse
+import bisect
 import csv
 import glob
 import html
@@ -75,14 +76,18 @@ def zaman(metin):
     raise ValueError(f'Tarih_Saat okunamadı: {metin}')
 
 
+class KayitHatasi(Exception):
+    """Dosya uygulamanın kayıt biçiminde değil (betik bu dosyayı atlar)"""
+
+
 def oku(yol):
     with open(yol, encoding='utf-8-sig') as f:
         okuyucu = csv.DictReader(f, delimiter=';')
         gerekli = {'Tarih_Saat', 'Enlem', 'Boylam', 'GPS_Doppler_Hiz_kmh', 'Dikey_RMS', 'Dikey_Min', 'Dikey_Max'}
         eksik = gerekli - set(okuyucu.fieldnames or [])
         if eksik:
-            sys.exit(f'{yol}: beklenen sütunlar yok: {", ".join(sorted(eksik))} '
-                     '(eski biçimdeki kayıtlar bu betikle okunamaz)')
+            raise KayitHatasi(f'{yol}: beklenen sütunlar yok: {", ".join(sorted(eksik))} '
+                              '(uygulamanın kayıt dosyası değil ya da eski biçim)')
         satirlar = []
         for d in okuyucu:
             satirlar.append(dict(
@@ -100,7 +105,7 @@ def oku(yol):
                 uyg_cukur=bool(sayi(d.get('Cukur'))),  # uygulamanın anlık çukur uyarısı (eski kayıtlarda yok)
             ))
     if not satirlar:
-        sys.exit(f'{yol}: veri satırı yok')
+        raise KayitHatasi(f'{yol}: veri satırı yok')
     return satirlar
 
 
@@ -156,21 +161,30 @@ def mesafe(e1, b1, e2, b2):
 
 
 def osm_yukle(olcumler, ayar, onbellek):
-    """Yol ağı: --osm dosyası, yoksa önbellek, yoksa Overpass'tan indir. Olmazsa None."""
+    """Yol ağı: --osm dosyası, yoksa önbellek (sürüşün alanını kapsıyorsa), yoksa Overpass'tan indir. Olmazsa None."""
     if ayar.oturtma == 'kapali' or not olcumler:
         return None, 'kapalı'
-    kaynak = ayar.osm or (onbellek if onbellek and os.path.exists(onbellek) else None)
-    if kaynak:
-        with open(kaynak, encoding='utf-8') as f:
-            return json.load(f), os.path.basename(kaynak)
+    if ayar.osm:
+        with open(ayar.osm, encoding='utf-8') as f:
+            return json.load(f), os.path.basename(ayar.osm)
+    gerek = (min(o['enlem'] for o in olcumler), min(o['boylam'] for o in olcumler),
+             max(o['enlem'] for o in olcumler), max(o['boylam'] for o in olcumler))
+    if onbellek and os.path.exists(onbellek):
+        with open(onbellek, encoding='utf-8') as f:
+            osm = json.load(f)
+        kutu = osm.get('_kutu')  # indirilen alan (güney, batı, kuzey, doğu)
+        if kutu and kutu[0] <= gerek[0] and kutu[1] <= gerek[1] and kutu[2] >= gerek[2] and kutu[3] >= gerek[3]:
+            return osm, os.path.basename(onbellek)
     pay = 0.001  # ~100 m
+    kutu = [gerek[0] - pay, gerek[1] - pay, gerek[2] + pay, gerek[3] + pay]
     try:
-        osm = haritaya_oturtma.osm_indir(min(o['enlem'] for o in olcumler) - pay, min(o['boylam'] for o in olcumler) - pay,
-                                         max(o['enlem'] for o in olcumler) + pay, max(o['boylam'] for o in olcumler) + pay)
+        osm = haritaya_oturtma.osm_indir(*kutu)
     except RuntimeError as e:
         print(f'  UYARI: {e} - haritaya oturtma yapılmadı')
         return None, 'indirilemedi'
+    osm['_kutu'] = kutu
     if onbellek:
+        os.makedirs(os.path.dirname(os.path.abspath(onbellek)), exist_ok=True)
         with open(onbellek, 'w', encoding='utf-8') as f:
             json.dump(osm, f)
     return osm, 'OpenStreetMap (Overpass)'
@@ -208,7 +222,7 @@ def analiz_et(satirlar, ayar, osm=None):
         s['d_dogruluk'] = g['dogruluk'] if g else None
         s['tepe'] = max(abs(s['dmin']), s['dmax'])
         s['darbe'] = s['cukur'] = False
-        s['zemin_rms'] = None
+        s['zemin_rms'] = s['zemin_rms_ortak'] = None
 
     # Butona basma etkisi: basılan satır ve sonraki --isaret-dislama sn
     etkili = set()
@@ -231,14 +245,20 @@ def analiz_et(satirlar, ayar, osm=None):
     hareket = [s for s in satirlar if s['durum'] == 'hareket']
     genel_rms = st.median(s['rms'] for s in hareket) if hareket else 1.0
 
-    # Çevre sarsıntısı (±10 sn hareket satırlarının RMS medyanı) ve otomatik darbe tespiti
-    for s in hareket:
-        # Önceki ve sonraki 10 sn ayrı ayrı: büyük olanı taban. Düzgünden bozuk zemine geçişte bozuk kısmın
-        # sıradan tepeleri, düzgün kısmın düşük tabanına göre "darbe" sayılmasın (simülasyonda yanlış alarmlar ~3 kat azaldı).
-        once = [k['rms'] for k in hareket if 0 < s['t'] - k['t'] <= 10.0]
-        sonra = [k['rms'] for k in hareket if 0 < k['t'] - s['t'] <= 10.0]
+    # Çevre sarsıntısı (taban) ve otomatik darbe tespiti. Satırlar zamana göre sıralı: pencereler ikili aramayla bulunur.
+    zamanlar = [k['t'] for k in hareket]
+    rmsler = [k['rms'] for k in hareket]
+    for i, s in enumerate(hareket):
+        once = rmsler[bisect.bisect_left(zamanlar, s['t'] - 10.0):i]
+        sonra = rmsler[i + 1:bisect.bisect_right(zamanlar, s['t'] + 10.0)]
+        # Darbe tabanı: önceki ve sonraki 10 sn ayrı ayrı, büyük olanı. Düzgünden bozuk zemine geçişte bozuk kısmın
+        # sıradan tepeleri, düzgün kısmın düşük tabanına göre "darbe" sayılmasın.
         yanlar = [st.median(g) for g in (once, sonra) if len(g) >= 3]
         s['zemin_rms'] = max(yanlar) if yanlar else genel_rms
+        # ±10 sn'nin tek medyanı: eski çukur butonu eşleştirmesi bununla ayarlandı; --darbe-taban ortak ile darbe tespiti de kullanır
+        s['zemin_rms_ortak'] = st.median(once + sonra) if len(once) + len(sonra) >= 5 else genel_rms
+        if ayar.darbe_taban == 'ortak':
+            s['zemin_rms'] = s['zemin_rms_ortak']
         if s['tepe'] >= ayar.darbe_orani * s['zemin_rms'] and s['tepe'] >= ayar.darbe_esik:
             s['darbe'] = True
 
@@ -285,18 +305,18 @@ def isaret_esle(satirlar, ayar):
         basis = s['t'] - 0.25  # basış bu 0,5 sn'lik pencerenin içinde bir anda
         alt = max(s['t'] - 0.5 - ayar.isaret_arama, onceki_basis)
         pencere = [k for k in satirlar if alt <= k['merkez'] < s['t'] - 0.5]
-        adaylar = sorted((k for k in pencere if k['durum'] == 'hareket'), key=lambda k: -k['tepe'] / k['zemin_rms'])
+        adaylar = sorted((k for k in pencere if k['durum'] == 'hareket'), key=lambda k: -k['tepe'] / k['zemin_rms_ortak'])
         kayit = dict(basis=s, cukur=None, tahmini=None, oran=None, tepki_s=None)
         if not adaylar:
             kayit['sonuc'] = 'GPS kesintisi' if any(k['durum'] == 'gps_yok' for k in pencere) else 'hareket yok'
         else:
             en_iyi = adaylar[0]
-            kayit['oran'] = en_iyi['tepe'] / en_iyi['zemin_rms']
+            kayit['oran'] = en_iyi['tepe'] / en_iyi['zemin_rms_ortak']
             # Rakip: en iyiden 0,6 sn'den uzak (aynı çukurun arka tekerleği değil) en büyük ikinci tepe
             rakip = next((k for k in adaylar[1:] if abs(k['merkez'] - en_iyi['merkez']) > 0.6), None)
             if kayit['oran'] < ayar.isaret_min_oran:
                 kayit['sonuc'] = 'belirgin tepe yok'
-            elif rakip is not None and rakip['tepe'] / rakip['zemin_rms'] >= ayar.isaret_belirsiz * kayit['oran']:
+            elif rakip is not None and rakip['tepe'] / rakip['zemin_rms_ortak'] >= ayar.isaret_belirsiz * kayit['oran']:
                 kayit['sonuc'] = 'belirsiz'
             else:
                 kayit['cukur'] = en_iyi
@@ -357,6 +377,8 @@ def kumele(olaylar, yaricap):
 
 HIZ_REF = 15.0  # km/h: hız düzeltmeli sarsıntı indeksinin başvuru hızı
 HUCRE_M = 25.0  # m: konum hücresi (sokak bilgisi olmayan yerlerde ve birleşik haritada)
+HUCRE_ENLEM = 41.0  # hücre ızgarasının boylam ölçeği için sabit enlem (İstanbul); her yerde aynı ızgara, kopukluk yok
+HUCRE_KX = DEG_M * math.cos(math.radians(HUCRE_ENLEM))
 YOL_DISI = 'Yol dışı / haritaya oturtulmadı'
 
 
@@ -369,13 +391,11 @@ def sokak_adi(s):
 
 def hucre(s):
     """25 m'lik sabit konum hücresi (aynı yer farklı sürüşlerde aynı hücreye düşer)"""
-    kx = DEG_M * math.cos(math.radians(round(s['d_enlem'])))
-    return (math.floor(s['d_enlem'] * DEG_M / HUCRE_M), math.floor(s['d_boylam'] * kx / HUCRE_M))
+    return (math.floor(s['d_enlem'] * DEG_M / HUCRE_M), math.floor(s['d_boylam'] * HUCRE_KX / HUCRE_M))
 
 
-def hucre_sinirlari(h, enlem_ornek):
-    kx = DEG_M * math.cos(math.radians(round(enlem_ornek)))
-    return [[h[0] * HUCRE_M / DEG_M, h[1] * HUCRE_M / kx], [(h[0] + 1) * HUCRE_M / DEG_M, (h[1] + 1) * HUCRE_M / kx]]
+def hucre_sinirlari(h):
+    return [[h[0] * HUCRE_M / DEG_M, h[1] * HUCRE_M / HUCRE_KX], [(h[0] + 1) * HUCRE_M / DEG_M, (h[1] + 1) * HUCRE_M / HUCRE_KX]]
 
 
 def hiz_ussu(hareket):
@@ -400,8 +420,9 @@ def hiz_ussu(hareket):
 
 
 def duzeltilmis_rms(s, b):
-    """Hız düzeltmeli sarsıntı: bu satırın 15 km/h'te beklenen Dikey_RMS'si"""
-    return s['rms'] * (HIZ_REF / s['d_hiz']) ** b
+    """Hız düzeltmeli sarsıntı: bu satırın 15 km/h'te beklenen Dikey_RMS'si (çok düşük hızda düzeltme şişmesin diye
+    hız en az 3 km/h alınır; --min-hiz 0 verilse de sıfıra bölünmez)"""
+    return s['rms'] * (HIZ_REF / max(s['d_hiz'], 3.0)) ** b
 
 
 def sokak_tablosu(hareket, olaylar, b, anahtar=sokak_adi):
@@ -483,7 +504,8 @@ def ozet_yaz(yol, ad, satirlar, r, tablo, ayar, osm_kaynak):
     y('')
     y('AYARLAR')
     y(f'  GPS gecikme düzeltmesi: {tr(ayar.gecikme, 1)} s   Duruş eşiği: {tr(ayar.min_hiz, 1)} km/h')
-    y(f'  Darbe: tepe ≥ {tr(ayar.darbe_orani, 1)} × çevre RMS ve ≥ {tr(ayar.darbe_esik, 0)} m/s²   Gruplama yarıçapı: {tr(ayar.kume_yaricap, 0)} m')
+    y(f'  Darbe: tepe ≥ {tr(ayar.darbe_orani, 1)} × çevre RMS ({ayar.darbe_taban}) ve ≥ {tr(ayar.darbe_esik, 0)} m/s²   '
+      f'Gruplama yarıçapı: {tr(ayar.kume_yaricap, 0)} m')
     y(f'  Çukur işareti: basıştan önceki {tr(ayar.isaret_arama, 0)} sn aranır, tepe ≥ {tr(ayar.isaret_min_oran, 1)} × çevre RMS; '
       f'basıştan sonraki {tr(ayar.isaret_dislama, 1)} sn analiz dışı')
     y('')
@@ -969,6 +991,9 @@ def ayristirici():
                    help='Basıştan sonra analiz dışı bırakılan süre, sn (varsayılan 0,5)')
     p.add_argument('--darbe-orani', type=float, default=4.0, help='Darbe: tepe ≥ oran × çevre RMS (varsayılan 4)')
     p.add_argument('--darbe-esik', type=float, default=10.0, help='Darbe: tepe ≥ bu değer, m/s² (varsayılan 10)')
+    p.add_argument('--darbe-taban', choices=['iki-yan', 'ortak'], default='iki-yan',
+                   help='Darbe tabanı: önceki / sonraki 10 sn medyanlarından büyüğü (iki-yan, varsayılan: yanlış alarm daha az) '
+                        'veya ±10 sn tek medyan (ortak: daha çok çukur bulur, yüzey geçişlerinde yanlış alarm)')
     p.add_argument('--kume-yaricap', type=float, default=10.0,
                    help='Grup merkezine bu mesafedeki darbeler / çukurlar aynı nokta sayılır, m (varsayılan 10)')
     p.add_argument('--hiz-araligi', type=float, default=3.0, help='Hız tablosu aralığı, km/h (varsayılan 3)')
@@ -978,15 +1003,19 @@ def ayristirici():
 def dosyalari_bul(girdiler):
     """Dosya adları, klasörler (içindeki mikromobilite_*.csv) ve joker karakterli adlar (*.csv: Windows komut
     satırı bunları kendisi açmaz)"""
+    kayit_adi = re.compile(r'^mikromobilite_\d{8}_\d{6}\.csv$')  # betiğin kendi çıktıları (_satirlar.csv vb.) hariç
     dosyalar = []
     for g in girdiler:
         if os.path.isdir(g):
-            dosyalar += sorted(glob.glob(os.path.join(g, 'mikromobilite_*.csv')))
+            dosyalar += sorted(f for f in glob.glob(os.path.join(g, '*.csv')) if kayit_adi.match(os.path.basename(f)))
         elif any(c in g for c in '*?['):
             dosyalar += sorted(glob.glob(g))
         else:
             dosyalar.append(g)
-    return list(dict.fromkeys(dosyalar))
+    tekil = {}
+    for d in dosyalar:  # aynı dosya farklı yazımla (klasör + tam yol) verilirse bir kez
+        tekil.setdefault(os.path.realpath(d), d)
+    return list(tekil.values())
 
 
 def varsayilan_ayar(**degisiklik):
@@ -997,18 +1026,21 @@ def varsayilan_ayar(**degisiklik):
     return ayar
 
 
-def dosya_analiz(yol, ayar, klasor=None, yaz=True):
-    """Bir CSV'yi analiz et; yaz=True ise tüm çıktıları klasöre yaz. Sonuç sözlüğünü döndürür."""
+def dosya_analiz(yol, ayar, klasor=None, yaz=True, onbellek=None):
+    """Bir CSV'yi analiz et; yaz=True ise tüm çıktıları klasöre yaz. Sonuç sözlüğünü döndürür.
+    onbellek: yol verisinin saklanacağı dosya (verilmezse yaz=True iken çıktı klasöründe)."""
     ad = os.path.splitext(os.path.basename(yol))[0]
     klasor = klasor or ayar.cikti or os.path.join(os.path.dirname(os.path.abspath(yol)), f'{ad}_analiz')
     satirlar = oku(yol)
-    onbellek = os.path.join(klasor, f'{ad}_osm.json') if yaz else None
+    if onbellek is None and yaz:
+        onbellek = os.path.join(klasor, f'{ad}_osm.json')
     if yaz:
         os.makedirs(klasor, exist_ok=True)
     osm, osm_kaynak = osm_yukle(gps_olcumleri(satirlar), ayar, onbellek)
     r = analiz_et(satirlar, ayar, osm)
     r['satirlar'] = satirlar
     r['etiket'] = bilgi_oku(yol)
+    r['osm_kaynak'] = osm_kaynak
     if yaz:
         def cikti(son):
             return os.path.join(klasor, f'{ad}_{son}')
@@ -1032,7 +1064,11 @@ def main():
         p.error('en az bir CSV dosyası veya kayıtların bulunduğu klasörü verin')
     for yol in dosyalar:
         print(yol)
-        r = dosya_analiz(yol, ayar)
+        try:
+            r = dosya_analiz(yol, ayar)
+        except KayitHatasi as e:
+            print(f'  ATLANDI: {e}')
+            continue
         uyari = sum(1 for s in r['satirlar'] if s['uyg_cukur'])
         ek = ''
         if r['isaretler']:

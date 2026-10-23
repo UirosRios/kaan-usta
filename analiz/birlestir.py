@@ -36,21 +36,16 @@ EN_AZ_SATIR = 4  # haritada gösterilecek hücre için en az satır (2 sn)
 
 
 def hucre_tablosu(hareket, olaylar, b):
-    gruplar = defaultdict(list)
+    """25 m'lik hücre başına özet (sokak tablosuyla aynı hesap, gruplama hücreye göre)"""
+    sokak = defaultdict(list)
     for s in hareket:
-        gruplar[sa.hucre(s)].append(s)
-    darbe = defaultdict(int)
-    for o in olaylar:
-        darbe[sa.hucre(o)] += 1
-    tablo = []
-    for h, g in gruplar.items():
-        if len(g) < EN_AZ_SATIR:
-            continue
-        tablo.append(dict(
-            hucre=h, sinir=sa.hucre_sinirlari(h, g[0]['d_enlem']), n=len(g), suruslar=sorted({s['surus'] for s in g}),
-            rms=st.median(s['rms'] for s in g), hiz=st.median(s['d_hiz'] for s in g),
-            indeks=st.median(sa.duzeltilmis_rms(s, b) for s in g) if b is not None else None,
-            sokak=st.mode(sa.sokak_adi(s) for s in g), darbe=darbe[h]))
+        sokak[sa.hucre(s)].append(sa.sokak_adi(s))
+    tablo = [t for t in sa.sokak_tablosu(hareket, olaylar, b, anahtar=sa.hucre) if t['n'] >= EN_AZ_SATIR]
+    for t in tablo:
+        t['hucre'] = t['ad']
+        t['sinir'] = sa.hucre_sinirlari(t['ad'])
+        t['sokak'] = st.mode(sokak[t['ad']])
+        t['suruslar'] = sorted(t['suruslar'])
     return tablo
 
 
@@ -68,7 +63,10 @@ def ozet_yaz(yol, suruslar, sokaklar, hucreler, noktalar, b, osm_kaynak):
     if len(scooterlar) > 1:
         y('  DİKKAT: sürüşlerde farklı scooterlar var; sarsıntı değerleri araca da bağlıdır.')
     y('')
-    y(f'Haritaya oturtma: {osm_kaynak}')
+    y(f'Haritaya oturtma (yol verisi): {osm_kaynak}')
+    oturtulmayan = [k['ad'] for k in suruslar if k['osm'] in ('indirilemedi', 'kapalı')]
+    if oturtulmayan:
+        y(f'  DİKKAT: {len(oturtulmayan)} sürüş yola oturtulamadı; bu sürüşlerin satırları sokak tablosunda "{sa.YOL_DISI}" altında.')
     if b is not None:
         y(f'Hız düzeltmesi: RMS ∝ hız^{sa.tr(b)} (aynı 25 m\'lik hücredeki hız farklarından); İndeks = {sa.HIZ_REF:.0f} km/h\'te beklenen Dikey_RMS.')
     else:
@@ -213,22 +211,25 @@ def main():
     cikti = ayar.cikti or os.path.join(os.getcwd(), 'birlesik_analiz')
     os.makedirs(cikti, exist_ok=True)
 
-    # Yol verisi bir kez, tüm sürüşleri kapsayacak şekilde indirilir
-    tum_olcumler = []
-    for yol in dosyalar:
-        tum_olcumler += sa.gps_olcumleri(sa.oku(yol))
-    osm, osm_kaynak = sa.osm_yukle(tum_olcumler, ayar, os.path.join(cikti, 'birlesik_osm.json'))
-    if osm is not None and not ayar.osm:
-        ayar.osm = os.path.join(cikti, 'birlesik_osm.json')
-    elif osm is None:
-        ayar.oturtma = 'kapali'  # indirilemediyse her sürüşte yeniden denenmesin
-
-    suruslar, hareket, olaylar = [], [], []
+    # Yol verisi her sürüş için ayrı indirilir ve saklanır (osm/ klasörü): sonradan eklenen sürüşler de oturtulur,
+    # birbirinden uzak sürüşler için dev bir alan istenmez. Bir indirme başarısız olursa diğerleri denenmez.
+    ayar.cikti = None
+    suruslar, hareket, olaylar, kaynaklar, adlar = [], [], [], defaultdict(int), set()
     for yol in dosyalar:
         ad = os.path.splitext(os.path.basename(yol))[0]
+        if ad in adlar:  # farklı klasörlerde aynı adlı dosya: ayrı sürüş olarak say
+            ad = f'{ad} ({os.path.basename(os.path.dirname(os.path.abspath(yol)))})'
+        adlar.add(ad)
         print(yol)
-        ayar.cikti = None
-        r = sa.dosya_analiz(yol, ayar, klasor=os.path.join(cikti, ad) if ayar.tek_tek else None, yaz=ayar.tek_tek)
+        try:
+            r = sa.dosya_analiz(yol, ayar, klasor=os.path.join(cikti, ad) if ayar.tek_tek else None, yaz=ayar.tek_tek,
+                                onbellek=os.path.join(cikti, 'osm', ad + '_osm.json'))
+        except sa.KayitHatasi as e:
+            print(f'  ATLANDI: {e}')
+            continue
+        kaynaklar[r['osm_kaynak']] += 1
+        if r['osm_kaynak'] == 'indirilemedi':
+            ayar.oturtma = 'kapali'
         for s in r['satirlar']:
             s['surus'] = ad
         hareket += r['hareket']
@@ -239,8 +240,12 @@ def main():
             yol_m=sum(s['d_hiz'] / 3.6 * 0.5 for s in r['hareket']),
             hiz=st.median(s['d_hiz'] for s in r['hareket']) if r['hareket'] else 0.0,
             rms=st.median(s['rms'] for s in r['hareket']) if r['hareket'] else 0.0,
-            darbe=len(r['olaylar']), uyari=sum(1 for s in st_ if s['uyg_cukur']), etiket=r['etiket']))
+            darbe=len(r['olaylar']), uyari=sum(1 for s in st_ if s['uyg_cukur']), etiket=r['etiket'],
+            osm=r['osm_kaynak']))
         print(f'  {len(r["hareket"])} hareket satırı, {len(r["olaylar"])} darbe')
+    if not suruslar:
+        p.error('okunabilen kayıt yok')
+    osm_kaynak = ', '.join(f'{n} sürüş: {k}' for k, n in kaynaklar.items())
 
     b = sa.hiz_ussu(hareket)
     sokaklar = sa.sokak_tablosu(hareket, olaylar, b)

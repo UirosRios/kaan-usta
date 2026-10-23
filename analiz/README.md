@@ -118,7 +118,15 @@ değeri çevresindeki sarsıntıya göre en büyük olan aranır. Bir önceki ba
 - **Ölçüt:** Tepe değer = max(|Dikey_Min|, Dikey_Max). Yolun "normal" sarsıntısı (taban): önceki 10 sn ve sonraki 10 sn'lik hareket
   satırlarının Dikey_RMS medyanlarından büyük olanı. Tepe bunun 4 katını (`--darbe-orani`) ve 10 m/s²'yi (`--darbe-esik`)
   aşıyorsa satır darbe sayılır. İki yana ayrı bakmak, düzgünden bozuk zemine geçerken bozuk kısmın sıradan tepelerinin
-  "darbe" sayılmasını önler (simülasyonda yanlış alarmlar ~3 kat azaldı, çukur bulma oranı birkaç puan düştü).
+  "darbe" sayılmasını önler. Bir ödünleşimdir; simülasyonda ±10 sn tek medyana göre:
+
+  | | Tek medyan (`--darbe-taban ortak`) | İki yan (varsayılan) |
+  |---|---|---|
+  | Yanlış alarm, sürüş başına | 4,0–7,2 | 1,8–3,6 |
+  | Çukur bulma oranı (asfalt dışı senaryolar) | %67–85 | %65–73 (5–12 puan düşük) |
+  | Asfalt, iyi GPS | %100, 0,2 yanlış | aynı |
+
+  Bütün çukurları yakalamak, yanlış alarmdan önemliyse `--darbe-taban ortak` kullanın.
 - **Gruplama:** Farklı geçişlerde, merkezine 10 m'den (`--kume-yaricap`) yakın darbeler / çukurlar aynı nokta olarak gruplanır.
   Aynı yerden ne kadar çok, özellikle iki yönde geçilirse konum o kadar iyileşir.
 
