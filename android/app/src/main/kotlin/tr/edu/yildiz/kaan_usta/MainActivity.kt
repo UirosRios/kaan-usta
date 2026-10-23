@@ -2,6 +2,8 @@ package tr.edu.yildiz.kaan_usta
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorManager
 import android.location.GnssStatus
@@ -81,6 +83,40 @@ class MainActivity : FlutterActivity() {
                     stopRawGps()
                 }
             })
+
+        // Kayıt sırasında ön plan hizmeti (KayitServisi.kt): ekran kapalıyken de ölçüm sürer
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "kaan_usta/kayit_servisi")
+            .setMethodCallHandler { call, result ->
+                val intent = Intent(this, KayitServisi::class.java)
+                when (call.method) {
+                    "baslat" -> {
+                        // Android 13+: bildirim izni (verilmezse hizmet yine çalışır, yalnızca bildirim görünmez)
+                        if (Build.VERSION.SDK_INT >= 33 &&
+                            checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            requestPermissions(arrayOf("android.permission.POST_NOTIFICATIONS"), 1)
+                        }
+                        // Konum izni yoksa konum türü ön plan hizmeti başlatılamaz (Android 14+); hizmetsiz devam edilir
+                        val konumIzni = listOf("android.permission.ACCESS_FINE_LOCATION", "android.permission.ACCESS_COARSE_LOCATION")
+                            .any { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
+                        if (!konumIzni) {
+                            result.success(false)
+                            return@setMethodCallHandler
+                        }
+                        try {
+                            if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("KAYIT_SERVISI", e.message, null)
+                        }
+                    }
+                    "durdur" -> {
+                        stopService(intent)
+                        result.success(true)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
 
         // Cihaz ve sensör bilgisi: her kaydın _bilgi.txt dosyasına ve Teknik Bilgi sayfasına yazılır
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "kaan_usta/cihaz")

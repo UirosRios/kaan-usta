@@ -3,10 +3,14 @@
     <!-- GPS (konum ve hız) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-    <!-- YTÜ logosunu internetten yüklemek için -->
+    <!-- Harita karoları ve kayıt başındaki hava durumu için -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Kayıt sırasında ekranın kapanmasını engellemek için -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <!-- Ekran kapalıyken / uygulama arka plandayken kaydın sürmesi için ön plan hizmeti (konum türü) ve bildirimi -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- open_filex eklentisinin eklediği medya/depolama izinleri gereksiz: kayıtlar uygulamanın kendi
          klasöründe olduğu için CSV'yi açmak izin istemez -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove"/>
@@ -44,6 +48,10 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <service
+            android:name=".KayitServisi"
+            android:exported="false"
+            android:foregroundServiceType="location"/>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

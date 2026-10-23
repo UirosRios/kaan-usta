@@ -99,6 +99,14 @@ class AboutPage extends StatelessWidget {
             ],
           ),
           const _InfoCard(
+            title: 'Kayıt etiketleri',
+            lines: [
+              'Scooter: Ayarlar sayfasında bir kez yazılır, her kayda otomatik eklenir.',
+              'Hava durumu: kayıt başında internet ve GPS konumu varsa Open-Meteo servisinden alınır (konum ~1 km\'ye yuvarlanarak gönderilir). Alınamazsa yazılmaz.',
+              'İkisi de kaydın _bilgi.txt dosyasına yazılır; analiz betiği özet ve karşılaştırmalarda kullanır.',
+            ],
+          ),
+          const _InfoCard(
             title: 'Kayıt dosyaları',
             lines: [
               'Veriler kayıt sırasında 5 saniyede bir dosyaya yazılır; uygulama kapanırsa en fazla son 5 saniye kaybolur.',
@@ -112,7 +120,7 @@ class AboutPage extends StatelessWidget {
             lines: [
               'Telefon araca sıkıca sabitlenmelidir; açısı önemli değildir (dikey sarsıntı açıdan bağımsız hesaplanır). Gevşek tutucu veya cep/çanta ölçümü bozar.',
               'Montaj açısı ana ekranda EĞİM olarak görülebilir.',
-              'Kayıt boyunca uygulama açık ve ön planda kalmalıdır (ekran otomatik kapanmaz).',
+              'Kayıt sırasında ekran açık kalır; ekran kilitlenir veya başka uygulamaya geçilirse kayıt arka planda sürer (bildirim çubuğunda görünür). Samsung telefonlarda uygulamanın pil ayarı "Kısıtlanmamış" olmalıdır.',
             ],
           ),
         ],

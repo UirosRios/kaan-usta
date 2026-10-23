@@ -10,9 +10,10 @@ import 'package:latlong2/latlong.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'about_page.dart';
+import 'ayarlar.dart';
 import 'device_info.dart';
+import 'hava_durumu.dart';
 import 'recordings_page.dart';
-import 'trimmed_logo.dart';
 
 void main() {
   runApp(const MyApp());
@@ -115,6 +116,14 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   // Uyarı sesi: art arda gelen uyarılarda ses en fazla saniyede bir çalar
   final AudioPlayer _uyariSesi = AudioPlayer();
   DateTime? _sonSes;
+
+  // Kayıt etiketleri: ayarlardaki scooter ve kayıt başındaki hava durumu (alınamazsa yazılmaz)
+  String _kayitScooter = '';
+  HavaDurumu? _hava;
+  bool _havaBekleniyor = false; // kayıt başında GPS konumu yoksa ilk konumda bir kez denenir
+
+  // Ekran kapalıyken / uygulama arka plandayken kayıt sürsün diye Android ön plan hizmeti (MainActivity.kt)
+  static const MethodChannel _kayitServisi = MethodChannel('kaan_usta/kayit_servisi');
 
   // Abonelikler
   // Ham GPS, Android tarafında (MainActivity.kt) GPS_PROVIDER'dan okunur
@@ -290,6 +299,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
           currentLon = (m['lon'] as num).toDouble();
           currentAccuracy = accuracy;
           lastFixTime = DateTime.now();
+          if (_havaBekleniyor) _havaDurumuAl();
 
           // GPS Doppler hızı: uydu sinyalinin Doppler kaymasından, yumuşatmasız (sekme payı olabilir)
           currentRawSpeed = speed < 0 ? 0.0 : speed * 3.6;
@@ -352,6 +362,8 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       _rowCount = 0;
       _pendingRows.clear();
       _writeError = false;
+      _kayitScooter = await Ayarlar.scooter();
+      _hava = null;
       await _writeInfoFile(null);
     } catch (e) {
       _busy = false;
@@ -365,6 +377,11 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     _busy = false;
     // Kayıt sırasında ekranın kapanıp sensörlerin durmasını engelle
     WakelockPlus.enable();
+    // Ekran kilitlenir veya başka uygulamaya geçilirse kayıt arka planda sürsün
+    _kayitServisi.invokeMethod('baslat').catchError((Object e) => debugPrint('Kayıt hizmeti başlatılamadı: $e'));
+    // Hava durumu: GPS konumu varsa hemen, yoksa ilk konum gelince (kayıt başından en fazla 60 sn sonra)
+    _havaBekleniyor = true;
+    if (lastFixTime != null && DateTime.now().difference(lastFixTime!) <= const Duration(seconds: 60)) _havaDurumuAl();
 
     _verticalWindow.clear();
     _cukurCount = 0;
@@ -443,7 +460,15 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   }
 
   // Kayda ait _bilgi.txt: cihaz, sensörler ve ölçüm ayarları. Başlangıçta yazılır, durdurunca güncellenir.
-  Future<void> _writeInfoFile(DateTime? end) async {
+  // Bilgi dosyası yazımları sırayla yapılır: kayıt başında, hava durumu gelince ve durdurunca yazılır;
+  // sonuncusu (durdurma) her zaman en son biter
+  Future<void> _infoChain = Future.value();
+  Future<void> _writeInfoFile(DateTime? end) {
+    _infoChain = _infoChain.then((_) => _writeInfoFileNow(end)).catchError((Object e) => debugPrint('Bilgi dosyası yazılamadı: $e'));
+    return _infoChain;
+  }
+
+  Future<void> _writeInfoFileNow(DateTime? end) async {
     final file = _csvFile;
     if (file == null) return;
     final info = await DeviceInfo.load();
@@ -454,6 +479,8 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       'Kayıt bitişi: ${end ?? "(kayıt sürüyor veya düzgün kapatılmadı)"}',
       'Satır sayısı: ${end == null ? "(kayıt bitince yazılır; CSV'deki satırları sayın)" : _rowCount}',
       'Çukur uyarısı sayısı: ${end == null ? "(kayıt bitince yazılır)" : _cukurCount}',
+      'Scooter: ${_kayitScooter.isEmpty ? "belirtilmedi (Ayarlar)" : _kayitScooter}',
+      if (_hava != null) 'Hava durumu: ${_hava!.satir()}',
       '',
       ...DeviceInfo.describe(info),
       '',
@@ -485,6 +512,18 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   }
 
   // 4. KAYIT BİTİRME VE PAYLAŞMA MOTORU
+  // Kayıt başındaki hava durumunu bir kez almayı dene; alınırsa bilgi dosyasına eklenir
+  Future<void> _havaDurumuAl() async {
+    final baslangic = _recordStart;
+    _havaBekleniyor = false;
+    if (!isRecording || baslangic == null || DateTime.now().difference(baslangic) > const Duration(seconds: 60)) return;
+    final hava = await HavaDurumu.al(currentLat, currentLon);
+    // Bu arada kayıt bittiyse veya yeni kayıt başladıysa yazma
+    if (hava == null || !isRecording || _recordStart != baslangic) return;
+    _hava = hava;
+    await _writeInfoFile(null);
+  }
+
   Future<void> stopRecording() async {
     if (!isRecording || _busy) return;
     _busy = true;
@@ -493,6 +532,8 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       isRecording = false;
     });
     WakelockPlus.disable();
+    _havaBekleniyor = false;
+    _kayitServisi.invokeMethod('durdur').catchError((Object e) => debugPrint('Kayıt hizmeti durdurulamadı: $e'));
 
     final file = _csvFile;
     try {
@@ -535,6 +576,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     geoSubscription?.cancel();
     accelSubscription?.cancel();
     _uyariSesi.dispose();
+    if (isRecording) _kayitServisi.invokeMethod('durdur').catchError((Object e) => null);
     WakelockPlus.disable();
     super.dispose();
   }
@@ -580,20 +622,19 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                       Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          // Kayıtlar sayfası
-                          IconButton(
-                            icon: const Icon(Icons.folder_outlined, color: Colors.white, size: 28),
-                            tooltip: 'Kayıtlar',
-                            visualDensity: VisualDensity.compact,
-                            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RecordingsPage())),
-                          ),
-                          // Hakkında / Teknik Bilgi sayfası
-                          IconButton(
-                            icon: const Icon(Icons.info_outline, color: Colors.white, size: 28),
-                            tooltip: 'Hakkında / Teknik Bilgi',
-                            visualDensity: VisualDensity.compact,
-                            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutPage())),
-                          ),
+                          // Kayıtlar, Ayarlar, Hakkında / Teknik Bilgi sayfaları
+                          for (final (ikon, ipucu, sayfa) in <(IconData, String, Widget)>[
+                            (Icons.folder_outlined, 'Kayıtlar', const RecordingsPage()),
+                            (Icons.settings_outlined, 'Ayarlar', const AyarlarPage()),
+                            (Icons.info_outline, 'Hakkında / Teknik Bilgi', const AboutPage()),
+                          ])
+                            IconButton(
+                              icon: Icon(ikon, color: Colors.white, size: 24),
+                              tooltip: ipucu,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints.tightFor(width: 40, height: 28),
+                              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => sayfa)),
+                            ),
                         ],
                       ),
                       const SizedBox(width: 4),
@@ -605,11 +646,8 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                       shape: BoxShape.circle,
                       boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 5, offset: Offset(-2, 0))],
                     ),
-                    child: const ClipOval(
-                      child: TrimmedLogo(
-                        url: "https://upload.wikimedia.org/wikipedia/commons/3/37/Y%C4%B1ld%C4%B1z_Technical_University_Logo.png",
-                      ),
-                    ),
+                    // YTÜ logosu uygulamaya gömülü (internet olmadan da görünür)
+                    child: ClipOval(child: Image.asset('assets/logo/ytu.png', fit: BoxFit.contain)),
                   ),
                     ],
                   ),

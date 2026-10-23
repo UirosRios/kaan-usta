@@ -56,6 +56,14 @@ sütununa `1` yazılır. Kartın altında bu kayıttaki uyarı sayısı görün�
   çevresindeki sarsıntıyla karşılaştırır ve GPS gecikmesini düzeltir. Betik, uygulamanın uyarılarını kendi bulduklarıyla karşılaştırıp
   haritada ayrıca gösterir.
 
+## Ayarlar ve kayıt etiketleri
+
+Başlıktaki **dişli** simgesinden açılan Ayarlar sayfasında kullanılan scooter (marka / model) bir kez yazılır; her kaydın
+`_bilgi.txt` dosyasına otomatik eklenir. Şartlar değişince buradan güncellenir.
+
+Kayıt başında internet ve GPS konumu varsa **hava durumu** (durum, sıcaklık, yağış, rüzgâr, nem) [Open-Meteo](https://open-meteo.com)
+servisinden alınır ve `_bilgi.txt`'ye yazılır. Konum ~1 km'ye yuvarlanarak gönderilir. Alınamazsa hava durumu satırı yazılmaz.
+
 ## Kayıt dosyaları
 
 - Veriler kayıt sırasında **5 saniyede bir** dosyaya yazılır; uygulama kapanırsa en fazla son 5 saniye kaybolur.
@@ -80,4 +88,6 @@ Uygulamada sağ üstteki **ⓘ** simgesine dokununca açılan *Hakkında / Tekni
 - Yaklaşık 1 sn'den uzun süren hızlanma, fren veya virajlarda yerçekimi yönü tahmini, yatay ivmenin
   yerçekimine oranı kadar kayar (ör. 1 m/s² fren ≈ 6°, 3 m/s² sert fren ≈ 17°). Bu sürede dikey sarsıntı
   %0,5–4 eksik ölçülür ve yatay titreşimin bir kısmı (açının sinüsü kadar, ≈ %10–30) dikeye karışır.
-- Kayıt süresince uygulama **açık ve ön planda** kalmalıdır (ekran otomatik kapanmaz).
+- Kayıt sırasında ekran açık kalır; ekran kilitlenir veya başka uygulamaya geçilirse kayıt **arka planda sürer** (bildirim
+  çubuğunda "Sürüş kaydı sürüyor" görünür). Bazı telefonlar (özellikle Samsung) pil tasarrufu için arka plandaki uygulamaları
+  kapatabilir: Ayarlar → Uygulamalar → Mikromobilite Veri Aracı → Pil → **Kısıtlanmamış** seçilmesi önerilir.
