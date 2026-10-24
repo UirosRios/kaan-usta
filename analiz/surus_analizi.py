@@ -6,7 +6,7 @@ her kayıt için şunları üretir:
 
   <ad>_ozet.txt        Veri kalitesi, haritaya oturtma, hıza göre sarsıntı tablosu, işaretli çukurlar, darbeler
   <ad>_satirlar.csv    Tüm satırlar: düzeltilmiş konum/hız, durum, darbe ve çukur işaretleri
-  <ad>_isaretler.csv   Çukur butonu basışları ve eşleştirilen çukurlar
+  <ad>_isaretler.csv   Eski sürümün çukur butonu basışları ve eşleşen çukurlar (yalnızca basış varsa)
   <ad>_olaylar.csv     Otomatik bulunan darbeler
   <ad>_harita.html     Uydu görüntüsü üzerinde güzergâh (renk = sarsıntı), işaretli çukurlar ve darbeler
   <ad>_harita.geojson  Aynı veri, QGIS / ArcGIS için
@@ -506,8 +506,9 @@ def ozet_yaz(yol, ad, satirlar, r, tablo, ayar, osm_kaynak):
     y(f'  GPS gecikme düzeltmesi: {tr(ayar.gecikme, 1)} s   Duruş eşiği: {tr(ayar.min_hiz, 1)} km/h')
     y(f'  Darbe: tepe ≥ {tr(ayar.darbe_orani, 1)} × çevre RMS ({ayar.darbe_taban}) ve ≥ {tr(ayar.darbe_esik, 0)} m/s²   '
       f'Gruplama yarıçapı: {tr(ayar.kume_yaricap, 0)} m')
-    y(f'  Çukur işareti: basıştan önceki {tr(ayar.isaret_arama, 0)} sn aranır, tepe ≥ {tr(ayar.isaret_min_oran, 1)} × çevre RMS; '
-      f'basıştan sonraki {tr(ayar.isaret_dislama, 1)} sn analiz dışı')
+    if r['isaretler']:  # eski sürümün çukur butonu
+        y(f'  Çukur işareti: basıştan önceki {tr(ayar.isaret_arama, 0)} sn aranır, tepe ≥ {tr(ayar.isaret_min_oran, 1)} × çevre RMS; '
+          f'basıştan sonraki {tr(ayar.isaret_dislama, 1)} sn analiz dışı')
     y('')
     y('VERİ KALİTESİ')
     if ornek:
@@ -516,7 +517,8 @@ def ozet_yaz(yol, ad, satirlar, r, tablo, ayar, osm_kaynak):
     if dogruluk:
         y(f'  GPS doğruluğu: {tr(min(dogruluk), 1)}-{tr(max(dogruluk), 1)} m (ortalama {tr(st.mean(dogruluk), 1)} m)')
     say = {d: sum(1 for s in satirlar if s['durum'] == d) for d in ('hareket', 'durus', 'isaret', 'gps_yok')}
-    y(f'  Satır durumu: hareket {say["hareket"]}, duruş {say["durus"]}, buton etkisi {say["isaret"]}, GPS yok {say["gps_yok"]}')
+    buton = f', buton etkisi {say["isaret"]}' if say['isaret'] else ''
+    y(f'  Satır durumu: hareket {say["hareket"]}, duruş {say["durus"]}{buton}, GPS yok {say["gps_yok"]}')
     y(f'  En büyük ivme tepesi (tüm satırlar): {tr(max(s["tepe"] for s in satirlar), 1)} m/s² '
       '(telefonun ölçüm aralığı _bilgi.txt dosyasında; yakınsa sensör doymuş olabilir)')
     y('')
@@ -877,6 +879,7 @@ def grafik_yaz(yol, ad, satirlar, r, tablo):
         return
     INK, INK2, MUTED, GRID, AXIS, SURF = '#0b0b0b', '#52514e', '#898781', '#e1e0d9', '#c3c2b7', '#fcfcfb'
     MAVI, TURUNCU, KIRMIZI = '#2a78d6', '#eb6834', '#003366'
+    UYARI = '#dc3545'  # uygulamanın anlık çukur uyarısı (ekrandaki kırmızı)
     plt.rcParams.update({'font.size': 10, 'axes.edgecolor': AXIS, 'axes.labelcolor': INK2, 'xtick.color': MUTED,
                          'ytick.color': MUTED, 'axes.facecolor': SURF, 'figure.facecolor': SURF, 'axes.grid': True,
                          'grid.color': GRID, 'grid.linewidth': 0.6, 'axes.spines.top': False, 'axes.spines.right': False,
@@ -902,15 +905,20 @@ def grafik_yaz(yol, ad, satirlar, r, tablo):
         for i in r['isaretler']:  # basış anları
             ax.axvline(i['basis']['merkez'] - t0, color=INK2, lw=1, ls=':')
     ax1.plot(S, [s['d_hiz'] if s['d_hiz'] is not None else float('nan') for s in satirlar], color=MAVI, lw=2)
-    ax1.set_title('Hız (km/h, GPS gecikmesi düzeltilmiş) – gri: analiz dışı, noktalı çizgi: butona basış')
+    ax1.set_title('Hız (km/h, GPS gecikmesi düzeltilmiş) – gri: analiz dışı'
+                  + (', noktalı çizgi: butona basış' if r['isaretler'] else ''))
     ax1.set_ylim(bottom=0)
     ax2.plot(S, [s['rms'] for s in satirlar], color=TURUNCU, lw=2)
     for s in satirlar:
         if s['darbe']:
             ax2.plot([s['t'] - t0], [s['rms']], 'o', ms=8, color=INK, markeredgecolor=SURF, markeredgewidth=2, zorder=3)
+        if s['uyg_cukur']:
+            ax2.plot([s['t'] - t0], [s['rms']], 'o', ms=13, mfc='none', mec=UYARI, mew=2, zorder=4)
         if s['cukur']:
             ax2.plot([s['t'] - t0], [s['rms']], 's', ms=11, mfc='none', mec=KIRMIZI, mew=2.2, zorder=4)
-    ax2.set_title('Dikey_RMS (m/s², 0,5 sn pencere) – siyah nokta: otomatik darbe, kırmızı kare: işaretli çukur')
+    ax2.set_title('Dikey_RMS (m/s², 0,5 sn pencere) – siyah nokta: otomatik darbe'
+                  + (', kırmızı halka: uygulamanın anlık uyarısı' if any(s['uyg_cukur'] for s in satirlar) else '')
+                  + (', lacivert kare: işaretli çukur' if r['isaretler'] else ''))
     ax2.set_xlabel('Kayıt başından itibaren süre (s)')
     ax2.set_ylim(bottom=0)
     if hareket:
@@ -1047,7 +1055,8 @@ def dosya_analiz(yol, ayar, klasor=None, yaz=True, onbellek=None):
         tablo = hiz_tablosu(r['hareket'], ayar.hiz_araligi)
         ozet_yaz(cikti('ozet.txt'), ad, satirlar, r, tablo, ayar, osm_kaynak)
         satirlar_yaz(cikti('satirlar.csv'), satirlar)
-        isaretler_yaz(cikti('isaretler.csv'), r['isaretler'])
+        if r['isaretler']:  # yalnızca eski sürümün çukur butonuyla yapılmış kayıtlar
+            isaretler_yaz(cikti('isaretler.csv'), r['isaretler'])
         olaylar_yaz(cikti('olaylar.csv'), r['kumeler'])
         sokaklar_yaz(cikti('sokaklar.csv'), r['sokaklar'])
         geojson_yaz(cikti('harita.geojson'), satirlar, r)
