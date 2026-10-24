@@ -609,39 +609,40 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
+                  // Büyük yazı tipi ayarında taşmasın: sığmazsa kısaltılır
+                  Flexible(
+                    child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
                         "KAAN USTA",
                         style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
-                      Text(_liveDate, style: const TextStyle(color: Color(0xFFCED4DA), fontSize: 12)),
+                      Text(_liveDate, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFFCED4DA), fontSize: 12)),
                       Text(_liveTime, style: const TextStyle(color: Color(0xFFCED4DA), fontSize: 12)),
                     ],
                   ),
+                  ),
                   Row(
                     children: [
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // Kayıtlar, Ayarlar, Hakkında / Teknik Bilgi sayfaları
-                          for (final (ikon, ipucu, sayfa) in <(IconData, String, Widget)>[
-                            (Icons.folder_outlined, 'Kayıtlar', const RecordingsPage()),
-                            (Icons.settings_outlined, 'Ayarlar', const AyarlarPage()),
-                            (Icons.info_outline, 'Hakkında / Teknik Bilgi', const AboutPage()),
-                          ])
-                            IconButton(
-                              icon: Icon(ikon, color: Colors.white, size: 24),
-                              tooltip: ipucu,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints.tightFor(width: 40, height: 28),
-                              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => sayfa)),
-                            ),
-                        ],
-                      ),
+                      // Kayıtlar, Ayarlar, Hakkında / Teknik Bilgi sayfaları (yan yana)
+                      for (final (ikon, ipucu, sayfa) in <(IconData, String, Widget)>[
+                        (Icons.folder_outlined, 'Kayıtlar', const RecordingsPage()),
+                        (Icons.settings_outlined, 'Ayarlar', const AyarlarPage()),
+                        (Icons.info_outline, 'Hakkında / Teknik Bilgi', const AboutPage()),
+                      ])
+                        IconButton(
+                          icon: Icon(ikon, color: Colors.white, size: 26),
+                          tooltip: ipucu,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints.tightFor(width: 38, height: 48),
+                          style: IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => sayfa)),
+                        ),
                       const SizedBox(width: 4),
                   Container(
                     width: 80,
