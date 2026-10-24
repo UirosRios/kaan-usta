@@ -88,6 +88,15 @@ class _RecordingsPageState extends State<RecordingsPage> {
     }
   }
 
+  // mikromobilite_20261024_011502.csv -> 24 Ekim 2026, 01:15:02 (ad farklıysa dosya adı)
+  static const _aylar = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+  String _baslik(String ad) {
+    final m = RegExp(r'_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\.csv$').firstMatch(ad);
+    final ay = m == null ? 0 : int.parse(m[2]!);
+    if (m == null || ay < 1 || ay > 12) return ad;
+    return '${int.parse(m[3]!)} ${_aylar[ay - 1]} ${m[1]}, ${m[4]}:${m[5]}:${m[6]}';
+  }
+
   String _size(int bytes) => bytes < 1024 * 1024 ? '${(bytes / 1024).toStringAsFixed(0)} KB' : '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
 
   @override
@@ -113,8 +122,15 @@ class _RecordingsPageState extends State<RecordingsPage> {
                       color: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       child: ListTile(
-                        title: Text(f.uri.pathSegments.last, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                        subtitle: Text(f.path == aktifKayitYolu ? 'Kayıt sürüyor' : '${_size(stat.size)} · açmak için dokunun'),
+                        title: Text(_baslik(f.uri.pathSegments.last), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(f.uri.pathSegments.last, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
+                            Text(f.path == aktifKayitYolu ? 'Kayıt sürüyor' : '${_size(stat.size)} · açmak için dokunun'),
+                          ],
+                        ),
+                        isThreeLine: true,
                         onTap: () => _open(f),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,

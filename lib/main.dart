@@ -602,10 +602,13 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
         child: Column(
           children: [
             // YTÜ Özel Başlık Alanı (Genişletilmiş Logolu ve Boşluklu Tasarım)
-            Container(
+            // Telefonda büyük yazı tipi seçiliyse başlık yazıları en fazla %15 büyür, başlık gerekirse uzar
+            MediaQuery.withClampedTextScaling(
+              maxScaleFactor: 1.15,
+              child: Container(
               color: const Color(0xFF003366),
               padding: const EdgeInsets.only(left: 20, top: 8, bottom: 8, right: 10),
-              height: 100,
+              constraints: const BoxConstraints(minHeight: 100),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -659,6 +662,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                   ),
                 ],
               ),
+            ),
             ),
 
             // İçerik Alanı ve Kartlar
@@ -843,7 +847,17 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                                       ),
                                     ],
                                   ),
-                                  const SimpleAttributionWidget(source: Text('Esri, HERE, Garmin, © OpenStreetMap katkıcıları')),
+                                  // Harita kaynağı (kısa ve küçük: dar ekranda sığsın)
+                                  const Align(
+                                    alignment: Alignment.bottomRight,
+                                    child: ColoredBox(
+                                      color: Color(0xB3FFFFFF),
+                                      child: Padding(
+                                        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                        child: Text('© Esri, HERE, Garmin, OpenStreetMap', style: TextStyle(fontSize: 10, color: Color(0xFF495057))),
+                                      ),
+                                    ),
+                                  ),
                                 ],
                               ),
                       ),
