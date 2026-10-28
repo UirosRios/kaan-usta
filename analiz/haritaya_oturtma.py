@@ -7,7 +7,11 @@ parçaları aday konum olur. En olası aday dizisi iki ölçüte göre seçilir:
     sigma = GPS_Dogruluk_m / 1,5 çünkü Android doğruluğu %68 yarıçapıdır; en az sigma_min = 4 m,
     Newson ve Krumm'un ölçtüğü değer: bina arasında telefon doğruluğu olduğundan iyi bildirir).
   * Geçiş olasılığı: iki aday arasındaki YOL mesafesi, iki GPS noktası arasındaki düz mesafeye
-    yakın olmalıdır (|yol - düz| büyüdükçe olasılık üstel düşer, ölçek beta).
+    yakın olmalıdır (|yol - düz| büyüdükçe olasılık üstel düşer, ölçek beta). Ayrıca oturtulmuş konumun
+    yer değiştirmesi ham GPS'inkine (yön ve uzunluk) benzemelidir (ağırlık yon_agirlik): GPS hatası kısa
+    sürede sabit bir sapmadır, sapmalı iz bir yan sokağın üstünden geçince oraya sapıp geri dönülmez.
+  * Tek yönlü yollar (OSM oneway): ters yönde gitmek yasak değildir ama yol (1 + ters_yon) kat uzun sayılır.
+    Bölünmüş caddede karşı şeride oturtmayı önler; ters yöne giren scooter yine o yola oturtulur.
 
 Scooter her zaman haritadaki bir yolda gitmez (meydan, park, haritada olmayan geçit). Bu yüzden her
 ölçüme ayrıca "yol dışı" adayı eklenir: konumu GPS noktasının kendisidir, sabit bir ceza alır. Yol,
@@ -47,18 +51,35 @@ def osm_indir(guney, bati, kuzey, dogu, zaman_asimi=90):
     raise RuntimeError(f'OpenStreetMap verisi indirilemedi: {son_hata}')
 
 
+def tek_yon(etiket):
+    """OSM etiketlerinden yön: 1 = yol çizim yönünde tek yön, -1 = tersinde, 0 = çift yön.
+    Bisiklete iki yönlü açık tek yönlü yollar (oneway:bicycle=no) çift yön sayılır."""
+    if etiket.get('oneway:bicycle') == 'no' or etiket.get('cycleway') in ('opposite', 'opposite_lane', 'opposite_track'):
+        return 0
+    deger = etiket.get('oneway')
+    if deger in ('yes', 'true', '1'):
+        return 1
+    if deger in ('-1', 'reverse'):
+        return -1
+    if deger is None and etiket.get('junction') in ('roundabout', 'circular'):
+        return 1
+    return 0
+
+
 class YolAgi:
     """OSM yolları, yerel metrik koordinatlarda (x doğu, y kuzey; enlem0/boylam0 merkezli)."""
 
     HUCRE = 25.0  # mekânsal indeks hücresi (m)
     SINIR = 400.0  # yol mesafesi hesabında en fazla bakılan mesafe (m)
 
-    def __init__(self, osm, enlem0, boylam0):
+    def __init__(self, osm, enlem0, boylam0, ters_yon=2.0):
         self.enlem0, self.boylam0 = enlem0, boylam0
+        self.ters_yon = ters_yon
         self.kx = DEG_M * math.cos(math.radians(enlem0))
         dugum = {e['id']: (e['lat'], e['lon']) for e in osm.get('elements', []) if e.get('type') == 'node'}
         self.xy = {i: self.yerel(*p) for i, p in dugum.items()}
         self.parcalar = []  # (u, v, uzunluk, yol no)
+        self.yon = []  # parça başına tek yön: 1 = yalnızca u->v, -1 = yalnızca v->u, 0 = çift yön
         self.yollar = []  # yol no -> dict(id, ad, tur)
         self.komsu = {}
         for e in osm.get('elements', []):
@@ -69,6 +90,7 @@ class YolAgi:
                 continue  # alan (meydan) kenarları yol sayılmaz; içi "yol dışı" adayıyla karşılanır
             n = [i for i in e.get('nodes', []) if i in self.xy]
             yol_no = len(self.yollar)
+            tek = tek_yon(etiket)
             self.yollar.append(dict(id=e.get('id'), ad=etiket.get('name') or etiket.get('ref'), tur=etiket.get('highway')))
             for u, v in zip(n, n[1:]):
                 if u == v:
@@ -78,8 +100,9 @@ class YolAgi:
                 if L < 0.01:
                     continue
                 self.parcalar.append((u, v, L, yol_no))
-                self.komsu.setdefault(u, []).append((v, L))
-                self.komsu.setdefault(v, []).append((u, L))  # scooter için tek yön kısıtı uygulanmaz
+                self.yon.append(tek)
+                self.komsu.setdefault(u, []).append((v, self.maliyet(L, tek, 1)))
+                self.komsu.setdefault(v, []).append((u, self.maliyet(L, tek, -1)))
         self.izgara = {}
         for i, (u, v, _, _) in enumerate(self.parcalar):
             (ax, ay), (bx, by) = self.xy[u], self.xy[v]
@@ -87,6 +110,11 @@ class YolAgi:
                 for gy in range(int(math.floor(min(ay, by) / self.HUCRE)), int(math.floor(max(ay, by) / self.HUCRE)) + 1):
                     self.izgara.setdefault((gx, gy), []).append(i)
         self._dijkstra = {}
+
+    def maliyet(self, L, tek, yon):
+        """Parça boyunca L metre gitmenin maliyeti; yon 1: u->v, -1: v->u. Tek yönlü yolda ters gitmek yasak
+        değildir (scooter ters yöne girebilir) ama (1 + ters_yon) kat uzun sayılır."""
+        return L * (1.0 + self.ters_yon) if tek == -yon else L
 
     def yerel(self, enlem, boylam):
         return (boylam - self.boylam0) * self.kx, (enlem - self.enlem0) * DEG_M
@@ -143,20 +171,22 @@ class YolAgi:
         """İki aday arasındaki en kısa yol mesafesi (ulaşılamıyorsa inf)"""
         ia, _, _, oa, _ = a
         ib, _, _, ob, _ = b
+        ta, tb = self.yon[ia], self.yon[ib]
         if ia == ib:
-            return abs(oa - ob)
+            return self.maliyet(abs(ob - oa), ta, 1 if ob >= oa else -1)
         ua, va, La, _ = self.parcalar[ia]
         ub, vb, Lb, _ = self.parcalar[ib]
         en_iyi = math.inf
-        for na, da in ((ua, oa), (va, La - oa)):
+        for na, da in ((ua, self.maliyet(oa, ta, -1)), (va, self.maliyet(La - oa, ta, 1))):
             uzak = self._uzakliklar(na)
-            for nb, db in ((ub, ob), (vb, Lb - ob)):
+            for nb, db in ((ub, self.maliyet(ob, tb, 1)), (vb, self.maliyet(Lb - ob, tb, -1))):
                 if nb in uzak:
                     en_iyi = min(en_iyi, da + uzak[nb] + db)
         return en_iyi
 
 
-def oturt(olcumler, osm, yaricap=None, beta=5.0, yol_disi_ceza=2.5, max_bosluk=3.0, sigma_min=4.0, yol_disi_min=25.0):
+def oturt(olcumler, osm, yaricap=None, beta=5.0, yol_disi_ceza=2.5, max_bosluk=3.0, sigma_min=4.0, yol_disi_min=25.0,
+           ters_yon=2.0, yon_agirlik=4.0):
     """GPS ölçümlerini (t, enlem, boylam, dogruluk) yola oturt.
 
     Her ölçüme 'o_enlem', 'o_boylam' (oturtulmuş konum), 'yolda' (True/False), 'kayma_m' (ham konumdan
@@ -167,7 +197,7 @@ def oturt(olcumler, osm, yaricap=None, beta=5.0, yol_disi_ceza=2.5, max_bosluk=3
         return dict(parca=0, yolda=0, toplam=0)
     enlem0 = sum(o['enlem'] for o in olcumler) / len(olcumler)
     boylam0 = sum(o['boylam'] for o in olcumler) / len(olcumler)
-    ag = YolAgi(osm, enlem0, boylam0)
+    ag = YolAgi(osm, enlem0, boylam0, ters_yon)
 
     # Ardışık ölçümler arasında GPS kesintisi varsa zincir bölünür ve ayrı ayrı çözülür
     zincirler, zincir = [], []
@@ -180,13 +210,13 @@ def oturt(olcumler, osm, yaricap=None, beta=5.0, yol_disi_ceza=2.5, max_bosluk=3
         zincirler.append(zincir)
 
     for zincir in zincirler:
-        _viterbi(ag, zincir, yaricap, beta, yol_disi_ceza, sigma_min, yol_disi_min)
+        _viterbi(ag, zincir, yaricap, beta, yol_disi_ceza, sigma_min, yol_disi_min, yon_agirlik)
     yolda = sum(1 for o in olcumler if o['yolda'])
     return dict(parca=len(ag.parcalar), yolda=yolda, toplam=len(olcumler),
                 ort_kayma=sum(o['kayma_m'] for o in olcumler) / len(olcumler))
 
 
-def _viterbi(ag, zincir, yaricap, beta, yol_disi_ceza, sigma_min, yol_disi_min):
+def _viterbi(ag, zincir, yaricap, beta, yol_disi_ceza, sigma_min, yol_disi_min, yon_agirlik):
     adaylar = []
     for o in zincir:
         x, y = ag.yerel(o['enlem'], o['boylam'])
@@ -216,7 +246,10 @@ def _viterbi(ag, zincir, yaricap, beta, yol_disi_ceza, sigma_min, yol_disi_min):
                     gecis = 0.0 if a['yol'] is None and b['yol'] is None else -1.0  # yol <-> yol dışı geçiş cezası
                 if mesafe == math.inf:
                     continue
-                p = puan[i] + gecis - abs(mesafe - duz) / beta
+                # Oturtulmuş hareket, ham GPS'in hareketine (yön ve uzunluk) benzemeli: GPS hatası kısa sürede
+                # sabit bir sapma gibi davranır, sapmalı iz yan sokağa değince kısa bir gidip dönme oluşmasın
+                fark = math.hypot(b['x'] - a['x'] - (x1 - x0), b['y'] - a['y'] - (y1 - y0))
+                p = puan[i] + gecis - (abs(mesafe - duz) + yon_agirlik * fark) / beta
                 if p > en_iyi:
                     en_iyi, en_iyi_i = p, i
             yeni.append(en_iyi + b['log'] if en_iyi > -math.inf else -math.inf)
@@ -238,7 +271,7 @@ def _viterbi(ag, zincir, yaricap, beta, yol_disi_ceza, sigma_min, yol_disi_min):
     secim.reverse()
     bas = len(zincir) - len(secim)
     if bas > 0:  # yeniden başlama noktasından öncesini ayrı çöz
-        _viterbi(ag, zincir[:bas], yaricap, beta, yol_disi_ceza, sigma_min, yol_disi_min)
+        _viterbi(ag, zincir[:bas], yaricap, beta, yol_disi_ceza, sigma_min, yol_disi_min, yon_agirlik)
     for o, (x, y, liste), j in zip(zincir[bas:], adaylar[bas:], secim):
         a = liste[j]
         o['o_enlem'], o['o_boylam'] = ag.cografi(a['x'], a['y'])

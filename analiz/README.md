@@ -118,17 +118,23 @@ python birlestir.py kayitlar
 
 **Haritaya oturtma (`haritaya_oturtma.py`):**
 - **Yöntem:** Gizli Markov modeli ve Viterbi algoritması (Newson ve Krumm, 2009). Her GPS noktasının yakınındaki yollar aday konumdur.
-  En olası aday dizisi iki ölçüte göre seçilir:
+  En olası aday dizisi üç ölçüte göre seçilir:
   - noktanın yola uzaklığı (GPS doğruluğuna göre),
-  - iki nokta arasındaki yol mesafesinin düz mesafeye yakınlığı.
+  - iki nokta arasındaki yol mesafesinin düz mesafeye yakınlığı,
+  - oturtulmuş konumun hareketinin ham GPS'in hareketine (yön ve uzunluk) benzerliği (`--oturtma-yon`, varsayılan 4).
+    GPS hatası kısa sürede sabit bir sapmadır: sapmalı iz yan sokağın üstünden geçince oturtulmuş iz oraya sapıp geri dönmez
+    (Kadıköy kaydında Mühürdar Caddesi'nden Rıza Paşa Sokağı'na sapma böyle giderildi).
+- **Tek yönlü yollar (`--ters-yon-ceza`, varsayılan 2):** OSM'de tek yönlü yolda ters gitmek yasak değildir (scooter ters
+  yöne girebilir) ama yol 3 kat uzun sayılır. Bölünmüş caddede karşı yönün şeridine oturtmayı önler (Kadıköy kaydında
+  Mühürdar Caddesi / Damga Sokağı). Bisiklete iki yönlü açık yollar (`oneway:bicycle=no`) çift yön sayılır.
 - **Yol dışı:** Scooter her zaman haritadaki bir yolda gitmediği için (meydan, park, haritada olmayan geçit) her noktaya bir de
   "yol dışı" adayı eklenir. En yakın yol 2,5 sigma'dan (`--yol-disi-ceza`) **ve** 25 m'den (`--yol-disi-mesafe`) uzaksa
   nokta olduğu yerde kalır.
 - **Telefonun bildirdiği doğruluğa tam güvenilmez:** Bina arasında GPS 15-20 m sabit sapabilir, telefon yine "3 m" der
   (Kadıköy'de gerçek kayıt: başlangıçtaki ~50 sn bina adalarının içinden geçti). Bu yüzden GPS hatası en az 4 m varsayılır
   (`--oturtma-sigma-min`; Newson ve Krumm'un ölçtüğü değer) ve 25 m'den yakın yol varken nokta yol dışı bırakılmaz.
-  Bedeli: haritada yolu olmayan meydanda yola 25 m'den yakın noktalar yola çekilir (simülasyonda meydan senaryosunun %95
-  hatası 11,4 → 14,4 m; medyan değişmedi). Sürüş gerçekten haritada olmayan açık alandan geçtiyse `--yol-disi-mesafe 0`
+  Bedeli: haritada yolu olmayan meydanda yola 25 m'den yakın noktalar yola çekilebilir (simülasyonda meydan senaryosunun %95
+  hatası 11,4 → 14,4 m oldu; hareket yönü ölçütü eklenince 11,6 m). Sürüş gerçekten haritada olmayan açık alandan geçtiyse `--yol-disi-mesafe 0`
   eski davranışı verir.
 - **Sınır:** Yalnızca yana doğru hata düzelir; yol boyunca ileri-geri hata kalır.
 

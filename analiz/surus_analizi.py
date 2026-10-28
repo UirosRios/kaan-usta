@@ -207,7 +207,8 @@ def analiz_et(satirlar, ayar, osm=None):
     oturtma = None
     if osm is not None:
         oturtma = haritaya_oturtma.oturt(olcumler, osm, beta=ayar.oturtma_beta, yol_disi_ceza=ayar.yol_disi_ceza,
-                                         sigma_min=ayar.oturtma_sigma_min, yol_disi_min=ayar.yol_disi_mesafe)
+                                         sigma_min=ayar.oturtma_sigma_min, yol_disi_min=ayar.yol_disi_mesafe,
+                                         ters_yon=ayar.ters_yon_ceza, yon_agirlik=ayar.oturtma_yon)
 
     for i, s in enumerate(satirlar):
         # Satır, yazıldığı andan önceki 0,5 sn'yi özetler: pencere ortası = yazılma anı − 0,25 sn
@@ -997,6 +998,10 @@ def ayristirici():
                    help='Oturtma: GPS hatası en az bu kadar varsayılır, m (telefonun bildirdiği doğruluk daha iyi olsa da; varsayılan 4)')
     p.add_argument('--yol-disi-mesafe', type=float, default=25.0,
                    help='Oturtma: en yakın yol bundan yakınsa nokta yol dışı sayılmaz, m (varsayılan 25; 0 = yalnızca --yol-disi-ceza)')
+    p.add_argument('--ters-yon-ceza', type=float, default=2.0,
+                   help='Oturtma: tek yönlü yolda ters gitmek (1 + bu) kat uzun sayılır (varsayılan 2; 0 = tek yön yok sayılır)')
+    p.add_argument('--oturtma-yon', type=float, default=4.0,
+                   help='Oturtma: oturtulmuş hareketin ham GPS hareketinden farkının ağırlığı (varsayılan 4; 0 = yalnızca mesafe)')
     p.add_argument('--isaret-arama', type=float, default=5.0, help='Basıştan önce çukur aranan süre, sn (varsayılan 5)')
     p.add_argument('--isaret-min-oran', type=float, default=3.0,
                    help='Eşleşme için tepe ≥ bu oran × çevre RMS (varsayılan 3)')
