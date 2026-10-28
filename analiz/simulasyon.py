@@ -310,7 +310,8 @@ def kayit_uret(sen, rnd, yol):
         kesik = any(a <= S[_ara(T, tf)] <= b for a, b in sen.get('kesintiler', ()))
         if not kesik:
             hiz = V[i] * 3.6 + rnd.gauss(0, 0.3) if V[i] > 0.2 else abs(rnd.gauss(0, 1.2))
-            dogruluk = round(1.5 * sigma * rnd.uniform(0.9, 1.25) * 2) / 2
+            # dogruluk_carpani < 1: telefon doğruluğu olduğundan iyi bildirir (bina arasında sık görülür)
+            dogruluk = round(1.5 * sigma * sen.get('dogruluk_carpani', 1.0) * rnd.uniform(0.9, 1.25) * 2) / 2
             fixler.append((tf, *cografi(x + ex + bx, y + ey + by), max(0.0, hiz), dogruluk))
         tf += 1.0
 
@@ -460,6 +461,9 @@ def senaryolar():
              zemin=lambda s: PARKE, cukurlar=CUKURLAR, rogarlar=ROGAR, gps_sigma=5.0, gecikme=2.0),
         dict(ad='9. Duraklama + kalkış (U dönüşlerinde ve ortada durma)', ag=izgara(), guzergah=ileri_geri(ANA), hiz=15,
              zemin=lambda s: PARKE, cukurlar=CUKURLAR, rogarlar=ROGAR, gps_sigma=5.0, duraklar=[(150, 6), (750, 6)]),
+        dict(ad='10. Bina arası: 15 m yansıma sapması, telefon doğruluğu ~3 m bildirir', ag=izgara(),
+             guzergah=ileri_geri(ANA), hiz=15, zemin=lambda s: PARKE, cukurlar=CUKURLAR, rogarlar=ROGAR, gps_sigma=5.0,
+             dogruluk_carpani=0.4, sapma=lambda x, y: (0.0, 15.0) if 60 <= x <= 240 else (0.0, 0.0)),
     ]
 
 

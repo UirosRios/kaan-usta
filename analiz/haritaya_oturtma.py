@@ -4,13 +4,16 @@ Yöntem: gizli Markov modeli + Viterbi (Newson ve Krumm, 2009). Her GPS ölçüm
 parçaları aday konum olur. En olası aday dizisi iki ölçüte göre seçilir:
 
   * Ölçüm olasılığı: GPS noktasının adaya uzaklığı (GPS hatası Gauss dağılımlı varsayılır;
-    sigma = GPS_Dogruluk_m / 1,5 çünkü Android doğruluğu %68 yarıçapıdır).
+    sigma = GPS_Dogruluk_m / 1,5 çünkü Android doğruluğu %68 yarıçapıdır; en az sigma_min = 4 m,
+    Newson ve Krumm'un ölçtüğü değer: bina arasında telefon doğruluğu olduğundan iyi bildirir).
   * Geçiş olasılığı: iki aday arasındaki YOL mesafesi, iki GPS noktası arasındaki düz mesafeye
     yakın olmalıdır (|yol - düz| büyüdükçe olasılık üstel düşer, ölçek beta).
 
 Scooter her zaman haritadaki bir yolda gitmez (meydan, park, haritada olmayan geçit). Bu yüzden her
 ölçüme ayrıca "yol dışı" adayı eklenir: konumu GPS noktasının kendisidir, sabit bir ceza alır. Yol,
-GPS noktasına ceza eşiğinden (varsayılan 2,5 sigma) daha uzaksa nokta olduğu yerde bırakılır.
+GPS noktasına ceza eşiğinden (2,5 sigma, en az yol_disi_min = 25 m) daha uzaksa nokta olduğu yerde bırakılır.
+Metre cinsinden alt sınırın nedeni: bina arasında GPS 15-20 m sabit sapabilir ve telefon doğruluğu yine 3 m
+bildirir (Kadıköy'de gerçek kayıt). Bedeli: haritada yolu olmayan meydanda yola 25 m'den yakın noktalar yola çekilir.
 
 Yalnızca yana doğru (yola dik) hata düzelir. Yol boyunca ileri-geri hata kalır.
 """
@@ -153,7 +156,7 @@ class YolAgi:
         return en_iyi
 
 
-def oturt(olcumler, osm, yaricap=None, beta=5.0, yol_disi_ceza=2.5, max_bosluk=3.0):
+def oturt(olcumler, osm, yaricap=None, beta=5.0, yol_disi_ceza=2.5, max_bosluk=3.0, sigma_min=4.0, yol_disi_min=25.0):
     """GPS ölçümlerini (t, enlem, boylam, dogruluk) yola oturt.
 
     Her ölçüme 'o_enlem', 'o_boylam' (oturtulmuş konum), 'yolda' (True/False), 'kayma_m' (ham konumdan
@@ -177,20 +180,21 @@ def oturt(olcumler, osm, yaricap=None, beta=5.0, yol_disi_ceza=2.5, max_bosluk=3
         zincirler.append(zincir)
 
     for zincir in zincirler:
-        _viterbi(ag, zincir, yaricap, beta, yol_disi_ceza)
+        _viterbi(ag, zincir, yaricap, beta, yol_disi_ceza, sigma_min, yol_disi_min)
     yolda = sum(1 for o in olcumler if o['yolda'])
     return dict(parca=len(ag.parcalar), yolda=yolda, toplam=len(olcumler),
                 ort_kayma=sum(o['kayma_m'] for o in olcumler) / len(olcumler))
 
 
-def _viterbi(ag, zincir, yaricap, beta, yol_disi_ceza):
+def _viterbi(ag, zincir, yaricap, beta, yol_disi_ceza, sigma_min, yol_disi_min):
     adaylar = []
     for o in zincir:
         x, y = ag.yerel(o['enlem'], o['boylam'])
-        sigma = max((o.get('dogruluk') or 10.0) / 1.5, 2.0)
-        r = yaricap or max(4 * sigma, 25.0)
+        sigma = max((o.get('dogruluk') or 10.0) / 1.5, sigma_min)
+        esik = max(yol_disi_ceza, yol_disi_min / sigma)  # yol dışı eşiği, sigma biriminde
+        r = yaricap or max(4 * sigma, 25.0, yol_disi_min + 10.0)
         liste = [dict(yol=a, x=a[1], y=a[2], log=-0.5 * (a[4] / sigma) ** 2) for a in ag.adaylar(x, y, r)]
-        liste.append(dict(yol=None, x=x, y=y, log=-0.5 * yol_disi_ceza ** 2))  # yol dışı adayı
+        liste.append(dict(yol=None, x=x, y=y, log=-0.5 * esik ** 2))  # yol dışı adayı
         adaylar.append((x, y, liste))
 
     puan = [a['log'] for a in adaylar[0][2]]
@@ -234,7 +238,7 @@ def _viterbi(ag, zincir, yaricap, beta, yol_disi_ceza):
     secim.reverse()
     bas = len(zincir) - len(secim)
     if bas > 0:  # yeniden başlama noktasından öncesini ayrı çöz
-        _viterbi(ag, zincir[:bas], yaricap, beta, yol_disi_ceza)
+        _viterbi(ag, zincir[:bas], yaricap, beta, yol_disi_ceza, sigma_min, yol_disi_min)
     for o, (x, y, liste), j in zip(zincir[bas:], adaylar[bas:], secim):
         a = liste[j]
         o['o_enlem'], o['o_boylam'] = ag.cografi(a['x'], a['y'])

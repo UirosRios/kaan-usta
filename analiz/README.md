@@ -122,7 +122,14 @@ python birlestir.py kayitlar
   - noktanın yola uzaklığı (GPS doğruluğuna göre),
   - iki nokta arasındaki yol mesafesinin düz mesafeye yakınlığı.
 - **Yol dışı:** Scooter her zaman haritadaki bir yolda gitmediği için (meydan, park, haritada olmayan geçit) her noktaya bir de
-  "yol dışı" adayı eklenir. En yakın yol 2,5 sigma'dan uzaksa (`--yol-disi-ceza`) nokta olduğu yerde kalır.
+  "yol dışı" adayı eklenir. En yakın yol 2,5 sigma'dan (`--yol-disi-ceza`) **ve** 25 m'den (`--yol-disi-mesafe`) uzaksa
+  nokta olduğu yerde kalır.
+- **Telefonun bildirdiği doğruluğa tam güvenilmez:** Bina arasında GPS 15-20 m sabit sapabilir, telefon yine "3 m" der
+  (Kadıköy'de gerçek kayıt: başlangıçtaki ~50 sn bina adalarının içinden geçti). Bu yüzden GPS hatası en az 4 m varsayılır
+  (`--oturtma-sigma-min`; Newson ve Krumm'un ölçtüğü değer) ve 25 m'den yakın yol varken nokta yol dışı bırakılmaz.
+  Bedeli: haritada yolu olmayan meydanda yola 25 m'den yakın noktalar yola çekilir (simülasyonda meydan senaryosunun %95
+  hatası 11,4 → 14,4 m; medyan değişmedi). Sürüş gerçekten haritada olmayan açık alandan geçtiyse `--yol-disi-mesafe 0`
+  eski davranışı verir.
 - **Sınır:** Yalnızca yana doğru hata düzelir; yol boyunca ileri-geri hata kalır.
 
 **Duruş:**

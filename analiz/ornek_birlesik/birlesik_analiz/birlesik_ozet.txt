@@ -12,7 +12,7 @@ Hız düzeltmesi: RMS ∝ hız^0,51 (aynı 25 m'lik hücredeki hız farklarında
 SOKAKLAR (en bozuktan en düzgüne)
   Sokak                              Sürüş  Yol (m)    Hız    RMS  İndeks  Darbe/100m
   3. Sokak                               2      474   12,5   7,92    8,78         0,6
-  Ana Cadde                              3     2389   14,9   3,16    3,42         0,8
+  Ana Cadde                              3     2378   15,0   3,15    3,37         0,8
   (30 m'den kısa geçilen 1 yol özette gösterilmedi; birlesik_sokaklar.csv'de var.)
 
 TEKRAR EDEN DARBE NOKTALARI (3 nokta en az 2 farklı sürüşte; toplam 5 nokta)
