@@ -1,0 +1,46 @@
+name: Windows Uygulaması Derle
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "analiz/**"
+      - "masaustu/**"
+      - "tasarim/logo.png"
+      - ".github/workflows/build-windows.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # gömülü betiklerin son değişiklik tarihi için
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r masaustu/gereksinimler.txt
+
+      # Gömülü betikler ve sürümleri (uygulamanın altında "Betikler: gömülü (tarih, commit)" yazar)
+      - shell: bash
+        run: |
+          mkdir -p derleme/betikler
+          cp analiz/*.py derleme/betikler/
+          echo "{\"tarih\": \"$(git log -1 --format=%cs -- analiz)\", \"commit\": \"$(git log -1 --format=%h -- analiz)\"}" > derleme/betikler/surum.json
+
+      - shell: bash
+        run: >
+          pyinstaller --noconfirm --onefile --windowed --name KaanUstaAnaliz
+          --icon tasarim/logo.png
+          --add-data "derleme/betikler:betikler"
+          --add-data "tasarim/logo.png:tasarim"
+          --collect-all tkinterdnd2
+          masaustu/analiz_araci.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kaan-usta-analiz-windows
+          path: dist/KaanUstaAnaliz.exe
