@@ -793,6 +793,7 @@ def harita_yaz(yol, ad, satirlar, r, ayar):
   #harita {{ position: absolute; inset: 0; }}
   .kutu {{ background: rgba(252,252,251,.94); padding: 8px 10px; border-radius: 6px; font-size: 12px; color: #0b0b0b; line-height: 1.5; max-width: 270px; }}
   .kutu b {{ font-size: 13px; }}
+  .sade {{ filter: grayscale(1) brightness(1.08) contrast(0.85); }}
   .serit {{ display: flex; height: 14px; margin: 4px 0 2px; }} .serit span {{ flex: 1; }}
   .uclar {{ display: flex; justify-content: space-between; color: #52514e; }}
   .no, .cukur {{ color: #fff; border: 2px solid #fff; border-radius: 50%; font: bold 11px/18px system-ui, sans-serif;
@@ -806,8 +807,9 @@ def harita_yaz(yol, ad, satirlar, r, ayar):
 <script>
 const V = {veri};
 const harita = L.map('harita', {{ maxZoom: 21 }});
-const sade = L.tileLayer('https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png',
-  {{ subdomains: 'abcd', maxNativeZoom: 20, maxZoom: 21, attribution: '&copy; OpenStreetMap katkıcıları &copy; CARTO' }});
+// Sade altlık: renkli Esri sokak haritasının soluklaştırılmışı (CARTO artık API anahtarı istiyor)
+const sade = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{{z}}/{{y}}/{{x}}',
+  {{ className: 'sade', maxNativeZoom: 19, maxZoom: 21, attribution: 'Esri, HERE, Garmin, &copy; OpenStreetMap katkıcıları' }});
 const renkli = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{{z}}/{{y}}/{{x}}',
   {{ maxNativeZoom: 19, maxZoom: 21, attribution: 'Esri, HERE, Garmin, &copy; OpenStreetMap katkıcıları' }});
 const uydu = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{{z}}/{{y}}/{{x}}',

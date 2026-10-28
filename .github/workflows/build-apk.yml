@@ -3,6 +3,15 @@ name: APK Derle
 on:
   push:
     branches: ["**"]
+    # Yalnızca telefon uygulamasının dosyaları değişince (analiz betikleri ve masaüstü uygulaması APK'yı etkilemez).
+    # Bu iş akışı dosyası değişince derlenmez: gerekirse Actions sayfasından "Run workflow" ile elle başlatılır.
+    paths:
+      - "lib/**"
+      - "android/**"
+      - "assets/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - "analysis_options.yaml"
   workflow_dispatch:
 
 jobs:

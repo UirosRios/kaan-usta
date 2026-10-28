@@ -232,74 +232,90 @@ class Uygulama:
         self.kuyruk = queue.Queue()
         self.calisiyor = False
         kok.title(UYGULAMA)
-        kok.geometry('820x640')
-        kok.minsize(640, 480)
         self.simge_yukle()
 
+        # Izgara yerleşimi: ekran yetmezse yalnızca dosya listesi ve günlük küçülür, düğmeler hep görünür
         ust = ttk.Frame(kok, padding=10)
         ust.pack(fill='both', expand=True)
+        ust.columnconfigure(0, weight=1)
 
         self.birakma = tk.Label(
-            ust, relief='groove', bd=2, height=3, bg='#f3f6fa', fg='#33475b', font=('Segoe UI', 11),
+            ust, relief='groove', bd=2, height=2, bg='#f3f6fa', fg='#33475b', font=('Segoe UI', 11),
             text=('CSV ve _bilgi.txt dosyalarını (veya kayıtların bulunduğu klasörü) buraya sürükleyip bırakın'
                   if TkinterDnD else 'Dosyaları aşağıdaki düğmelerle seçin'))
-        self.birakma.pack(fill='x')
+        self.birakma.grid(row=0, column=0, sticky='we')
 
         satir = ttk.Frame(ust)
-        satir.pack(fill='x', pady=(6, 0))
+        satir.grid(row=1, column=0, sticky='we', pady=(6, 0))
         ttk.Button(satir, text='Dosya seç…', command=self.dosya_sec).pack(side='left')
         ttk.Button(satir, text='Klasör seç…', command=self.klasor_sec).pack(side='left', padx=4)
         ttk.Button(satir, text='Listeyi temizle', command=self.temizle).pack(side='right')
         ttk.Button(satir, text='Seçileni çıkar', command=self.cikar).pack(side='right', padx=4)
 
-        self.liste = tk.Listbox(ust, height=6, selectmode='extended', activestyle='none')
-        self.liste.pack(fill='x', pady=6)
+        self.liste = tk.Listbox(ust, height=5, selectmode='extended', activestyle='none')
+        self.liste.grid(row=2, column=0, sticky='nsew', pady=6)
+        ust.rowconfigure(2, weight=1)
 
         islem = ttk.LabelFrame(ust, text='Çalıştır', padding=8)
-        islem.pack(fill='x')
+        islem.grid(row=3, column=0, sticky='we')
         self.dugmeler = []
         b = ttk.Button(islem, text='Analiz et (her sürüş ayrı)', command=self.analiz_et)
         b.grid(row=0, column=0, sticky='we')
         self.dugmeler.append(b)
         b = ttk.Button(islem, text='Birleştir (yol kalitesi haritası)', command=self.birlestir)
-        b.grid(row=0, column=1, sticky='we', padx=6)
+        b.grid(row=0, column=1, sticky='w', padx=6)
         self.dugmeler.append(b)
         self.tek_tek = tk.BooleanVar(value=False)
         ttk.Checkbutton(islem, text='Birleştirirken her sürüşün ayrı analizini de yaz',
-                        variable=self.tek_tek).grid(row=0, column=2, sticky='w')
-        ttk.Label(islem, text='Ek ayarlar:').grid(row=1, column=0, sticky='e', pady=(6, 0))
+                        variable=self.tek_tek).grid(row=1, column=1, columnspan=2, sticky='w', padx=6, pady=(2, 0))
+        ttk.Label(islem, text='Ek ayarlar:').grid(row=2, column=0, sticky='e', pady=(6, 0))
         self.ek = ttk.Entry(islem)
-        self.ek.grid(row=1, column=1, sticky='we', padx=6, pady=(6, 0))
+        self.ek.grid(row=2, column=1, sticky='we', padx=6, pady=(6, 0))
         b = ttk.Button(islem, text='Tüm ayarları göster', command=self.ayarlari_goster)
-        b.grid(row=1, column=2, sticky='w', pady=(6, 0))
+        b.grid(row=2, column=2, sticky='w', pady=(6, 0))
         self.dugmeler.append(b)
-        ttk.Label(islem, text='Boş bırakılırsa varsayılanlar kullanılır. Örnek: --darbe-taban ortak --gecikme 1.5',
-                  foreground='#6b7785').grid(row=2, column=1, columnspan=2, sticky='w')
+        ttk.Label(islem, text='Boş bırakılırsa varsayılanlar kullanılır. Örnek: --darbe-taban ortak',
+                  foreground='#6b7785').grid(row=3, column=1, columnspan=2, sticky='w', padx=6)
         islem.columnconfigure(1, weight=1)
 
-        self.gunluk = ScrolledText(ust, height=12, font=('Consolas', 9), state='disabled', wrap='word')
-        self.gunluk.pack(fill='both', expand=True, pady=(8, 6))
+        self.gunluk = ScrolledText(ust, height=8, font=('Consolas', 9), state='disabled', wrap='word')
+        self.gunluk.grid(row=4, column=0, sticky='nsew', pady=(8, 6))
+        ust.rowconfigure(4, weight=3)
 
         alt = ttk.LabelFrame(ust, text='Betikler', padding=8)
-        alt.pack(fill='x')
+        alt.grid(row=5, column=0, sticky='we')
         self.surum = ttk.Label(alt, text=surum_metni())
-        self.surum.pack(side='left')
-        ttk.Button(alt, text='Klasörü aç', command=lambda: ac(etkin_klasor())).pack(side='right')
-        b = ttk.Button(alt, text='Varsayılana dön', command=self.varsayilana_don)
-        b.pack(side='right', padx=4)
+        self.surum.grid(row=0, column=0, columnspan=4, sticky='w', pady=(0, 6))
+        b = ttk.Button(alt, text="GitHub'dan güncelle", command=self.guncelle)
+        b.grid(row=1, column=0, sticky='w')
         self.dugmeler.append(b)
         b = ttk.Button(alt, text='Betik dosyası yükle…', command=self.betik_yukle)
-        b.pack(side='right')
+        b.grid(row=1, column=1, sticky='w', padx=4)
         self.dugmeler.append(b)
-        b = ttk.Button(alt, text="GitHub'dan güncelle", command=self.guncelle)
-        b.pack(side='right', padx=4)
+        b = ttk.Button(alt, text='Varsayılana dön', command=self.varsayilana_don)
+        b.grid(row=1, column=2, sticky='w')
         self.dugmeler.append(b)
+        ttk.Button(alt, text='Klasörü aç', command=lambda: ac(etkin_klasor())).grid(row=1, column=3, sticky='w', padx=4)
+        self.boyutla()
 
         if TkinterDnD:
             for w in (self.birakma, self.liste):
                 w.drop_target_register(DND_FILES)
                 w.dnd_bind('<<Drop>>', self.birak)
         kok.after(100, self.kuyrugu_isle)
+
+    def boyutla(self):
+        """Pencere, ekran ölçeğine (Windows %125 / %150) göre içeriğin tamamını gösterecek boyutta açılır"""
+        self.kok.update_idletasks()
+        g = min(self.kok.winfo_reqwidth(), self.kok.winfo_screenwidth() - 40)
+        y = min(self.kok.winfo_reqheight(), self.kok.winfo_screenheight() - 80)
+        self.kok.geometry(f'{g}x{y}+{max((self.kok.winfo_screenwidth() - g) // 2, 0)}+{max((self.kok.winfo_screenheight() - y) // 3, 0)}')
+        self.kok.minsize(min(g, 600), min(y, 420))
+        if self.kok.winfo_reqheight() > y:  # ekrana sığmıyor: tam ekran aç (Windows)
+            try:
+                self.kok.state('zoomed')
+            except tk.TclError:
+                pass
 
     def simge_yukle(self):
         kok_yol = getattr(sys, '_MEIPASS', os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
