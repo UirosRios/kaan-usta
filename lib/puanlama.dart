@@ -14,26 +14,34 @@ import 'package:latlong2/latlong.dart';
 File puanFileFor(File csv) => File(csv.path.replaceAll(RegExp(r'\.csv$'), '_puan.csv'));
 
 class Parca {
-  Parca(this.noktalar, this.zamanlar);
-  final List<LatLng> noktalar; // ~10 m aralıklı
+  Parca(this.noktalar, this.zamanlar, this.adim);
+  final List<LatLng> noktalar; // adim aralıklı (gerçek sürüşte 10 m)
   final List<DateTime> zamanlar;
+  final double adim;
   int? puan;
   bool hatirlamiyorum = false;
 
   DateTime get bas => zamanlar.first;
   DateTime get bit => zamanlar.last;
-  double get uzunluk => (noktalar.length - 1) * Parcalama.adim;
+  double get uzunluk => (noktalar.length - 1) * adim;
   bool get yanitlandi => puan != null || hatirlamiyorum;
 }
 
 class Parcalama {
-  static const double adim = 10; // m: güzergâh bu aralıkla yeniden örneklenir
+  const Parcalama({required this.adim, required this.enKisa});
+  final double adim; // m: güzergâh bu aralıkla yeniden örneklenir
+  final double enKisa; // m: daha kısa parça olmaz
   static const double donusAcisi = 45; // derece: bu kadar yön değişimi parça sınırı olur
-  static const double enKisa = 50; // m: daha kısa parça olmaz
   static const double enUzun = 200; // m: uzun düz yollar bölünür
   static const double minHiz = 3; // km/h: duruşta GPS'in titremesi sahte dönüş üretmesin
 
   static const Distance _mesafe = Distance(roundResult: false);
+
+  // Gerçek sürüş: 10 m örnekleme, en kısa parça 50 m.
+  // Test sürüşü (Ayarlar, sanal GPS; dosya adı test_ ile başlar): kısa denemeler de puanlanabilsin diye 1 m / 5 m.
+  static const Parcalama gercek = Parcalama(adim: 10, enKisa: 50);
+  static const Parcalama test = Parcalama(adim: 1, enKisa: 5);
+  static Parcalama kayitIcin(File csv) => csv.uri.pathSegments.last.startsWith('test_') ? test : gercek;
 
   // Kayıt CSV'sinden hareket hâlindeki tekil GPS konumları
   static Future<(List<LatLng>, List<DateTime>)> izOku(File csv) async {
@@ -65,8 +73,8 @@ class Parcalama {
     return (noktalar, zamanlar);
   }
 
-  static List<Parca> bol(List<LatLng> noktalar, List<DateTime> zamanlar) {
-    // 1. Güzergâhı 10 m aralıkla yeniden örnekle (konum ve zaman doğrusal enterpolasyon)
+  List<Parca> bol(List<LatLng> noktalar, List<DateTime> zamanlar) {
+    // 1. Güzergâhı adim (gerçek sürüşte 10 m) aralıkla yeniden örnekle (konum ve zaman doğrusal enterpolasyon)
     final r = <LatLng>[], rt = <DateTime>[];
     if (noktalar.length < 2) return [];
     r.add(noktalar.first);
@@ -90,7 +98,7 @@ class Parcalama {
     final n = r.length;
     if ((n - 1) * adim < enKisa) return [];
 
-    // 2. Dönüşler: 20 m geri ile 20 m ileri arasındaki yön farkı; yerel en büyük ve en az 50 m arayla
+    // 2. Dönüşler: 2 adım geri ile 2 adım ileri arasındaki yön farkı; yerel en büyük ve en az enKisa arayla
     double yon(LatLng a, LatLng b) => _mesafe.bearing(a, b);
     double fark(double x, double y) => ((y - x + 540) % 360 - 180).abs();
     final donus = List<double>.filled(n, 0);
@@ -118,7 +126,7 @@ class Parcalama {
       final bolum = max(1, ((i1 - i0) * adim / enUzun).ceil());
       for (var k = 0; k < bolum; k++) {
         final a = i0 + ((i1 - i0) * k / bolum).round(), b = i0 + ((i1 - i0) * (k + 1) / bolum).round();
-        parcalar.add(Parca(r.sublist(a, b + 1), rt.sublist(a, b + 1)));
+        parcalar.add(Parca(r.sublist(a, b + 1), rt.sublist(a, b + 1), adim));
       }
     }
     return parcalar;
@@ -159,7 +167,7 @@ class _PuanlamaSayfasiState extends State<PuanlamaSayfasi> {
 
   Future<void> _yukle() async {
     final (noktalar, zamanlar) = await Parcalama.izOku(widget.csv);
-    final parcalar = Parcalama.bol(noktalar, zamanlar);
+    final parcalar = Parcalama.kayitIcin(widget.csv).bol(noktalar, zamanlar);
     await _eskiPuanlariOku(parcalar);
     if (!mounted) return;
     setState(() {

@@ -17,6 +17,7 @@ Kullanıcıyla Türkçe konuşulur; kod, yorumlar, commit mesajları ve belgeler
 
 Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Her kaydın yanında `_bilgi.txt` (cihaz, scooter, hava durumu,
 çukur modu) ve puanlandıysa `_puan.csv` (sürüş sonrası parça parça 1-5 konfor puanı; doğrulama için).
+Ayarlar'daki test sürüşü (sanal GPS, YTÜ Davutpaşa) kayıtları `test_mikromobilite_...` adını alır; analiz klasör taramasında atlanır.
 
 ## Doğrulama
 

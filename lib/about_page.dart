@@ -127,6 +127,14 @@ class AboutPage extends StatelessWidget {
             ],
           ),
           const _InfoCard(
+            title: 'Test sürüşü (sanal GPS)',
+            lines: [
+              'Ayarlar\'dan açılır. Gerçek GPS yerine konum YTÜ Davutpaşa Yerleşkesi\'nde 150 m yarıçaplı bir tur üzerinde, hız 4-20 km/h arasında üretilir; sarsıntı gerçek ivmeölçerden ölçülür.',
+              'GPS\'i olmayan cihazda veya kapalı alanda uygulamayı denemek içindir. Kayıtlar test_ ile başlar, Kayıtlar listesinde TEST yazar; hava durumu alınmaz.',
+              'Puanlamada en kısa parça 50 m yerine 5 m\'dir. Analiz betikleri klasör taramasında test kayıtlarını atlar. Tez verisi için kapalı tutun.',
+            ],
+          ),
+          const _InfoCard(
             title: 'Kayıt dosyaları',
             lines: [
               'Veriler kayıt sırasında 5 saniyede bir dosyaya yazılır; uygulama kapanırsa en fazla son 5 saniye kaybolur.',

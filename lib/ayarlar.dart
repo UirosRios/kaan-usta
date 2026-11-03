@@ -34,6 +34,15 @@ class Ayarlar {
 
   static Future<void> scooterKaydet(String deger) async =>
       (await SharedPreferences.getInstance()).setString(_scooterAnahtar, deger.trim());
+
+  // Test sürüşü: gerçek GPS yerine YTÜ Davutpaşa Yerleşkesi'nde sanal konum ve hız üretilir (ivmeölçer gerçektir).
+  // GPS'i olmayan cihazda (ör. yalnızca Wi-Fi tablet) veya kapalı alanda arayüzü denemek içindir.
+  static const String _testSurusuAnahtar = 'test_surusu';
+
+  static Future<bool> testSurusu() async => (await SharedPreferences.getInstance()).getBool(_testSurusuAnahtar) ?? false;
+
+  static Future<void> testSurusuKaydet(bool deger) async =>
+      (await SharedPreferences.getInstance()).setBool(_testSurusuAnahtar, deger);
 }
 
 class AyarlarPage extends StatefulWidget {
@@ -47,15 +56,17 @@ class _AyarlarPageState extends State<AyarlarPage> {
   final TextEditingController _scooter = TextEditingController();
   bool _yuklendi = false;
   CukurModu _cukurModu = CukurModu.isaret;
+  bool _testSurusu = false;
 
   @override
   void initState() {
     super.initState();
-    Future.wait([Ayarlar.scooter(), Ayarlar.cukurModu()]).then((d) {
+    Future.wait([Ayarlar.scooter(), Ayarlar.cukurModu(), Ayarlar.testSurusu()]).then((d) {
       if (!mounted) return;
       setState(() {
         _scooter.text = d[0] as String;
         _cukurModu = d[1] as CukurModu;
+        _testSurusu = d[2] as bool;
         _yuklendi = true;
       });
     });
@@ -155,6 +166,39 @@ class _AyarlarPageState extends State<AyarlarPage> {
                       'Değişiklik bir sonraki kayıtta geçerli olur.',
                       style: TextStyle(fontSize: 12, color: Color(0xFF6C757D), height: 1.3),
                     ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Card(
+            color: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('TEST SÜRÜŞÜ', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF003366))),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Sanal GPS kullan', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                    subtitle: const Text(
+                      'Konum YTÜ Davutpaşa Yerleşkesi\'nde 150 m yarıçaplı bir tur üzerinde, hız 4-20 km/h arasında üretilir '
+                      '(dakikada bir 6 sn duruş). Sarsıntı gerçek ivmeölçerden ölçülür. GPS\'i olmayan cihazda veya kapalı '
+                      'alanda uygulamayı denemek içindir. Kayıtlar "test_" ile başlar, bilgi dosyasında TEST SÜRÜŞÜ yazar, '
+                      'analiz betikleri klasör taramasında bunları atlar. Puanlamada parçalar 50 m yerine 5 m\'den başlar. '
+                      'Tez verisi için kapalı tutun.',
+                      style: TextStyle(fontSize: 12.5, height: 1.3),
+                    ),
+                    value: _testSurusu,
+                    onChanged: _yuklendi
+                        ? (v) {
+                            setState(() => _testSurusu = v);
+                            Ayarlar.testSurusuKaydet(v);
+                          }
+                        : null,
                   ),
                 ],
               ),

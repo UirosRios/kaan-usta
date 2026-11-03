@@ -465,7 +465,8 @@ def bilgi_oku(csv_yol):
     if os.path.exists(yol):
         with open(yol, encoding='utf-8', errors='replace') as f:
             for satir in f:
-                for anahtar, ad in (('Scooter:', 'scooter'), ('Hava durumu:', 'hava'), ('Çukur modu:', 'cukur_modu')):
+                for anahtar, ad in (('Scooter:', 'scooter'), ('Hava durumu:', 'hava'), ('Çukur modu:', 'cukur_modu'),
+                                    ('TEST SÜRÜŞÜ:', 'test')):
                     if satir.startswith(anahtar):
                         etiket[ad] = satir[len(anahtar):].strip()
     return etiket
@@ -685,6 +686,9 @@ def ozet_yaz(yol, ad, satirlar, r, tablo, ayar, osm_kaynak):
         y(f'Scooter: {etiket.get("scooter", "-")}   Hava durumu: {etiket.get("hava", "alınamadı")}')
     if etiket.get('cukur_modu'):
         y(f'Çukur modu: {etiket["cukur_modu"]}')
+    if 'test' in etiket:
+        y('UYARI: TEST SÜRÜŞÜ - konum ve GPS hızı uygulamanın ürettiği sanal değerlerdir (yalnızca sarsıntı gerçek).')
+        y('       Haritaya oturtma, sokak tablosu ve hız düzeltmesi gerçek değildir; tez verisi olarak kullanmayın.')
     y(f'GPS ile ölçülen yol: ~{yol_m:.0f} m   En yüksek hız: {tr(max((o["hiz"] for o in olcumler), default=0), 1)} km/h')
     y('')
     y('AYARLAR')
@@ -1216,7 +1220,8 @@ def ayristirici():
 def dosyalari_bul(girdiler):
     """Dosya adları, klasörler (içindeki mikromobilite_*.csv) ve joker karakterli adlar (*.csv: Windows komut
     satırı bunları kendisi açmaz)"""
-    kayit_adi = re.compile(r'^mikromobilite_\d{8}_\d{6}\.csv$')  # betiğin kendi çıktıları (_satirlar.csv vb.) hariç
+    # Betiğin kendi çıktıları (_satirlar.csv vb.) ve uygulamanın test sürüşleri (test_mikromobilite_...) hariç
+    kayit_adi = re.compile(r'^mikromobilite_\d{8}_\d{6}\.csv$')
     dosyalar = []
     for g in girdiler:
         if os.path.isdir(g):
@@ -1279,7 +1284,8 @@ def main():
     ayar = p.parse_args()
     dosyalar = dosyalari_bul(ayar.csv)
     if not dosyalar:
-        p.error('en az bir CSV dosyası veya kayıtların bulunduğu klasörü verin')
+        p.error('en az bir CSV dosyası veya kayıtların bulunduğu klasörü verin '
+                '(klasör taramasında test_ ile başlayan test sürüşleri atlanır; onları dosya adıyla verin)')
     for yol in dosyalar:
         print(yol)
         try:

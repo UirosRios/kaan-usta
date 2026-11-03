@@ -16,7 +16,8 @@
    İlk açılışta Windows "Bilinmeyen yayımcı" uyarısı verebilir: **Ek bilgi → Yine de çalıştır**. Açılması birkaç saniye sürer.
 2. **Dosyaları bırakın:** Kaydın CSV'sini, `_bilgi.txt` ve varsa `_puan.csv` dosyasını (veya kayıtların bulunduğu klasörü,
    örneğin telefondan kopyalanan `Belgeler/Mikromobilite`) pencereye sürükleyin. `_bilgi.txt` / `_puan.csv` başka bir klasördeyse
-   uygulama onları CSV'nin yanına kopyalar (betik orada arar).
+   uygulama onları CSV'nin yanına kopyalar (betik orada arar). Klasör bırakılınca uygulamanın test sürüşleri
+   (`test_mikromobilite_...`, sanal GPS) atlanır; denemek için test kaydının CSV'sini doğrudan bırakın.
 3. **Çalıştırın:**
    - **Analiz et (her sürüş ayrı)** = `surus_analizi.py`. Sonuç CSV'nin yanında `..._analiz` klasöründe; tek dosyada harita, çok dosyada klasör açılır.
    - **Birleştir (yol kalitesi haritası)** = `birlestir.py`. Sonuç ilk CSV'nin (veya bırakılan klasörün) içinde `birlesik_analiz` klasöründe; harita açılır.

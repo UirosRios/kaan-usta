@@ -121,6 +121,18 @@ Başlıktaki **dişli** simgesinden açılan Ayarlar sayfasında kullanılan sco
 Kayıt başında internet ve GPS konumu varsa **hava durumu** (durum, sıcaklık, yağış, rüzgâr, nem) [Open-Meteo](https://open-meteo.com)
 servisinden alınır ve `_bilgi.txt`'ye yazılır. Konum ~1 km'ye yuvarlanarak gönderilir. Alınamazsa hava durumu satırı yazılmaz.
 
+## Test sürüşü (Ayarlar, sanal GPS)
+
+GPS'i olmayan bir cihazda (ör. yalnızca Wi-Fi tablet) veya kapalı alanda uygulamayı denemek için. Açılınca gerçek GPS
+kullanılmaz: konum YTÜ Davutpaşa Yerleşkesi içinde 150 m yarıçaplı bir daire üzerinde ilerler, hız 4-20 km/h arasında değişir
+(dakikada bir 6 sn duruş). **Sarsıntı gerçek ivmeölçerden ölçülür**: telefonu sallayarak çukur işareti, uyarı ve puanlama denenebilir.
+
+- Kayıtlar `test_mikromobilite_<tarih_saat>.csv` adıyla oluşur, Kayıtlar listesinde **TEST** yazar; `_bilgi.txt`'ye
+  "TEST SÜRÜŞÜ" satırı eklenir, hava durumu alınmaz.
+- Puanlamada en kısa parça 50 m yerine **5 m**'dir (güzergâh 1 m aralıkla örneklenir): kısa denemeler de puanlanabilir.
+- Analiz betikleri klasör taramasında `test_` kayıtlarını atlar; dosya adıyla verilirse analiz eder ve özetin başına uyarı yazar.
+  Tez verisi için test sürüşünü kapalı tutun.
+
 ## Kayıt dosyaları
 
 - Veriler kayıt sırasında **5 saniyede bir** dosyaya yazılır; uygulama kapanırsa en fazla son 5 saniye kaybolur.

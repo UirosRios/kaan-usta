@@ -62,6 +62,17 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   VoidCallback? _gpsStatusAction;
   bool _initializingLocation = false;
 
+  // TEST SÜRÜŞÜ (Ayarlar): gerçek GPS yerine sanal konum ve hız üretilir; ivmeölçer gerçektir.
+  // Güzergâh YTÜ Davutpaşa Yerleşkesi içinde 150 m yarıçaplı bir dairedir (merkez ve dairenin tamamı OSM'deki
+  // yerleşke sınırının içinde).
+  bool _testSurusu = false;
+  Timer? _simTimer;
+  int _simTick = 0;
+  double _simAci = 0.0; // sanal güzergâhtaki (daire) konum açısı, radyan
+  static const double _simMerkezEnlem = 41.0245;
+  static const double _simMerkezBoylam = 28.8895;
+  static const double _simYaricap = 150.0; // m
+
   // Harita (Esri Light Gray Canvas / flutter_map): o anki ham GPS konumunu takip eder
   final MapController _mapController = MapController();
   bool _mapReady = false;
@@ -288,6 +299,26 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     _satUsed = null;
     _rejectedAccuracy = null;
     _gpsStatusAction = null;
+    if (_simTimer != null) {
+      // Sanal konumdan gerçek GPS'e geçiliyor: son sanal konum gerçek kayda yazılmasın
+      lastFixTime = null;
+      lastFusedFixTime = null;
+    }
+    _simTimer?.cancel();
+    _simTimer = null;
+
+    // Test sürüşü açıksa gerçek GPS yerine sanal konum üretilir
+    _testSurusu = await Ayarlar.testSurusu();
+    if (_testSurusu) {
+      // Arka plan kayıt hizmeti konum izni ister: test sürüşünde de bir kez sorulur (reddedilirse kayıt ekran açıkken sürer)
+      try {
+        if (await Geolocator.checkPermission() == LocationPermission.denied) await Geolocator.requestPermission();
+      } catch (e) {
+        debugPrint('Konum izni sorulamadı: $e');
+      }
+      _startSimulation();
+      return;
+    }
 
     // Konum servisi (GPS) açık mı?
     if (!await Geolocator.isLocationServiceEnabled()) {
@@ -386,8 +417,40 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     }
   }
 
+  // Sanal GPS: 0,5 sn'de bir, daire üzerinde ilerleyen konum ve değişken hız. Her 60 sn'nin ilk 6 sn'si duruştur.
+  void _startSimulation() {
+    _simTick = 0;
+    if (mounted) {
+      setState(() {
+        _gpsStatus = 'TEST SÜRÜŞÜ: sanal GPS başlatılıyor...';
+        _gpsStatusAction = null;
+      });
+    }
+    _simTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      if (!mounted) return;
+      _simTick++;
+      final double dongu = (_simTick * 0.5) % 60; // sn
+      final double hizKmh = dongu < 6 ? 0.0 : 12.0 + 8.0 * sin(dongu / 60 * 2 * pi); // 4-20 km/h
+      _simAci += (hizKmh / 3.6 * 0.5) / _simYaricap;
+      final now = DateTime.now();
+      setState(() {
+        _gpsStatus = '';
+        _rejectedAccuracy = null;
+        currentLat = _simMerkezEnlem + _simYaricap * cos(_simAci) / 111320.0;
+        currentLon = _simMerkezBoylam + _simYaricap * sin(_simAci) / (111320.0 * cos(_simMerkezEnlem * pi / 180));
+        currentAccuracy = 5.0;
+        currentRawSpeed = hizKmh;
+        currentFusedSpeed = hizKmh * 0.97;
+        lastFixTime = now;
+        lastFusedFixTime = now;
+      });
+      if (_mapReady) _mapController.move(LatLng(currentLat, currentLon), _mapController.camera.zoom);
+    });
+  }
+
   // Durum yazısı: GPS bulunana kadar neden beklendiğini gösterir
   String get _gpsStatusText {
+    if (_testSurusu && _gpsStatus.isEmpty) return 'TEST SÜRÜŞÜ (sanal GPS, konum ve hız gerçek değil)';
     if (_gpsStatus.isEmpty) return 'Doğruluk: ±${currentAccuracy.toStringAsFixed(1)} m';
     final parts = [_gpsStatus];
     if (_satVisible != null) parts.add('Uydu: $_satVisible görünen, $_satUsed kullanılan');
@@ -403,7 +466,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       // Dosyayı hemen oluştur ve başlığı yaz
       final now = DateTime.now();
       final dir = await recordingsDirectory();
-      final file = File('${dir.path}/mikromobilite_${_fileStamp(now)}.csv');
+      final file = File('${dir.path}/${_testSurusu ? "test_" : ""}mikromobilite_${_fileStamp(now)}.csv');
       await file.writeAsString('$_csvHeader\n', flush: true);
       _csvFile = file;
       aktifKayitYolu = file.path;
@@ -434,8 +497,8 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       if (basladi != true) _showMessage('Konum izni olmadığı için arka planda kayıt yapılamıyor: ekranı açık tutun.');
     }).catchError((Object e) => _showMessage('Arka planda kayıt başlatılamadı: ekranı açık tutun. ($e)'));
     // Hava durumu: GPS konumu varsa hemen, yoksa ilk konum gelince (kayıt başından en fazla 60 sn sonra)
-    _havaBekleniyor = true;
-    if (lastFixTime != null && DateTime.now().difference(lastFixTime!) <= const Duration(seconds: 60)) _havaDurumuAl();
+    _havaBekleniyor = !_testSurusu; // sanal konumun hava durumu anlamsız
+    if (!_testSurusu && lastFixTime != null && DateTime.now().difference(lastFixTime!) <= const Duration(seconds: 60)) _havaDurumuAl();
 
     _verticalWindow.clear();
     _cukurCount = 0;
@@ -543,6 +606,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       'Kayıt başlangıcı: $_recordStart',
       'Kayıt bitişi: ${end ?? "(kayıt sürüyor veya düzgün kapatılmadı)"}',
       'Satır sayısı: ${end == null ? "(kayıt bitince yazılır; CSV'deki satırları sayın)" : _rowCount}',
+      if (_testSurusu) 'TEST SÜRÜŞÜ: konum ve GPS hızı SANAL (üretilmiş) değerlerdir, gerçek ölçüm değildir. Tez verisi olarak kullanmayın.',
       'Çukur modu: ${_kayitModu.ad}',
       'Çukur uyarısı sayısı: ${end == null ? "(kayıt bitince yazılır)" : _cukurCount}'
           '${_kayitModu == CukurModu.uyari ? "" : " (sürücüye gösterilmedi)"}',
@@ -651,6 +715,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     _clockTimer?.cancel();
     _uiTimer?.cancel();
     _recordTimer?.cancel();
+    _simTimer?.cancel();
     rawGpsSubscription?.cancel();
     geoSubscription?.cancel();
     accelSubscription?.cancel();
@@ -720,7 +785,12 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints.tightFor(width: 38, height: 48),
                           style: IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => sayfa)),
+                          onPressed: () async {
+                            await Navigator.of(context).push(MaterialPageRoute(builder: (_) => sayfa));
+                            // Ayarlarda test sürüşü değiştiyse (kayıt sürmüyorsa) konum kaynağını yeniden başlat
+                            if (!mounted || isRecording) return;
+                            if (await Ayarlar.testSurusu() != _testSurusu) _initLocation();
+                          },
                         ),
                       const SizedBox(width: 4),
                   Container(

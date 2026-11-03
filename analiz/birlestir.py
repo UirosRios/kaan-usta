@@ -223,7 +223,8 @@ def main():
     ayar = p.parse_args()
     dosyalar = sa.dosyalari_bul(ayar.csv)
     if not dosyalar:
-        p.error('CSV dosyası bulunamadı (dosya adları veya kayıtların bulunduğu klasör verin)')
+        p.error('CSV dosyası bulunamadı (dosya adları veya kayıtların bulunduğu klasör verin; '
+                'klasör taramasında test_ ile başlayan test sürüşleri atlanır)')
     cikti = ayar.cikti or os.path.join(os.getcwd(), 'birlesik_analiz')
     os.makedirs(cikti, exist_ok=True)
 

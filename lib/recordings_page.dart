@@ -138,13 +138,15 @@ class _RecordingsPageState extends State<RecordingsPage> {
     }
   }
 
-  // mikromobilite_20261024_011502.csv -> 24 Ekim 2026, 01:15:02 (ad farklıysa dosya adı)
+  // mikromobilite_20261024_011502.csv -> 24 Ekim 2026, 01:15:02; test_ önekli -> TEST · ... (ad farklıysa dosya adı)
   static const _aylar = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
   String _baslik(String ad) {
     final m = RegExp(r'_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\.csv$').firstMatch(ad);
     final ay = m == null ? 0 : int.parse(m[2]!);
     if (m == null || ay < 1 || ay > 12) return ad;
-    return '${int.parse(m[3]!)} ${_aylar[ay - 1]} ${m[1]}, ${m[4]}:${m[5]}:${m[6]}';
+    // Test sürüşü (Ayarlar, sanal GPS): test_mikromobilite_....csv
+    final test = ad.startsWith('test_') ? 'TEST · ' : '';
+    return '$test${int.parse(m[3]!)} ${_aylar[ay - 1]} ${m[1]}, ${m[4]}:${m[5]}:${m[6]}';
   }
 
   String _size(int bytes) => bytes < 1024 * 1024 ? '${(bytes / 1024).toStringAsFixed(0)} KB' : '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
