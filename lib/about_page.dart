@@ -94,8 +94,18 @@ class AboutPage extends StatelessWidget {
             title: 'Anlık çukur uyarısı',
             lines: [
               'Kayıt sırasında 0,5 sn içindeki en büyük dikey ivme 35 m/s²\'yi aşarsa ve GPS hızı 3 km/h\'in üstündeyse sarsıntı kartı 1,5 sn kırmızı yanar ve uygulama sesli uyarı verir.',
-              'O satırın CSV\'deki Cukur sütununa 1 yazılır. Kartın altındaki ÇUKUR sayısı bu kayıttaki uyarı sayısıdır.',
+              'O satırın CSV\'deki Cukur sütununa 1 yazılır. Kartın altındaki UYARI sayısı bu kayıttaki uyarı sayısıdır.',
               'Uyarı yalnızca en sert darbeleri gösterir; ayrıntılı darbe tespiti analiz betiğiyle yapılır.',
+            ],
+          ),
+          const _InfoCard(
+            title: 'Çukur işareti (doğrulama)',
+            lines: [
+              'Kayıt sırasında çukurdan geçince turuncu ÇUKUR butonuna, telefonun ses tuşuna, Bluetooth kumandaya veya kulaklık tuşuna basın; kısa bir çift bip duyulur.',
+              'Basış CSV\'de Isaret ve Isaret_Kaynak sütunlarına yazılır. Analiz betiği basıştan önceki 5 sn\'deki sarsıntı tepesini bularak çukurun anını ve konumunu çıkarır, otomatik darbe tespitini bu işaretlerle karşılaştırır.',
+              'Ekrana veya telefonun tuşuna basmak telefonu sarsar: o an ve sonraki 0,5 sn analizde dışlanır. Kumanda ve kulaklık telefonu sarsmaz.',
+              'Ekran kapalıyken de tuşlar çalışır. O sırada başka bir uygulama müzik çalıyorsa medya tuşları ona gidebilir.',
+              '1 sn içindeki ikinci basış sayılmaz. Kayıt sırasında ses tuşları sesi değiştirmez; DURDUR basılı tutularak çalışır.',
             ],
           ),
           const _InfoCard(

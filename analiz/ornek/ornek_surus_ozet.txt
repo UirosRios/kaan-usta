@@ -37,7 +37,7 @@ SOKAKLARA GÖRE SARSINTI (en bozuktan en düzgüne)
   Ana Cadde                              1133   14,7   5,66    5,71     11         1,0
   İsimsiz footway (OSM 1004)               11   10,4   3,42    5,07      0         0,0
 
-ÇUKUR İŞARETLERİ - eski çukur butonu (13 basış, 7 tanesi bir sarsıntı tepesiyle eşleşti)
+ÇUKUR İŞARETLERİ - sürücünün basışları (13 basış, 7 tanesi bir sarsıntı tepesiyle eşleşti; ekran 13)
   "belirsiz": arama aralığında çukura benzer büyüklükte başka tepe(ler) de var (zemin çok pürüzlü);
   konum yalnızca yaklaşıktır.
   Ç1: 40.980000, 29.020763  yol boyunca ±6 m  çukur 10:00:20,00, basış 2,5 sn sonra

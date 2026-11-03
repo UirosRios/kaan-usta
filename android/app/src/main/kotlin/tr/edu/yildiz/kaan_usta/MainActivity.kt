@@ -14,6 +14,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.KeyEvent
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -24,6 +25,8 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private var listener: LocationListener? = null
     private var gnssCallback: Any? = null // GnssStatus.Callback (Android 7+)
+    private var kayitta = false // kayıt sürerken tuşlar çukur işareti olur
+    private var isaretKanali: MethodChannel? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -84,12 +87,19 @@ class MainActivity : FlutterActivity() {
                 }
             })
 
+        // Çukur işareti: tuşlardan gelen basışlar Dart'a iletilir (kaynak: tus / kumanda / kulaklik)
+        val kanal = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "kaan_usta/isaret")
+        isaretKanali = kanal
+        val anaIs = Handler(Looper.getMainLooper())
+        KayitServisi.isaretDinleyici = { kaynak -> anaIs.post { isaretKanali?.invokeMethod("isaret", kaynak) } }
+
         // Kayıt sırasında ön plan hizmeti (KayitServisi.kt): ekran kapalıyken de ölçüm sürer
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "kaan_usta/kayit_servisi")
             .setMethodCallHandler { call, result ->
                 val intent = Intent(this, KayitServisi::class.java)
                 when (call.method) {
                     "baslat" -> {
+                        kayitta = true
                         // Android 13+: bildirim izni (verilmezse hizmet yine çalışır, yalnızca bildirim görünmez)
                         if (Build.VERSION.SDK_INT >= 33 &&
                             checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED
@@ -111,6 +121,7 @@ class MainActivity : FlutterActivity() {
                         }
                     }
                     "durdur" -> {
+                        kayitta = false
                         stopService(intent)
                         result.success(true)
                     }
@@ -123,6 +134,17 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 if (call.method == "bilgi") result.success(deviceInfo()) else result.notImplemented()
             }
+    }
+
+    companion object {
+        private val MEDYA_TUSLARI = setOf(
+            KeyEvent.KEYCODE_HEADSETHOOK, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY,
+            KeyEvent.KEYCODE_MEDIA_PAUSE, KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_MEDIA_PREVIOUS,
+        )
+        private val ISARET_TUSLARI = MEDYA_TUSLARI + setOf(
+            KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_ENTER,
+            KeyEvent.KEYCODE_NUMPAD_ENTER, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_CAMERA,
+        )
     }
 
     @Suppress("DEPRECATION")
@@ -150,6 +172,23 @@ class MainActivity : FlutterActivity() {
         )
     }
 
+    // Ekran açıkken: telefonun ses tuşları, Bluetooth kumanda (çoğu ses açma veya Enter gönderir) ve kulaklık tuşu.
+    // Kayıt sırasında bu tuşlar çukur işareti olur ve başka işe yaramaz; kayıt yokken normal çalışır.
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (kayitta && event.keyCode in ISARET_TUSLARI) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) KayitServisi.isaretBildir(kaynak(event))
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    private fun kaynak(event: KeyEvent): String = when {
+        event.keyCode in MEDYA_TUSLARI -> KayitServisi.KAYNAK_KULAKLIK
+        // Telefonun kendi tuşları dahili aygıttır; Bluetooth / USB kumanda harici (Android 10+ ayırt edilebilir)
+        Build.VERSION.SDK_INT >= 29 && event.device?.isExternal == true -> KayitServisi.KAYNAK_KUMANDA
+        else -> KayitServisi.KAYNAK_TUS
+    }
+
     private fun locationManager() = getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
     private fun stopRawGps() {
@@ -163,6 +202,8 @@ class MainActivity : FlutterActivity() {
 
     override fun onDestroy() {
         stopRawGps()
+        KayitServisi.isaretDinleyici = null
+        isaretKanali = null
         // Ekran yok edilince ölçüm (Dart tarafı) da biter; kayıt hizmeti ve bildirimi asılı kalmasın
         stopService(Intent(this, KayitServisi::class.java))
         super.onDestroy()

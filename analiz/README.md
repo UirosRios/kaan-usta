@@ -102,7 +102,7 @@ python birlestir.py kayitlar
 | `_harita.html` | Sokak haritası üzerinde güzergâh. Renk Dikey_RMS'ye göre sabit sınıflardır (0-2-4-6-8-10 m/s²: koyu yeşilden koyu kırmızıya); böylece farklı sürüşler karşılaştırılabilir. Renk, tek tük tepeler sokağı alacalı göstermesin diye ±1 sn'lik kayan medyanla hesaplanır. Darbe noktaları, uygulama uyarıları ve konum belirsizliği daireleri. Katman menüsünden renkli sokak haritası, uydu görüntüsü ve oturtma öncesi ham GPS seçilebilir. |
 | `_harita.geojson` | Aynı veri, QGIS / ArcGIS için (WGS84) |
 | `_satirlar.csv` | Tüm satırlar: oturtulmuş ve ham konum, düzeltilmiş hız, durum (hareket / durus / gps_yok), uygulama uyarısı ve darbe işaretleri |
-| `_isaretler.csv` | Yalnızca eski sürümün çukur butonuyla yapılmış kayıtlar için: basışlar ve eşleşen çukurlar |
+| `_isaretler.csv` | Sürücü çukur işaretlediyse: basışlar, kaynağı (ekran / tus / kumanda / kulaklik) ve eşleşen çukurlar |
 | `_olaylar.csv` | Otomatik bulunan darbeler ve gruplandıkları noktalar |
 | `_sokaklar.csv` | Sokaklara göre sarsıntı: yol, medyan hız ve Dikey_RMS, hız düzeltmeli indeks, darbe sayısı (en bozuktan en düzgüne) |
 | `_grafik.png` | Hız, sarsıntı (otomatik darbeler işaretli), hız-sarsıntı ilişkisi, güzergâh |
@@ -145,8 +145,10 @@ python birlestir.py kayitlar
 **Uygulamanın anlık uyarıları (`Cukur` sütunu):** Uygulama sürüş sırasında yalnızca geçmişi bildiği için basit bir sabit eşik
 kullanır (tepe ≥ 35 m/s², GPS hızı ≥ 3 km/h). Betik bu uyarıları kendi tespitiyle karşılaştırır (özet ve haritada ayrı katman).
 
-**Eski çukur butonu (`Isaret` sütunu, yalnızca eski kayıtlar):** Uygulamanın önceki sürümünde sürücü çukurdan sonra butona basıyordu;
-bu kayıtlar hâlâ analiz edilebilir. Basılan satır ve sonraki 0,5 sn (`--isaret-dislama`) analize girmez. Her basışta, basıştan önceki 5 sn'deki (`--isaret-arama`) hareket satırları içinden tepe
+**Sürücünün çukur işaretleri (`Isaret`, `Isaret_Kaynak` sütunları):** Sürücü çukurdan sonra ekrandaki butona, telefonun ses tuşuna,
+Bluetooth kumandaya veya kulaklık tuşuna basar (ilk sürümün kayıtlarında kaynak yazılmaz, ekran sayılır).
+Ekran ve telefon tuşu telefonu sarstığı için basılan satır ve sonraki 0,5 sn (`--isaret-dislama`) analize girmez; kumanda ve
+kulaklık basışlarında dışlama yapılmaz. Her basışta, basıştan önceki 5 sn'deki (`--isaret-arama`) hareket satırları içinden tepe
 değeri çevresindeki sarsıntıya göre en büyük olan aranır. Bir önceki basıştan öncesine bakılmaz. Sonuç şunlardan biridir:
 - **eşleşti:** Tepe, çevre RMS'nin en az 3 katı (`--isaret-min-oran`) ve başka bir anda buna yakın (en az %80'i,
   `--isaret-belirsiz`) bir tepe yok. Çukurun anı ±0,25 sn hassasiyetle bilinir.
@@ -187,7 +189,7 @@ birleşimidir (~%68). Yola oturtulmuş noktalarda yalnızca yol boyunca bileşen
 ## Simülasyonla doğrulama
 
 `simulasyon.py`, gerçeği bilinen yapay sürüşler üretir ve analiz betiğinin sonuçlarını bu gerçekle karşılaştırır.
-Simülasyon eski çukur butonunu da içerir. Haritaya oturtma ve otomatik darbe tespiti sonuçları butondan bağımsızdır.
+Simülasyon çukur butonunu (ekrandan basış, dokunma etkisiyle) da içerir. Haritaya oturtma ve otomatik darbe tespiti sonuçları butondan bağımsızdır.
 Ürettikleri:
 - yapay yol ağı,
 - 125 Hz ivme sinyali (zemin, çukur, rögar, dokunma etkisi, uygulamadaki filtre),

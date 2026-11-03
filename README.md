@@ -26,6 +26,8 @@ Excel'de çift tıklayınca sütunlar doğrudan ayrılır. Python ile okumak iç
 | `Ivme_Ornek_Sayisi` | Penceredeki ivmeölçer örneği sayısı (~200 Hz istenir → ~100 beklenir; telefon daha yavaş veriyorsa daha az) |
 | `GPS_Dogruluk_m` | GPS yatay konum doğruluğu (m, %68 güven yarıçapı) |
 | `Cukur` | Anlık çukur uyarısı: o 0,5 sn içinde en büyük dikey ivme ≥ 35 m/s² ve GPS hızı ≥ 3 km/h ise `1` (ekrandaki sarsıntı kartı kırmızı yanar) |
+| `Isaret` | Sürücünün çukur işaretine o 0,5 sn içinde kaç kez bastığı (boş = basılmadı) |
+| `Isaret_Kaynak` | İşaretin nereden geldiği: `ekran` (ÇUKUR butonu), `tus` (telefonun ses tuşu), `kumanda` (Bluetooth kumanda), `kulaklik` (kulaklık / medya tuşu) |
 
 **GPS kesintisi:** Son GPS konumu 3 saniyeden eskiyse (tünel, yüksek bina arası vb.) `Enlem`, `Boylam`,
 `GPS_Doppler_Hiz_kmh` ve `GPS_Dogruluk_m` hücreleri boş bırakılır; düzeltilmiş GPS 3 saniyeden eskiyse
@@ -52,7 +54,7 @@ değiştiklerinde uygulama yeniden indirilmeden **GitHub'dan güncelle** veya **
 
 Kayıt sırasında 0,5 saniyelik penceredeki en büyük dikey ivme (|Dikey_Min| veya Dikey_Max) **35 m/s²**'yi aşarsa
 ve GPS hızı 3 km/h'in üstündeyse ekrandaki sarsıntı kartı 1,5 saniye **kırmızı yanar** ve **sesli uyarı** verilir, CSV'de o satırın `Cukur`
-sütununa `1` yazılır. Kartın altında bu kayıttaki uyarı sayısı görünür.
+sütununa `1` yazılır. Kartın altında bu kayıttaki uyarı sayısı (UYARI) görünür.
 
 - **Neden sabit eşik:** Kayıt sırasında yalnızca geçmiş bilinir. İki gerçek sürüşte, geçmişe göre ayarlanan (göreli)
   eşikler sabit eşikten daha iyi sonuç vermedi; 35 m/s² en sert darbeleri az yanlış alarmla yakaladı.
@@ -60,6 +62,24 @@ sütununa `1` yazılır. Kartın altında bu kayıttaki uyarı sayısı görün�
 - **Uyarı ile betiğin ilişkisi:** Uyarı yalnızca en sert darbeleri gösterir. Ayrıntılı tespiti analiz betiği yapar: her darbeyi
   çevresindeki sarsıntıyla karşılaştırır ve GPS gecikmesini düzeltir. Betik, uygulamanın uyarılarını kendi bulduklarıyla karşılaştırıp
   haritada ayrıca gösterir.
+
+## Çukur işaretleme (doğrulama için)
+
+Kayıt sırasında ekranda büyük turuncu **ÇUKUR** butonu çıkar. Sürücü çukurdan geçince işaretler; kısa bir çift bip duyulur
+ve o an CSV'deki `Isaret` ve `Isaret_Kaynak` sütunlarına yazılır. Analiz betiği basıştan önceki 5 saniyedeki sarsıntı tepesini
+bularak çukurun anını ve konumunu çıkarır ve otomatik darbe tespitinin bu işaretlerin kaçını bulduğunu raporlar.
+İşaretler sistemin bağımsız bir referansla karşılaştırılması (doğrulama) içindir.
+
+- **İşaretleme yolları:** ekrandaki buton, telefonun ses tuşları, **Bluetooth kumanda** (selfie / deklanşör kumandası; çoğu
+  ses açma veya Enter tuşu gönderir) ve **kulaklık tuşu** (kablolu veya Bluetooth kulaklığın oynat/duraklat, ileri, geri tuşları).
+- **Ekran kapalıyken:** kumanda, kulaklık ve ses tuşları kayıt hizmetinin medya oturumuyla yine çalışır. Bunun için kayıt boyunca
+  sessiz bir ses çalınır. O sırada başka bir uygulama müzik çalıyorsa medya tuşları o uygulamaya gidebilir.
+- **Kayıt sırasında** ses tuşları ses düzeyini değiştirmez, kulaklık tuşu müziği durdurmaz; kayıt bitince normale döner.
+- **Buton etkisi:** Ekrana veya telefonun tuşuna basmak telefonu kısa bir an sarsar. Betik o satırı ve sonraki 0,5 sn'yi analize katmaz.
+  Kumanda ve kulaklık telefonu sarsmadığı için bu basışlarda dışlama yapılmaz; doğrulama için en temiz yöntemdir.
+- **Titreşim yok:** Geri bildirim yalnızca sesle verilir; titreşim motoru ivmeölçere karışırdı.
+- **Çift basma:** 1 saniye içindeki ikinci basış sayılmaz.
+- **Durdurma:** Kayıt sırasında **DURDUR** butonu, ÇUKUR butonuna basarken yanlışlıkla kaydı bitirmesin diye basılı tutularak çalışır.
 
 ## Ayarlar ve kayıt etiketleri
 

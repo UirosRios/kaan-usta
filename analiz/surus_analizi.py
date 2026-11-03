@@ -6,7 +6,7 @@ her kayıt için şunları üretir:
 
   <ad>_ozet.txt        Veri kalitesi, haritaya oturtma, hıza göre sarsıntı tablosu, işaretli çukurlar, darbeler
   <ad>_satirlar.csv    Tüm satırlar: düzeltilmiş konum/hız, durum, darbe ve çukur işaretleri
-  <ad>_isaretler.csv   Eski sürümün çukur butonu basışları ve eşleşen çukurlar (yalnızca basış varsa)
+  <ad>_isaretler.csv   Sürücünün çukur işaretleri (buton / kumanda / kulaklık) ve eşleşen çukurlar (yalnızca basış varsa)
   <ad>_olaylar.csv     Otomatik bulunan darbeler
   <ad>_harita.html     Uydu görüntüsü üzerinde güzergâh (renk = sarsıntı), işaretli çukurlar ve darbeler
   <ad>_harita.geojson  Aynı veri, QGIS / ArcGIS için
@@ -21,10 +21,11 @@ Yapılan düzeltmeler:
   * Konum enterpolasyonu: GPS saniyede 1 kez güncellenir; satırlar (0,5 sn) arasındaki konum ve hız
     iki GPS ölçümü arasında doğrusal enterpolasyonla bulunur.
   * Duruş ayıklama: düzeltilmiş hız --min-hiz altındaysa satır "duruş" sayılır ve analize girmez.
-  * Butona basma etkisi: ekrana dokunmak telefonu kısa bir an sarsar; basılan satır ve sonraki
-    --isaret-dislama saniye analize girmez.
+  * Butona basma etkisi: ekrana veya telefonun tuşuna basmak telefonu kısa bir an sarsar; basılan satır ve
+    sonraki --isaret-dislama saniye analize girmez. Bluetooth kumanda ve kulaklık tuşu telefonu sarsmaz.
 
-Çukur işaretleri (Isaret sütunu): sürücü çukurdan geçtikten sonra butona basar. Betik, basıştan önceki
+Çukur işaretleri (Isaret, Isaret_Kaynak sütunları): sürücü çukurdan geçtikten sonra ekrandaki butona, telefonun
+ses tuşuna, Bluetooth kumandaya veya kulaklık tuşuna basar. Betik, basıştan önceki
 --isaret-arama saniye içindeki hareket satırlarından tepe değeri çevresindeki sarsıntıya göre en büyük
 olanı çukur olarak seçer (bir önceki basıştan öncesine bakılmaz).
 
@@ -101,7 +102,9 @@ def oku(yol):
                 dmin=sayi(d['Dikey_Min']),
                 dmax=sayi(d['Dikey_Max']),
                 ornek=int(d.get('Ivme_Ornek_Sayisi') or 0),
-                isaret=int(sayi(d.get('Isaret')) or 0),  # eski sürümün çukur butonu (yeni kayıtlarda yok)
+                isaret=int(sayi(d.get('Isaret')) or 0),  # sürücünün çukur işareti (butonun olmadığı sürümün kayıtlarında yok)
+                # ekran / tus / kumanda / kulaklik, birden çoksa '+' ile; boş = kaynağı yazılmamış (ilk sürüm: ekran)
+                isaret_kaynak=(d.get('Isaret_Kaynak') or '').strip(),
                 uyg_cukur=bool(sayi(d.get('Cukur'))),  # uygulamanın anlık çukur uyarısı (eski kayıtlarda yok)
             ))
     if not satirlar:
@@ -110,6 +113,11 @@ def oku(yol):
 
 
 # ---------------------------------------------------------------- GPS
+
+def telefonu_sarsar(kaynak):
+    """Ekrana veya telefonun tuşuna basmak telefonu sarsar; kumanda ve kulaklık sarsmaz. Kaynak yazılmamışsa ekran."""
+    return not kaynak or any(k in ('ekran', 'tus') for k in kaynak.split('+'))
+
 
 def gps_olcumleri(satirlar):
     """Art arda tekrar eden satırlardan tekil GPS ölçümlerini çıkarır (her biri ilk göründüğü an)."""
@@ -226,10 +234,10 @@ def analiz_et(satirlar, ayar, osm=None):
         s['darbe'] = s['cukur'] = False
         s['zemin_rms'] = s['zemin_rms_ortak'] = None
 
-    # Butona basma etkisi: basılan satır ve sonraki --isaret-dislama sn
+    # Butona basma etkisi: basılan satır ve sonraki --isaret-dislama sn (yalnızca telefonu sarsan basışlar)
     etkili = set()
     for i, s in enumerate(satirlar):
-        if s['isaret']:
+        if s['isaret'] and telefonu_sarsar(s['isaret_kaynak']):
             for j in range(i, len(satirlar)):
                 if satirlar[j]['t'] - s['t'] > ayar.isaret_dislama + 0.01:
                     break
@@ -257,7 +265,7 @@ def analiz_et(satirlar, ayar, osm=None):
         # sıradan tepeleri, düzgün kısmın düşük tabanına göre "darbe" sayılmasın.
         yanlar = [st.median(g) for g in (once, sonra) if len(g) >= 3]
         s['zemin_rms'] = max(yanlar) if yanlar else genel_rms
-        # ±10 sn'nin tek medyanı: eski çukur butonu eşleştirmesi bununla ayarlandı; --darbe-taban ortak ile darbe tespiti de kullanır
+        # ±10 sn'nin tek medyanı: çukur işareti eşleştirmesi bununla ayarlandı; --darbe-taban ortak ile darbe tespiti de kullanır
         s['zemin_rms_ortak'] = st.median(once + sonra) if len(once) + len(sonra) >= 5 else genel_rms
         if ayar.darbe_taban == 'ortak':
             s['zemin_rms'] = s['zemin_rms_ortak']
@@ -508,7 +516,7 @@ def ozet_yaz(yol, ad, satirlar, r, tablo, ayar, osm_kaynak):
     y(f'  GPS gecikme düzeltmesi: {tr(ayar.gecikme, 1)} s   Duruş eşiği: {tr(ayar.min_hiz, 1)} km/h')
     y(f'  Darbe: tepe ≥ {tr(ayar.darbe_orani, 1)} × çevre RMS ({ayar.darbe_taban}) ve ≥ {tr(ayar.darbe_esik, 0)} m/s²   '
       f'Gruplama yarıçapı: {tr(ayar.kume_yaricap, 0)} m')
-    if r['isaretler']:  # eski sürümün çukur butonu
+    if r['isaretler']:  # sürücünün çukur işaretleri
         y(f'  Çukur işareti: basıştan önceki {tr(ayar.isaret_arama, 0)} sn aranır, tepe ≥ {tr(ayar.isaret_min_oran, 1)} × çevre RMS; '
           f'basıştan sonraki {tr(ayar.isaret_dislama, 1)} sn analiz dışı')
     y('')
@@ -580,7 +588,12 @@ def ozet_yaz(yol, ad, satirlar, r, tablo, ayar, osm_kaynak):
         y('')
     eslesen = [i for i in isaretler if i['cukur'] is not None]
     if isaretler:
-        y(f'ÇUKUR İŞARETLERİ - eski çukur butonu ({len(isaretler)} basış, {len(eslesen)} tanesi bir sarsıntı tepesiyle eşleşti)')
+        kaynaklar = defaultdict(int)
+        for i in isaretler:
+            for k in (i['basis']['isaret_kaynak'] or 'ekran').split('+'):
+                kaynaklar[k] += 1
+        y(f'ÇUKUR İŞARETLERİ - sürücünün basışları ({len(isaretler)} basış, {len(eslesen)} tanesi bir sarsıntı tepesiyle eşleşti; '
+          + ', '.join(f'{k} {n}' for k, n in sorted(kaynaklar.items())) + ')')
         if any(i['sonuc'] == 'belirsiz' for i in isaretler):
             y('  "belirsiz": arama aralığında çukura benzer büyüklükte başka tepe(ler) de var (zemin çok pürüzlü);')
             y('  konum yalnızca yaklaşıktır.')
@@ -635,20 +648,20 @@ def satirlar_yaz(yol, satirlar):
         w = csv.writer(f, delimiter=';')
         w.writerow(['Tarih_Saat', 'Duzeltilmis_Enlem', 'Duzeltilmis_Boylam', 'Yolda', 'Ham_Enlem', 'Ham_Boylam',
                     'Duzeltilmis_Hiz_kmh', 'GPS_Dogruluk_m', 'Dikey_RMS', 'Dikey_Min', 'Dikey_Max', 'Tepe', 'Cevre_RMS',
-                    'Durum', 'Uygulama_Cukur', 'Darbe', 'Isaret', 'Isaretli_Cukur'])
+                    'Durum', 'Uygulama_Cukur', 'Darbe', 'Isaret', 'Isaret_Kaynak', 'Isaretli_Cukur'])
         for s in satirlar:
             w.writerow([s['zaman_metin'], tr(s['d_enlem'], 6), tr(s['d_boylam'], 6),
                         '' if s['yolda'] is None else ('evet' if s['yolda'] else 'hayır'),
                         tr(s['h_enlem'], 6), tr(s['h_boylam'], 6), tr(s['d_hiz']), tr(s['d_dogruluk'], 1),
                         tr(s['rms'], 4), tr(s['dmin'], 4), tr(s['dmax'], 4), tr(s['tepe'], 4), tr(s['zemin_rms'], 4),
                         s['durum'], 'evet' if s['uyg_cukur'] else '', 'evet' if s['darbe'] else '',
-                        s['isaret'] or '', 'evet' if s['cukur'] else ''])
+                        s['isaret'] or '', s['isaret_kaynak'], 'evet' if s['cukur'] else ''])
 
 
 def isaretler_yaz(yol, isaretler):
     with open(yol, 'w', encoding='utf-8-sig', newline='') as f:
         w = csv.writer(f, delimiter=';')
-        w.writerow(['No', 'Basis_Zamani', 'Sonuc', 'Cukur_Zamani', 'Tepki_s', 'Enlem', 'Boylam', 'Yolda', 'Belirsizlik_m',
+        w.writerow(['No', 'Basis_Zamani', 'Kaynak', 'Sonuc', 'Cukur_Zamani', 'Tepki_s', 'Enlem', 'Boylam', 'Yolda', 'Belirsizlik_m',
                     'Hiz_kmh', 'Dikey_Min', 'Dikey_Max', 'Cevre_RMS', 'Tepe_Orani', 'Otomatik_Darbe', 'Google_Maps'])
         for i in isaretler:
             c = i['cukur']
@@ -656,11 +669,11 @@ def isaretler_yaz(yol, isaretler):
                 x = i['tahmini']
                 konum = ([tr(x['d_enlem'], 6), tr(x['d_boylam'], 6), 'evet' if x['yolda'] else 'hayır', tr(i['tahmini_belirsizlik'], 1)]
                          if x is not None else ['', '', '', ''])
-                w.writerow([f'Ç{i["no"]}', i['basis']['zaman_metin'], i['sonuc'] + (' (yaklaşık konum)' if x is not None else ''),
+                w.writerow([f'Ç{i["no"]}', i['basis']['zaman_metin'], i['basis']['isaret_kaynak'] or 'ekran', i['sonuc'] + (' (yaklaşık konum)' if x is not None else ''),
                             '', '', *konum, '', '', '', '', tr(i['oran'], 2), '',
                             maps_link(x['d_enlem'], x['d_boylam']) if x is not None else ''])
                 continue
-            w.writerow([f'Ç{i["no"]}', i['basis']['zaman_metin'], i['sonuc'], c['zaman_metin'], tr(i['tepki_s'], 2),
+            w.writerow([f'Ç{i["no"]}', i['basis']['zaman_metin'], i['basis']['isaret_kaynak'] or 'ekran', i['sonuc'], c['zaman_metin'], tr(i['tepki_s'], 2),
                         tr(c['d_enlem'], 6), tr(c['d_boylam'], 6), 'evet' if c['yolda'] else 'hayır', tr(c['belirsizlik_m'], 1),
                         tr(c['d_hiz']), tr(c['dmin'], 2), tr(c['dmax'], 2), tr(c['zemin_rms'], 2), tr(i['oran'], 2),
                         'evet' if c['darbe'] else 'hayır', maps_link(c['d_enlem'], c['d_boylam'])])
@@ -848,7 +861,7 @@ harita.fitBounds(sinir.length ? sinir : [[0, 0]], {{ padding: [30, 30] }});
 const katmanlar = {{ 'Yer adları': etiket, 'Güzergâh': guzergah, 'Ham GPS (oturtma öncesi)': hamGps }};
 if (V.uyarilar.length) katmanlar['Uygulama uyarıları'] = uyari;
 katmanlar['Otomatik darbeler'] = darbe;
-if (V.cukurlar.length) katmanlar['İşaretli çukurlar (eski buton)'] = cukur;
+if (V.cukurlar.length) katmanlar['İşaretli çukurlar (sürücü)'] = cukur;
 L.control.layers({{ 'Sokak haritası (sade)': sade, 'Sokak haritası (renkli)': renkli, 'Uydu görüntüsü': uydu }}, katmanlar).addTo(harita);
 L.control.scale({{ imperial: false }}).addTo(harita);
 const aciklama = L.control({{ position: 'bottomleft' }});
@@ -860,7 +873,7 @@ aciklama.onAdd = () => {{
     yeşil: az, sarı: orta, kırmızı: çok sarsıntı<br>
     Kesikli gri: duruş{' / buton etkisi' if r['isaretler'] else ''}<br>
     {'<span class="ornek" style="background:#0b0b0b;border-radius:50%"></span> Uygulamanın anlık çukur uyarısı<br>' if any(s['uyg_cukur'] for s in noktalar) else ''}
-    {'<span class="ornek" style="background:#003366;border-radius:3px"></span> Ç: butonla işaretlenen çukur (eski sürüm); Ç?: yaklaşık<br>' if r['isaretler'] else ''}
+    {'<span class="ornek" style="background:#003366;border-radius:3px"></span> Ç: sürücünün işaretlediği çukur; Ç?: yaklaşık<br>' if r['isaretler'] else ''}
     <span class="ornek" style="background:{MOR};border-radius:50%"></span> Otomatik bulunan darbe noktası (numaralı)<br>
     Daireler: konum belirsizliği. Ayrıntı için işarete dokunun.`;
   return k;
@@ -1067,7 +1080,7 @@ def dosya_analiz(yol, ayar, klasor=None, yaz=True, onbellek=None):
         tablo = hiz_tablosu(r['hareket'], ayar.hiz_araligi)
         ozet_yaz(cikti('ozet.txt'), ad, satirlar, r, tablo, ayar, osm_kaynak)
         satirlar_yaz(cikti('satirlar.csv'), satirlar)
-        if r['isaretler']:  # yalnızca eski sürümün çukur butonuyla yapılmış kayıtlar
+        if r['isaretler']:  # yalnızca sürücünün çukur işaretlediği kayıtlar
             isaretler_yaz(cikti('isaretler.csv'), r['isaretler'])
         olaylar_yaz(cikti('olaylar.csv'), r['kumeler'])
         sokaklar_yaz(cikti('sokaklar.csv'), r['sokaklar'])

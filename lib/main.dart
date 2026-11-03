@@ -91,7 +91,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   // Türkçe Excel biçimi: sütun ayırıcı noktalı virgül, ondalık ayırıcı virgül
   // (Python: pd.read_csv(dosya, sep=';', decimal=','))
   static const String _csvHeader = "Tarih_Saat;Enlem;Boylam;GPS_Doppler_Hiz_kmh;Duzeltilmis_GPS_Hiz_kmh;"
-      "Dikey_RMS;Dikey_Min;Dikey_Max;Ivme_Ornek_Sayisi;GPS_Dogruluk_m;Cukur";
+      "Dikey_RMS;Dikey_Min;Dikey_Max;Ivme_Ornek_Sayisi;GPS_Dogruluk_m;Cukur;Isaret;Isaret_Kaynak";
 
   // Sayıyı CSV için ondalık virgülle yaz
   static String _num(double v, int digits) => v.toStringAsFixed(digits).replaceAll('.', ',');
@@ -117,6 +117,18 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   final AudioPlayer _uyariSesi = AudioPlayer();
   DateTime? _sonSes;
 
+  // ÇUKUR İŞARETİ (doğrulama için): sürücü çukurdan geçince ekrandaki ÇUKUR butonuna, telefonun ses tuşuna,
+  // Bluetooth kumandaya veya kulaklık tuşuna basar. CSV'de o 0,5 sn'lik satırın Isaret (basış sayısı) ve
+  // Isaret_Kaynak (ekran / tus / kumanda / kulaklik) sütunlarına yazılır. Ekran ve telefon tuşu telefonu sarsar;
+  // analiz betiği o anı sarsıntı analizinden dışlar. Geri bildirim yalnızca sesle: titreşim ivmeölçere karışırdı.
+  static const MethodChannel _isaretKanali = MethodChannel('kaan_usta/isaret');
+  final AudioPlayer _isaretSesi = AudioPlayer();
+  int _isaretSayisi = 0; // bu kayıttaki toplam işaret
+  int _pencereIsaret = 0; // içinde bulunulan 0,5 sn'lik penceredeki işaret
+  final Set<String> _pencereKaynak = {};
+  DateTime? _sonIsaret;
+  bool _isaretParlama = false;
+
   // Kayıt etiketleri: ayarlardaki scooter ve kayıt başındaki hava durumu (alınamazsa yazılmaz)
   String _kayitScooter = '';
   HavaDurumu? _hava;
@@ -140,6 +152,9 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     _startClock();
     _initSensors();
     _initUyariSesi();
+    _isaretKanali.setMethodCallHandler((call) async {
+      if (call.method == 'isaret') _isaretle(call.arguments as String? ?? 'tus');
+    });
   }
 
   // Düşük gecikmeli çalma; başka uygulamanın sesini (müzik, navigasyon) durdurmaz
@@ -152,6 +167,32 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     } catch (e) {
       debugPrint('Uyarı sesi yüklenemedi: $e');
     }
+    try {
+      await _isaretSesi.setAudioContext(AudioContextConfig(focus: AudioContextConfigFocus.mixWithOthers).build());
+      await _isaretSesi.setPlayerMode(PlayerMode.lowLatency);
+      await _isaretSesi.setReleaseMode(ReleaseMode.stop);
+      await _isaretSesi.setSource(AssetSource('sesler/isaret.mp3'));
+    } catch (e) {
+      debugPrint('İşaret sesi yüklenemedi: $e');
+    }
+  }
+
+  // Çukur işareti: 1 sn içindeki ikinci basış sayılmaz (yanlışlıkla çift basma, kumandanın tuş sekmesi)
+  void _isaretle(String kaynak) {
+    if (!isRecording) return;
+    final now = DateTime.now();
+    if (_sonIsaret != null && now.difference(_sonIsaret!) < const Duration(seconds: 1)) return;
+    _sonIsaret = now;
+    _pencereIsaret++;
+    _pencereKaynak.add(kaynak);
+    setState(() {
+      _isaretSayisi++;
+      _isaretParlama = true;
+    });
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) setState(() => _isaretParlama = false);
+    });
+    _isaretSesi.stop().then((_) => _isaretSesi.resume()).catchError((Object e) => debugPrint('İşaret sesi çalınamadı: $e'));
   }
 
   void _uyariSesiCal(DateTime now) {
@@ -390,6 +431,10 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     _verticalWindow.clear();
     _cukurCount = 0;
     _cukurIsikBitis = null;
+    _isaretSayisi = 0;
+    _pencereIsaret = 0;
+    _pencereKaynak.clear();
+    _sonIsaret = null;
 
     // Saniyede 2 kez (500 milisaniye) veri örnekleme
     _recordTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
@@ -402,6 +447,10 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       // Dikey_RMS: ana sarsıntı ölçüsü; Dikey_Min / Dikey_Max: darbe tepe değerleri
       final vSamples = List<double>.from(_verticalWindow);
       _verticalWindow.clear();
+      final int isaret = _pencereIsaret;
+      final String isaretKaynak = _pencereKaynak.join('+');
+      _pencereIsaret = 0;
+      _pencereKaynak.clear();
       double vRms = 0, vMin = 0, vMax = 0;
       if (vSamples.isNotEmpty) {
         vRms = sqrt(vSamples.map((v) => v * v).reduce((a, b) => a + b) / vSamples.length);
@@ -439,6 +488,8 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
         '${vSamples.length}',
         gpsOk ? _num(currentAccuracy, 1) : '',
         cukur ? '1' : '',
+        isaret > 0 ? '$isaret' : '',
+        isaretKaynak,
       ].join(';');
       _pendingRows.add(row);
       _rowCount++;
@@ -483,6 +534,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       'Kayıt bitişi: ${end ?? "(kayıt sürüyor veya düzgün kapatılmadı)"}',
       'Satır sayısı: ${end == null ? "(kayıt bitince yazılır; CSV'deki satırları sayın)" : _rowCount}',
       'Çukur uyarısı sayısı: ${end == null ? "(kayıt bitince yazılır)" : _cukurCount}',
+      'Çukur işareti sayısı: ${end == null ? "(kayıt bitince yazılır)" : _isaretSayisi}',
       'Scooter: ${_kayitScooter.isEmpty ? "belirtilmedi (Ayarlar)" : _kayitScooter}',
       if (_hava != null) 'Hava durumu: ${_hava!.satir()}',
       '',
@@ -502,6 +554,9 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       '  düzeltilmiş GPS ${gpsMaxAge.inSeconds} sn\'den eskiyse Duzeltilmis_GPS_Hiz_kmh boş bırakılır',
       '  Cukur: anlık çukur uyarısı; ekranda kırmızı yanar ve sesli uyarı verilir (1 = o 0,5 sn içinde |Dikey_Min| veya Dikey_Max ≥ ${cukurEsik.toStringAsFixed(0)} m/s² ve GPS hızı ≥ ${cukurMinHiz.toStringAsFixed(0)} km/h).',
       '  Ayrıntılı darbe tespiti (çevredeki sarsıntıya göre, GPS gecikmesi düzeltilmiş) analiz betiğiyle yapılır.',
+      '  Isaret: sürücünün çukur işaretine o 0,5 sn içinde kaç kez bastığı (boş = basılmadı; 1 sn içindeki ikinci basış sayılmaz).',
+      '  Isaret_Kaynak: ekran (ÇUKUR butonu), tus (telefonun ses tuşu), kumanda (Bluetooth kumanda), kulaklik (kulaklık / medya tuşu).',
+      '  Basış çukurdan 1-3 sn sonra gelir; analiz betiği basıştan önceki en büyük sarsıntı tepesini çukur olarak eşleştirir.',
     ];
     await infoFileFor(file).writeAsString('${lines.join('\n')}\n', flush: true);
   }
@@ -581,6 +636,8 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     geoSubscription?.cancel();
     accelSubscription?.cancel();
     _uyariSesi.dispose();
+    _isaretSesi.dispose();
+    _isaretKanali.setMethodCallHandler(null);
     if (isRecording) _kayitServisi.invokeMethod('durdur').catchError((Object e) => null);
     WakelockPlus.disable();
     super.dispose();
@@ -704,7 +761,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                                 for (final (label, value) in [
                                   ('TOPLAM', totalNet.toStringAsFixed(3)),
                                   ('EĞİM', '${tiltDeg.toStringAsFixed(0)}°'),
-                                  if (isRecording) ('ÇUKUR', '$_cukurCount'), // bu kayıttaki uyarı sayısı
+                                  if (isRecording) ('UYARI', '$_cukurCount'), // bu kayıttaki anlık çukur uyarısı sayısı
                                 ])
                                   Expanded(
                                     child: Column(
@@ -869,17 +926,53 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                     ),
                     const SizedBox(height: 15),
 
-                    // BAŞLAT / DURDUR Butonu
+                    // ÇUKUR İŞARET Butonu (yalnızca kayıt sırasında): büyük, bakmadan basılabilir.
+                    // Dokunulduğu an (parmak kalkmadan) sayılır; sistem tık sesi / titreşimi kapalı.
+                    // Ses tuşu, Bluetooth kumanda ve kulaklık tuşu da aynı işi görür (MainActivity.kt / KayitServisi.kt).
+                    if (isRecording) ...[
+                      Material(
+                        color: _isaretParlama ? const Color(0xFFFFC107) : const Color(0xFFFD7E14),
+                        borderRadius: BorderRadius.circular(15),
+                        elevation: 4,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(15),
+                          enableFeedback: false,
+                          onTapDown: (_) => _isaretle('ekran'),
+                          child: SizedBox(
+                            height: 110,
+                            child: Center(
+                              child: Text(
+                                'ÇUKUR\n($_isaretSayisi işaret)',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 2),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Ses tuşu, Bluetooth kumanda veya kulaklık tuşu da çukur işaretler',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 12, color: Color(0xFF6C757D)),
+                      ),
+                      const SizedBox(height: 15),
+                    ],
+
+                    // BAŞLAT / DURDUR Butonu. Kayıt sırasında DURDUR basılı tutularak çalışır:
+                    // hemen üstündeki ÇUKUR butonuna basarken kayıt yanlışlıkla durmasın.
                     ElevatedButton(
-                      onPressed: isRecording ? stopRecording : startRecording,
+                      onPressed: isRecording ? () => _showMessage('Durdurmak için basılı tutun') : startRecording,
+                      onLongPress: isRecording ? stopRecording : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isRecording ? Colors.redAccent : const Color(0xFF198754),
+                        enableFeedback: false, // basılı tutunca titreşmesin (son satıra karışmasın)
                         padding: const EdgeInsets.symmetric(vertical: 20),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                         elevation: 4,
                       ),
                       child: Text(
-                        isRecording ? 'DURDUR ($_rowCount satır)' : 'BAŞLAT',
+                        isRecording ? 'DURDUR - basılı tutun ($_rowCount satır)' : 'BAŞLAT',
                         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 2),
                       ),
                     ),

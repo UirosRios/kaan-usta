@@ -61,7 +61,7 @@ harita.fitBounds(sinir.length ? sinir : [[0, 0]], { padding: [30, 30] });
 const katmanlar = { 'Yer adları': etiket, 'Güzergâh': guzergah, 'Ham GPS (oturtma öncesi)': hamGps };
 if (V.uyarilar.length) katmanlar['Uygulama uyarıları'] = uyari;
 katmanlar['Otomatik darbeler'] = darbe;
-if (V.cukurlar.length) katmanlar['İşaretli çukurlar (eski buton)'] = cukur;
+if (V.cukurlar.length) katmanlar['İşaretli çukurlar (sürücü)'] = cukur;
 L.control.layers({ 'Sokak haritası (sade)': sade, 'Sokak haritası (renkli)': renkli, 'Uydu görüntüsü': uydu }, katmanlar).addTo(harita);
 L.control.scale({ imperial: false }).addTo(harita);
 const aciklama = L.control({ position: 'bottomleft' });
@@ -73,7 +73,7 @@ aciklama.onAdd = () => {
     yeşil: az, sarı: orta, kırmızı: çok sarsıntı<br>
     Kesikli gri: duruş / buton etkisi<br>
     
-    <span class="ornek" style="background:#003366;border-radius:3px"></span> Ç: butonla işaretlenen çukur (eski sürüm); Ç?: yaklaşık<br>
+    <span class="ornek" style="background:#003366;border-radius:3px"></span> Ç: sürücünün işaretlediği çukur; Ç?: yaklaşık<br>
     <span class="ornek" style="background:#6a1b9a;border-radius:50%"></span> Otomatik bulunan darbe noktası (numaralı)<br>
     Daireler: konum belirsizliği. Ayrıntı için işarete dokunun.`;
   return k;
