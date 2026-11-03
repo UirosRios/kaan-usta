@@ -29,7 +29,9 @@ import urllib.parse
 import urllib.request
 
 DEG_M = 111320.0
-OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter']
+# Ana sunucu cevap vermezse sıradakiler denenir
+OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+            'https://overpass.kumi.systems/api/interpreter']
 # Scooter'ın giremeyeceği veya yol olmayan OSM yol türleri
 HARIC = {'motorway', 'motorway_link', 'trunk', 'trunk_link', 'steps', 'construction', 'proposed', 'raceway',
          'bus_guideway', 'escape', 'elevator', 'corridor', 'platform', 'rest_area', 'services'}
