@@ -6,38 +6,53 @@ import 'package:latlong2/latlong.dart' hide Path;
 import 'puanlama.dart';
 import 'recordings_page.dart';
 
-// KAYIT ÖNİZLEMESİ (gösterim amaçlı): bir kaydın haritası, grafikleri, konfor puanları ve özeti telefonda.
-// Test sürüşleri dahil her kayıtta çalışır. Analizin yalnızca basit bir kısmıdır: hız düzeltmesi, darbe tespiti
-// (çevreye göre), haritaya oturtma ve istatistik testleri bilgisayardaki analiz betiğindedir.
+// KAYIT ÖNİZLEMESİ (gösterim amaçlı, sade): bir kaydın haritası, grafikleri, konfor puanları ve özeti telefonda.
+// Test sürüşleri dahil her kayıtta çalışır. Güzergâh 25 m'lik parçalara bölünür; her parça medyan Dikey_RMS'ine göre
+// üç renkten birini alır (tek tek sarsıntı tepeleri gösterilmez). Asıl analiz (haritaya oturtma, hız düzeltmesi, darbe
+// tespiti, istatistik) bilgisayardaki betiktedir.
 
 const Color _lacivert = Color(0xFF003366);
 const Color _gri = Color(0xFF6C757D);
-// Sarsıntı ve puan renkleri: yeşil = düzgün / rahat ... kırmızı = sarsıntılı
-const List<Color> _renkler = [Color(0xFF1A9850), Color(0xFF91CF60), Color(0xFFFEE08B), Color(0xFFFC8D59), Color(0xFFD73027)];
-const List<double> _rmsSinirlari = [3, 5, 7, 9]; // m/s²: bu sınırlarla 5 renk
-Color _rmsRengi(double rms) {
-  var k = 0;
-  while (k < _rmsSinirlari.length && rms >= _rmsSinirlari[k]) {
-    k++;
-  }
-  return _renkler[k];
+
+// Üç sarsıntı sınıfı (hareket hâlindeki medyan Dikey_RMS, m/s²). Sınırlar Kadıköy sürüşlerindeki 25 m'lik parçaların
+// dağılımından: düzgün asfalt ~3-5, bozuk asfalt / parke ~5-8, Arnavut kaldırımı ve çok bozuk yol ≥ 8.
+enum _Sinif {
+  duzgun('Düzgün', Color(0xFF1A9850)),
+  orta('Orta', Color(0xFFF4A72B)),
+  sarsintili('Sarsıntılı', Color(0xFFD73027));
+
+  const _Sinif(this.ad, this.renk);
+  final String ad;
+  final Color renk;
+
+  static _Sinif rms(double r) => r < 5 ? duzgun : (r < 8 ? orta : sarsintili);
 }
 
-Color _puanRengi(int puan) => _renkler[5 - puan.clamp(1, 5)];
+const List<Color> _puanRenkleri = [Color(0xFFD73027), Color(0xFFFC8D59), Color(0xFFF4C542), Color(0xFF91CF60), Color(0xFF1A9850)];
+const List<String> _puanAdlari = ['çok sarsıntılı', 'sarsıntılı', 'orta', 'rahat', 'çok rahat'];
+Color _puanRengi(int puan) => _puanRenkleri[puan.clamp(1, 5) - 1];
 
 // GPS konumu sensörden ~1 sn geç gelir (analiz betiğindeki gecikme düzeltmesi): sensör satırının konumu 2 satır sonrakidir
 const int _gecikmeSatir = 2;
 const Duration _gecikme = Duration(seconds: 1);
+const double _minHiz = 3; // km/h: altı duruş
+const double _haritaParcasi = 25; // m
 
 class _Satir {
-  _Satir(this.t, this.konum, this.hiz, this.rms, this.tepe, this.uyari, this.isaret, this.kaynak);
+  _Satir(this.t, this.konum, this.hiz, this.rms, this.tepe, this.isaret);
   final DateTime t;
   final LatLng? konum;
   final double? hiz;
   final double rms, tepe; // tepe: |Dikey_Min| ve Dikey_Max'ın büyüğü
-  final bool uyari; // uygulamanın anlık çukur uyarısı (Cukur = 1)
   final int isaret; // sürücünün çukur işareti basışı
-  final String kaynak;
+  bool get hareket => (hiz ?? 0) >= _minHiz;
+}
+
+class _Bolum {
+  _Bolum(this.noktalar, this.rms);
+  final List<LatLng> noktalar;
+  final double? rms; // hareket satırlarının medyan Dikey_RMS'i
+  double uzunluk = 0;
 }
 
 class _PuanParca {
@@ -47,33 +62,42 @@ class _PuanParca {
   final double uzunluk;
   final int? puan;
   List<LatLng> noktalar = [];
-  double? rms; // parçadaki hareket satırlarının medyan Dikey_RMS'i (hız düzeltmesiz)
+  double? rms;
 }
 
 class _Isaret {
-  _Isaret(this.basis, this.cukur, this.konum, this.tepe);
-  final _Satir basis;
-  final _Satir? cukur; // basıştan önceki 5 sn'deki en büyük tepe (yoksa null)
+  _Isaret(this.t, this.konum);
+  final DateTime t; // çukur anı: basıştan önceki 5 sn'deki en büyük ivme tepesi (yoksa basış anı)
   final LatLng? konum;
-  final double? tepe;
 }
 
 DateTime? _zaman(String s) => DateTime.tryParse(s.trim().replaceAll(',', '.'));
 double? _sayi(String s) => s.trim().isEmpty ? null : double.tryParse(s.trim().replaceAll(',', '.'));
 String _ondalik(double v, int b) => v.toStringAsFixed(b).replaceAll('.', ',');
+double? _medyan(List<double> l) {
+  if (l.isEmpty) return null;
+  final k = [...l]..sort();
+  return k[k.length ~/ 2];
+}
 
 class _Veri {
   final List<_Satir> satirlar = [];
+  final List<_Bolum> bolumler = [];
   final List<_PuanParca> parcalar = [];
   final List<_Isaret> isaretler = [];
   final Map<String, String> bilgi = {};
   bool test = false;
+  double mesafe = 0;
+
+  static const Distance _d = Distance(roundResult: false);
 
   // Sensör satırı i'nin gecikme düzeltmeli konumu
   LatLng? konum(int i) {
     final j = min(i + _gecikmeSatir, satirlar.length - 1);
     return satirlar[j].konum ?? satirlar[i].konum;
   }
+
+  List<LatLng> get iz => [for (var i = 0; i < satirlar.length; i++) if (konum(i) != null) konum(i)!];
 
   static Future<_Veri> oku(File csv) async {
     final v = _Veri()..test = csv.uri.pathSegments.last.startsWith('test_');
@@ -82,7 +106,7 @@ class _Veri {
     final b = satirlar.first.replaceFirst('﻿', '').split(';');
     int s(String ad) => b.indexOf(ad);
     final iT = s('Tarih_Saat'), iE = s('Enlem'), iB = s('Boylam'), iH = s('GPS_Doppler_Hiz_kmh'), iR = s('Dikey_RMS');
-    final iMin = s('Dikey_Min'), iMax = s('Dikey_Max'), iC = s('Cukur'), iI = s('Isaret'), iK = s('Isaret_Kaynak');
+    final iMin = s('Dikey_Min'), iMax = s('Dikey_Max'), iI = s('Isaret');
     String h(List<String> c, int i) => i >= 0 && i < c.length ? c[i] : '';
     for (final satir in satirlar.skip(1)) {
       final c = satir.split(';');
@@ -91,27 +115,64 @@ class _Veri {
       if (t == null || rms == null) continue;
       final e = _sayi(h(c, iE)), bo = _sayi(h(c, iB));
       final tepe = max((_sayi(h(c, iMin)) ?? 0).abs(), _sayi(h(c, iMax)) ?? 0);
-      v.satirlar.add(_Satir(t, e == null || bo == null ? null : LatLng(e, bo), _sayi(h(c, iH)), rms, tepe, h(c, iC).trim() == '1',
-          int.tryParse(h(c, iI).trim()) ?? 0, h(c, iK).trim()));
+      v.satirlar.add(_Satir(t, e == null || bo == null ? null : LatLng(e, bo), _sayi(h(c, iH)), rms, tepe, int.tryParse(h(c, iI).trim()) ?? 0));
     }
+    v._bolumle();
     v._isaretleriBul();
     await v._puanOku(puanFileFor(csv));
     await v._bilgiOku(infoFileFor(csv));
     return v;
   }
 
+  // Güzergâhı ~25 m'lik bölümlere ayır; her bölüm medyan sarsıntısıyla tek renk
+  void _bolumle() {
+    var noktalar = <LatLng>[];
+    var rmsler = <double>[];
+    var uzunluk = 0.0;
+    LatLng? onceki;
+    void kapat() {
+      if (noktalar.length > 1) bolumler.add(_Bolum(noktalar, _medyan(rmsler))..uzunluk = uzunluk);
+    }
+
+    for (var i = 0; i < satirlar.length; i++) {
+      final k = konum(i);
+      if (k == null) continue;
+      if (onceki != null) {
+        final m = _d.as(LengthUnit.Meter, onceki, k);
+        if (m > 200) {
+          // GPS sıçraması / kesinti: çizgi burada kesilir
+          kapat();
+          noktalar = [];
+          rmsler = [];
+          uzunluk = 0;
+        } else {
+          uzunluk += m;
+          mesafe += m;
+        }
+      }
+      noktalar.add(k);
+      if (satirlar[i].hareket) rmsler.add(satirlar[i].rms);
+      onceki = k;
+      if (uzunluk >= _haritaParcasi) {
+        kapat();
+        noktalar = [k];
+        rmsler = [];
+        uzunluk = 0;
+      }
+    }
+    kapat();
+  }
+
   // Basit eşleştirme: basıştan önceki 5 sn içindeki en büyük ivme tepesi çukur sayılır (tepki süresi 1-3 sn)
   void _isaretleriBul() {
     for (var i = 0; i < satirlar.length; i++) {
-      final p = satirlar[i];
-      if (p.isaret <= 0) continue;
+      if (satirlar[i].isaret <= 0) continue;
       int? enIyi;
-      for (var j = i - 1; j >= 0 && p.t.difference(satirlar[j].t) <= const Duration(seconds: 5); j--) {
+      for (var j = i - 1; j >= 0 && satirlar[i].t.difference(satirlar[j].t) <= const Duration(seconds: 5); j--) {
         if (enIyi == null || satirlar[j].tepe > satirlar[enIyi].tepe) enIyi = j;
       }
-      isaretler.add(enIyi == null
-          ? _Isaret(p, null, konum(i), null)
-          : _Isaret(p, satirlar[enIyi], konum(enIyi), satirlar[enIyi].tepe));
+      final k = enIyi ?? i;
+      isaretler.add(_Isaret(satirlar[k].t, konum(k)));
     }
   }
 
@@ -138,70 +199,20 @@ class _Veri {
         if (t.isBefore(p.bas) || t.isAfter(p.bit)) continue;
         final k = konum(i);
         if (k != null) p.noktalar.add(k);
-        if ((satirlar[i].hiz ?? 0) >= 3) rmsler.add(satirlar[i].rms);
+        if (satirlar[i].hareket) rmsler.add(satirlar[i].rms);
       }
-      if (rmsler.isNotEmpty) {
-        rmsler.sort();
-        p.rms = rmsler[rmsler.length ~/ 2];
-      }
+      p.rms = _medyan(rmsler);
     }
   }
 
   Future<void> _bilgiOku(File dosya) async {
     if (!await dosya.exists()) return;
     for (final satir in await dosya.readAsLines()) {
-      for (final a in ['Scooter', 'Hava durumu', 'Çukur modu', 'Cihaz']) {
+      for (final a in ['Scooter', 'Hava durumu']) {
         if (satir.startsWith('$a:')) bilgi[a] = satir.substring(a.length + 1).trim();
       }
     }
   }
-
-  List<LatLng> get iz => [for (final s in satirlar) if (s.konum != null) s.konum!];
-
-  double get mesafe {
-    final d = const Distance(roundResult: false);
-    var top = 0.0;
-    LatLng? onceki;
-    for (final k in iz) {
-      if (onceki != null && k != onceki) {
-        final m = d.as(LengthUnit.Meter, onceki, k);
-        if (m < 200) top += m; // GPS sıçraması sayılmaz
-      }
-      onceki = k;
-    }
-    return top;
-  }
-}
-
-// Spearman sıra korelasyonu (eşit değerlere ortalama sıra)
-double? _spearman(List<double> x, List<double> y) {
-  if (x.length < 3) return null;
-  List<double> sira(List<double> v) {
-    final idx = List.generate(v.length, (i) => i)..sort((a, b) => v[a].compareTo(v[b]));
-    final r = List<double>.filled(v.length, 0);
-    var i = 0;
-    while (i < idx.length) {
-      var j = i;
-      while (j + 1 < idx.length && v[idx[j + 1]] == v[idx[i]]) {
-        j++;
-      }
-      for (var k = i; k <= j; k++) {
-        r[idx[k]] = (i + j) / 2 + 1;
-      }
-      i = j + 1;
-    }
-    return r;
-  }
-
-  final rx = sira(x), ry = sira(y);
-  final mx = rx.reduce((a, b) => a + b) / rx.length, my = ry.reduce((a, b) => a + b) / ry.length;
-  var sxy = 0.0, sxx = 0.0, syy = 0.0;
-  for (var i = 0; i < rx.length; i++) {
-    sxy += (rx[i] - mx) * (ry[i] - my);
-    sxx += (rx[i] - mx) * (rx[i] - mx);
-    syy += (ry[i] - my) * (ry[i] - my);
-  }
-  return sxx == 0 || syy == 0 ? null : sxy / sqrt(sxx * syy);
 }
 
 class OnizlemeSayfasi extends StatefulWidget {
@@ -279,7 +290,7 @@ class _OnizlemeSayfasiState extends State<OnizlemeSayfasi> {
                       child: PageView(
                         controller: _sayfa,
                         onPageChanged: (i) => setState(() => _sayfaNo = i),
-                        children: [_HaritaSayfasi(v), _GrafikSayfasi(v), _PuanSayfasi(v, _puanla), _OzetSayfasi(v, ad)],
+                        children: [_HaritaSayfasi(v), _GrafikSayfasi(v), _PuanSayfasi(v, _puanla), _OzetSayfasi(v)],
                       ),
                     ),
                   ],
@@ -316,7 +327,7 @@ class _OnizlemeSayfasiState extends State<OnizlemeSayfasi> {
       );
 }
 
-// Altlık harita ve ortak katmanlar
+// Altlık harita: sade gri sokak haritası (puanlama.dart, sadeAltlik)
 class _Harita extends StatelessWidget {
   const _Harita({required this.noktalar, required this.katmanlar});
   final List<LatLng> noktalar;
@@ -337,11 +348,7 @@ class _Harita extends StatelessWidget {
         maxZoom: 19,
       ),
       children: [
-        TileLayer(
-          urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-          userAgentPackageName: 'tr.edu.yildiz.kaan_usta',
-          maxNativeZoom: 19,
-        ),
+        sadeAltlik(),
         ...katmanlar,
         const RichAttributionWidget(attributions: [TextSourceAttribution('Esri, HERE, Garmin, © OpenStreetMap katkıcıları')]),
       ],
@@ -349,29 +356,37 @@ class _Harita extends StatelessWidget {
   }
 }
 
-Widget _lejant(List<(Color, String)> ogeler, {Widget? ek}) => Container(
+Widget _lejant(List<(Color, String)> ogeler, {String? not}) => Container(
       width: double.infinity,
       color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Wrap(
-            spacing: 12,
-            runSpacing: 4,
+            spacing: 14,
+            runSpacing: 6,
             children: [
               for (final (renk, yazi) in ogeler)
                 Row(mainAxisSize: MainAxisSize.min, children: [
-                  Container(width: 14, height: 14, decoration: BoxDecoration(color: renk, borderRadius: BorderRadius.circular(3))),
-                  const SizedBox(width: 4),
-                  Text(yazi, style: const TextStyle(fontSize: 12)),
+                  Container(width: 22, height: 8, decoration: BoxDecoration(color: renk, borderRadius: BorderRadius.circular(4))),
+                  const SizedBox(width: 5),
+                  Text(yazi, style: const TextStyle(fontSize: 13)),
                 ]),
             ],
           ),
-          ?ek,
+          if (not != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text(not, style: const TextStyle(fontSize: 11.5, color: _gri))),
         ],
       ),
+    );
+
+// Çukur işareti: haritada küçük lacivert kare
+Marker _isaretIsareti(LatLng k) => Marker(
+      point: k,
+      width: 16,
+      height: 16,
+      child: Container(decoration: BoxDecoration(color: _lacivert, borderRadius: BorderRadius.circular(3), border: Border.all(color: Colors.white, width: 2))),
     );
 
 class _HaritaSayfasi extends StatelessWidget {
@@ -380,66 +395,31 @@ class _HaritaSayfasi extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Güzergâh sarsıntıya göre renkli: ardışık aynı renkli satırlar tek çizgi
-    final cizgiler = <Polyline>[];
-    List<LatLng> parca = [];
-    Color? renk;
-    for (var i = 0; i < v.satirlar.length; i++) {
-      final k = v.konum(i);
-      if (k == null) continue;
-      final r = _rmsRengi(v.satirlar[i].rms);
-      if (r != renk && parca.isNotEmpty) {
-        parca.add(k);
-        cizgiler.add(Polyline(points: parca, strokeWidth: 6, color: renk!));
-        parca = [];
-      }
-      renk = r;
-      parca.add(k);
-    }
-    if (parca.length > 1) cizgiler.add(Polyline(points: parca, strokeWidth: 6, color: renk!));
-    final uyarilar = [
-      for (var i = 0; i < v.satirlar.length; i++)
-        if (v.satirlar[i].uyari && v.konum(i) != null) v.konum(i)!,
-    ];
     final iz = v.iz;
     return Column(
       children: [
         Expanded(
           child: _Harita(noktalar: iz, katmanlar: [
-            PolylineLayer(polylines: [Polyline(points: iz, strokeWidth: 9, color: Colors.white), ...cizgiler]),
+            PolylineLayer(polylines: [
+              for (final b in v.bolumler)
+                Polyline(
+                  points: b.noktalar,
+                  strokeWidth: 8,
+                  color: b.rms == null ? const Color(0xFFADB5BD) : _Sinif.rms(b.rms!).renk,
+                  borderStrokeWidth: 1.5,
+                  borderColor: Colors.white,
+                ),
+            ]),
             CircleLayer(circles: [
-              for (final k in uyarilar) CircleMarker(point: k, radius: 5, color: Colors.white, borderColor: const Color(0xFFDC3545), borderStrokeWidth: 2.5),
-              if (iz.isNotEmpty) CircleMarker(point: iz.first, radius: 7, color: const Color(0xFF198754), borderColor: Colors.white, borderStrokeWidth: 2),
-              if (iz.isNotEmpty) CircleMarker(point: iz.last, radius: 7, color: Colors.black87, borderColor: Colors.white, borderStrokeWidth: 2),
+              if (iz.isNotEmpty) CircleMarker(point: iz.first, radius: 7, color: Colors.white, borderColor: Colors.black87, borderStrokeWidth: 3),
             ]),
-            MarkerLayer(markers: [
-              for (var n = 0; n < v.isaretler.length; n++)
-                if (v.isaretler[n].konum != null)
-                  Marker(
-                    point: v.isaretler[n].konum!,
-                    width: 26,
-                    height: 26,
-                    child: Container(
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(color: _lacivert, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.white, width: 2)),
-                      child: Text('${n + 1}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-            ]),
+            MarkerLayer(markers: [for (final i in v.isaretler) if (i.konum != null) _isaretIsareti(i.konum!)]),
           ]),
         ),
         _lejant([
-          for (var k = 0; k < 5; k++)
-            (_renkler[k], k == 0 ? '<${_rmsSinirlari[0].toStringAsFixed(0)}' : k == 4 ? '≥${_rmsSinirlari[3].toStringAsFixed(0)}' : '${_rmsSinirlari[k - 1].toStringAsFixed(0)}-${_rmsSinirlari[k].toStringAsFixed(0)}'),
-          (_lacivert, 'çukur işareti (${v.isaretler.length})'),
-          (const Color(0xFFDC3545), 'uygulama uyarısı (${uyarilar.length})'),
-        ],
-            ek: const Padding(
-              padding: EdgeInsets.only(top: 4),
-              child: Text('Renk: Dikey_RMS (m/s²), hız düzeltmesiz. Yeşil nokta başlangıç, siyah bitiş. '
-                  'Diğer sayfalar için sekmelere dokunun veya bu alanda kaydırın.',
-                  style: TextStyle(fontSize: 11, color: _gri)),
-            )),
+          for (final s in _Sinif.values) (s.renk, s.ad),
+          if (v.isaretler.isNotEmpty) (_lacivert, 'çukur işaretim'),
+        ], not: 'Her 25 m\'lik parçanın ortalama sarsıntısı. Beyaz halka başlangıç. Sayfa değiştirmek için sekmelere dokunun.'),
       ],
     );
   }
@@ -447,24 +427,13 @@ class _HaritaSayfasi extends StatelessWidget {
 
 // ---------------------------------------------------------------- grafikler (CustomPainter, ek paket yok)
 
-class _Seri {
-  const _Seri(this.noktalar, this.renk, {this.dagilim = false, this.yaricap = 2.6});
-  final List<Offset> noktalar; // y NaN ise çizgi kesilir
-  final Color renk;
-  final bool dagilim; // nokta bulutu
-  final double yaricap;
-}
-
 class _Cizim extends CustomPainter {
-  _Cizim({required this.seriler, required this.xEtiket, required this.yEtiket, this.dikeyler = const [], this.isaretNoktalari = const [],
-      this.uyariNoktalari = const [], this.xMin, this.xMax, this.xTamsayi = false});
-  final List<_Seri> seriler;
-  final String xEtiket, yEtiket;
-  final List<double> dikeyler; // basış anları (kesikli lacivert çizgi)
-  final List<Offset> isaretNoktalari; // işaretli çukur (lacivert kare)
-  final List<Offset> uyariNoktalari; // uygulama uyarısı (kırmızı halka)
-  final double? xMin, xMax;
-  final bool xTamsayi;
+  _Cizim({required this.noktalar, required this.renk, required this.yEtiket, this.isaretler = const [], this.bantlar = false});
+  final List<Offset> noktalar; // x: dakika; y NaN ise çizgi kesilir
+  final Color renk;
+  final String yEtiket;
+  final List<double> isaretler; // çukur işareti anları (dakika)
+  final bool bantlar; // sarsıntı sınıfı arka plan bantları
 
   static double _adim(double aralik, int hedef) {
     final ham = aralik / hedef;
@@ -475,88 +444,69 @@ class _Cizim extends CustomPainter {
     return 10 * us;
   }
 
-  void _yazi(Canvas c, String s, Offset o, {double boy = 10, Color renk = _gri, bool ortala = false, bool sag = false}) {
-    final tp = TextPainter(text: TextSpan(text: s, style: TextStyle(fontFamily: 'Roboto', fontSize: boy, color: renk)), textDirection: TextDirection.ltr)..layout();
+  void _yazi(Canvas c, String s, Offset o, {double boy = 10.5, bool ortala = false, bool sag = false}) {
+    final tp = TextPainter(
+        text: TextSpan(text: s, style: TextStyle(fontFamily: 'Roboto', fontSize: boy, color: _gri)), textDirection: TextDirection.ltr)
+      ..layout();
     tp.paint(c, o - Offset(ortala ? tp.width / 2 : (sag ? tp.width : 0), tp.height / 2));
   }
 
   @override
   void paint(Canvas c, Size size) {
-    final tum = [for (final s in seriler) ...s.noktalar.where((p) => p.dy.isFinite)];
-    if (tum.isEmpty) return;
-    const sol = 34.0, alt = 30.0, ust = 16.0, sagB = 8.0;
-    final x0 = xMin ?? tum.map((p) => p.dx).reduce(min), x1 = xMax ?? tum.map((p) => p.dx).reduce(max);
-    final yUst = max(1.0, [...tum.map((p) => p.dy), ...isaretNoktalari.map((p) => p.dy), ...uyariNoktalari.map((p) => p.dy)].reduce(max) * 1.08);
+    final gecerli = noktalar.where((p) => p.dy.isFinite).toList();
+    if (gecerli.isEmpty) return;
+    const sol = 30.0, alt = 32.0, ust = 8.0, sagB = 8.0;
+    final x1 = max(gecerli.last.dx, 0.1);
+    final yUst = max(bantlar ? 10.0 : 5.0, gecerli.map((p) => p.dy).reduce(max) * 1.1);
     final w = size.width - sol - sagB, h = size.height - alt - ust;
-    Offset ekran(double x, double y) => Offset(sol + (x1 == x0 ? 0.5 : (x - x0) / (x1 - x0)) * w, ust + h - (y / yUst).clamp(0, 1) * h);
+    Offset ekran(double x, double y) => Offset(sol + x / x1 * w, ust + h - (y / yUst).clamp(0, 1) * h);
+    if (bantlar) {
+      for (final (y0, y1, s) in [(0.0, 5.0, _Sinif.duzgun), (5.0, 8.0, _Sinif.orta), (8.0, yUst, _Sinif.sarsintili)]) {
+        c.drawRect(Rect.fromPoints(ekran(0, y0), ekran(x1, y1)), Paint()..color = s.renk.withValues(alpha: 0.10));
+      }
+    }
     final izgara = Paint()
       ..color = const Color(0xFFDEE2E6)
       ..strokeWidth = 1;
     final ya = _adim(yUst, 4);
     for (var y = 0.0; y <= yUst; y += ya) {
-      final p = ekran(x0, y);
+      final p = ekran(0, y);
       c.drawLine(Offset(sol, p.dy), Offset(sol + w, p.dy), izgara);
-      _yazi(c, _ondalik(y, ya < 1 ? 1 : 0), Offset(sol - 4, p.dy), sag: true);
+      _yazi(c, _ondalik(y, 0), Offset(sol - 4, p.dy), sag: true);
     }
-    final xa = xTamsayi ? 1.0 : _adim(x1 - x0, 5);
-    for (var x = (x0 / xa).ceil() * xa; x <= x1 + 1e-9; x += xa) {
+    final xa = _adim(x1, 5);
+    for (var x = 0.0; x <= x1 + 1e-9; x += xa) {
       final p = ekran(x, 0);
-      c.drawLine(Offset(p.dx, ust + h), Offset(p.dx, ust + h + 3), izgara..color = _gri);
-      _yazi(c, _ondalik(x, 0), Offset(p.dx, ust + h + 10), ortala: true);
+      _yazi(c, _ondalik(x, xa < 1 ? 1 : 0), Offset(p.dx, ust + h + 9), ortala: true);
     }
-    izgara.color = const Color(0xFFDEE2E6);
-    _yazi(c, xEtiket, Offset(sol + w / 2, size.height - 6), ortala: true, boy: 10.5);
-    _yazi(c, yEtiket, Offset(sol, 6), boy: 10.5, renk: Colors.black87);
-    // Basış anları
+    _yazi(c, 'süre (dakika)', Offset(sol + w / 2, size.height - 7), ortala: true);
     final kesik = Paint()
-      ..color = _lacivert.withValues(alpha: 0.6)
-      ..strokeWidth = 1;
-    for (final x in dikeyler) {
+      ..color = _lacivert
+      ..strokeWidth = 1.5;
+    for (final x in isaretler) {
       final px = ekran(x, 0).dx;
-      for (var y = ust; y < ust + h; y += 6) {
-        c.drawLine(Offset(px, y), Offset(px, min(y + 3, ust + h)), kesik);
-      }
+      c.drawLine(Offset(px, ust), Offset(px, ust + h), kesik..color = _lacivert.withValues(alpha: 0.35));
+      c.drawRect(Rect.fromCenter(center: Offset(px, ust + 4), width: 8, height: 8), Paint()..color = _lacivert);
     }
-    for (final s in seriler) {
-      final boya = Paint()
-        ..color = s.renk
-        ..strokeWidth = 1.6
-        ..style = PaintingStyle.stroke;
-      if (s.dagilim) {
-        boya.style = PaintingStyle.fill;
-        boya.color = s.renk.withValues(alpha: 0.45);
-        for (final p in s.noktalar) {
-          if (p.dy.isFinite) c.drawCircle(ekran(p.dx, p.dy), s.yaricap, boya);
-        }
+    final yol = Path();
+    var basla = true;
+    for (final p in noktalar) {
+      if (!p.dy.isFinite) {
+        basla = true;
         continue;
       }
-      final yol = Path();
-      var basla = true;
-      for (final p in s.noktalar) {
-        if (!p.dy.isFinite) {
-          basla = true;
-          continue;
-        }
-        final e = ekran(p.dx, p.dy);
-        basla ? yol.moveTo(e.dx, e.dy) : yol.lineTo(e.dx, e.dy);
-        basla = false;
-      }
-      c.drawPath(yol, boya);
+      final e = ekran(p.dx, p.dy);
+      basla ? yol.moveTo(e.dx, e.dy) : yol.lineTo(e.dx, e.dy);
+      basla = false;
     }
-    final halka = Paint()
-      ..color = const Color(0xFFDC3545)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8;
-    for (final p in uyariNoktalari) {
-      c.drawCircle(ekran(p.dx, p.dy), 5, halka);
-    }
-    final kare = Paint()
-      ..color = _lacivert
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    for (final p in isaretNoktalari) {
-      c.drawRect(Rect.fromCenter(center: ekran(p.dx, p.dy), width: 10, height: 10), kare);
-    }
+    c.drawPath(
+        yol,
+        Paint()
+          ..color = renk
+          ..strokeWidth = 2.2
+          ..style = PaintingStyle.stroke
+          ..strokeJoin = StrokeJoin.round);
+    _yazi(c, yEtiket, Offset(sol + 4, ust + 6));
   }
 
   @override
@@ -573,7 +523,7 @@ Widget _kart(String baslik, Widget icerik, {String? not}) => Card(
           Text(baslik, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _lacivert)),
           const SizedBox(height: 6),
           icerik,
-          if (not != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text(not, style: const TextStyle(fontSize: 11, color: _gri))),
+          if (not != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text(not, style: const TextStyle(fontSize: 11.5, color: _gri))),
         ]),
       ),
     );
@@ -586,87 +536,43 @@ class _GrafikSayfasi extends StatelessWidget {
   Widget build(BuildContext context) {
     if (v.satirlar.isEmpty) return const Center(child: Text('Kayıtta veri yok'));
     final t0 = v.satirlar.first.t;
-    double sn(DateTime t) => t.difference(t0).inMilliseconds / 1000;
-    final hiz = [for (final s in v.satirlar) Offset(sn(s.t), s.hiz ?? double.nan)];
-    final rms = [for (final s in v.satirlar) Offset(sn(s.t), s.rms)];
-    final basislar = [for (final i in v.isaretler) sn(i.basis.t)];
-    final cukurlar = [for (final i in v.isaretler) if (i.cukur != null) Offset(sn(i.cukur!.t), i.cukur!.rms)];
-    final uyarilar = [for (final s in v.satirlar) if (s.uyari) Offset(sn(s.t), s.rms)];
-    final dagilim = [for (final s in v.satirlar) if ((s.hiz ?? 0) >= 3) Offset(s.hiz!, s.rms)];
-    final xMax = sn(v.satirlar.last.t);
+    double dk(DateTime t) => t.difference(t0).inMilliseconds / 60000;
+    // 5 sn'lik (10 satır) kayan ortalama: tek tek tepeler değil, yolun genel sarsıntısı görünsün
+    final s = v.satirlar;
+    final hiz = [for (final x in s) Offset(dk(x.t), x.hiz ?? double.nan)];
+    final sarsinti = <Offset>[];
+    for (var i = 0; i < s.length; i++) {
+      final pencere = [for (var j = max(0, i - 5); j < min(s.length, i + 5); j++) if (s[j].hareket) s[j].rms];
+      sarsinti.add(Offset(dk(s[i].t), pencere.length < 3 ? double.nan : pencere.reduce((a, b) => a + b) / pencere.length));
+    }
+    final isaretler = [for (final i in v.isaretler) dk(i.t)];
     return ListView(
       padding: const EdgeInsets.only(bottom: 16),
       children: [
         _kart(
-          'Hız (km/h)',
+          'Sarsıntı',
+          SizedBox(
+            height: 190,
+            child: CustomPaint(
+              size: Size.infinite,
+              painter: _Cizim(noktalar: sarsinti, renk: const Color(0xFF343A40), yEtiket: 'm/s²', isaretler: isaretler, bantlar: true),
+            ),
+          ),
+          not: 'Dikey sarsıntının 5 sn\'lik ortalaması (duruşlar hariç). Arka plan: yeşil düzgün, turuncu orta, kırmızı sarsıntılı.'
+              '${isaretler.isEmpty ? '' : ' Lacivert çizgi: çukur işaretiniz.'}',
+        ),
+        _kart(
+          'Hız',
           SizedBox(
             height: 150,
             child: CustomPaint(
               size: Size.infinite,
-              painter: _Cizim(seriler: [_Seri(hiz, const Color(0xFF2F7ED8))], xEtiket: 'kayıt başından süre (s)', yEtiket: 'km/h',
-                  dikeyler: basislar, xMin: 0, xMax: xMax),
+              painter: _Cizim(noktalar: hiz, renk: const Color(0xFF2F7ED8), yEtiket: 'km/h', isaretler: isaretler),
             ),
           ),
-          not: v.test ? 'TEST SÜRÜŞÜ: hız sanaldır.' : 'Kesikli çizgi: çukur butonuna basış.',
-        ),
-        _kart(
-          'Dikey sarsıntı (Dikey_RMS, m/s²)',
-          SizedBox(
-            height: 170,
-            child: CustomPaint(
-              size: Size.infinite,
-              painter: _Cizim(seriler: [_Seri(rms, const Color(0xFFE8590C))], xEtiket: 'kayıt başından süre (s)', yEtiket: 'm/s²',
-                  dikeyler: basislar, isaretNoktalari: cukurlar, uyariNoktalari: uyarilar, xMin: 0, xMax: xMax),
-            ),
-          ),
-          not: 'Lacivert kare: işaretli çukur (basıştan önceki 5 sn\'deki en büyük tepe). Kırmızı halka: uygulamanın anlık uyarısı.',
-        ),
-        _kart(
-          'Hıza göre sarsıntı',
-          SizedBox(
-            height: 170,
-            child: CustomPaint(
-              size: Size.infinite,
-              painter: _Cizim(seriler: [_Seri(dagilim, const Color(0xFFE8590C), dagilim: true)], xEtiket: 'hız (km/h)', yEtiket: 'Dikey_RMS (m/s²)', xMin: 0),
-            ),
-          ),
-          not: 'Her nokta 0,5 sn\'lik bir satır (3 km/h altı hariç). Sarsıntı hem yüzeye hem hıza bağlıdır; hız düzeltmesi bilgisayardaki analizdedir.',
-        ),
-        _kart(
-          'Çukur işaretleri (${v.isaretler.length})',
-          v.isaretler.isEmpty
-              ? const Text('Bu kayıtta çukur işareti yok.', style: TextStyle(fontSize: 13))
-              : Column(children: [
-                  for (var n = 0; n < v.isaretler.length; n++) _isaretSatiri(n, v.isaretler[n], sn),
-                ]),
+          not: v.test ? 'TEST SÜRÜŞÜ: hız sanaldır.' : null,
         ),
       ],
-    );
-  }
-
-  Widget _isaretSatiri(int n, _Isaret i, double Function(DateTime) sn) {
-    final c = i.cukur;
-    final tepki = c == null ? null : i.basis.t.difference(c.t).inMilliseconds / 1000;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          width: 22,
-          height: 22,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(color: _lacivert, borderRadius: BorderRadius.circular(4)),
-          child: Text('${n + 1}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            '${_ondalik(sn(i.basis.t), 1)} s · ${i.basis.kaynak.isEmpty ? 'basış' : i.basis.kaynak}'
-            '${c == null ? '' : ' · tepe ${_ondalik(i.tepe!, 1)} m/s², ${_ondalik(tepki!, 1)} sn önce'}'
-            '${c != null && c.uyari ? ' · uygulama da uyardı' : ''}',
-            style: const TextStyle(fontSize: 12.5),
-          ),
-        ),
-      ]),
     );
   }
 }
@@ -678,8 +584,7 @@ class _PuanSayfasi extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final puanli = v.parcalar.where((p) => p.puan != null).toList();
-    if (puanli.isEmpty) {
+    if (!v.parcalar.any((p) => p.puan != null)) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -691,8 +596,16 @@ class _PuanSayfasi extends StatelessWidget {
         ),
       );
     }
-    final giren = puanli.where((p) => p.rms != null).toList();
-    final r = _spearman([for (final p in giren) p.puan!.toDouble()], [for (final p in giren) p.rms!]);
+    Widget hucre(String s, {bool kalin = false}) =>
+        Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: Text(s, style: TextStyle(fontSize: 13, fontWeight: kalin ? FontWeight.bold : null)));
+    Widget etiket(Color renk, String s) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(children: [
+            Container(width: 12, height: 12, decoration: BoxDecoration(color: renk, borderRadius: BorderRadius.circular(3))),
+            const SizedBox(width: 6),
+            Flexible(child: Text(s, style: const TextStyle(fontSize: 13))),
+          ]),
+        );
     return ListView(
       padding: const EdgeInsets.only(bottom: 16),
       children: [
@@ -705,58 +618,30 @@ class _PuanSayfasi extends StatelessWidget {
                 if (p.noktalar.length > 1)
                   Polyline(
                       points: p.noktalar,
-                      strokeWidth: 7,
+                      strokeWidth: 8,
                       color: p.puan == null ? const Color(0xFFADB5BD) : _puanRengi(p.puan!),
                       borderStrokeWidth: 1.5,
                       borderColor: Colors.white),
             ]),
           ]),
         ),
-        _lejant([for (var p = 1; p <= 5; p++) (_puanRengi(p), '$p ${['', 'çok sarsıntılı', 'sarsıntılı', 'orta', 'rahat', 'çok rahat'][p]}')]),
+        _lejant([for (var p = 1; p <= 5; p++) (_puanRengi(p), '$p ${_puanAdlari[p - 1]}')], not: 'Haritada parçalar verdiğiniz puanın renginde.'),
         _kart(
-          'Puan ve ölçülen sarsıntı',
-          SizedBox(
-            height: 170,
-            child: CustomPaint(
-              size: Size.infinite,
-              painter: _Cizim(
-                  seriler: [_Seri([for (final p in giren) Offset(p.puan!.toDouble(), p.rms!)], _lacivert, dagilim: true, yaricap: 6)],
-                  xEtiket: 'puan (1 çok sarsıntılı - 5 çok rahat)',
-                  yEtiket: 'medyan Dikey_RMS (m/s²)',
-                  xMin: 0.5,
-                  xMax: 5.5,
-                  xTamsayi: true),
-            ),
-          ),
-          not: r == null
-              ? 'Karşılaştırma için en az 3 puanlı parça gerekir.'
-              : 'Spearman r = ${_ondalik(r, 2)} (n = ${giren.length}; beklenen yön negatif). Basit gösterim: hız düzeltmesiz; '
-                  'hız düzeltmeli indeks ve anlamlılık testi bilgisayardaki analizde.',
-        ),
-        _kart(
-          'Parçalar',
+          'Puanınız ve ölçülen sarsıntı',
           Table(
-            columnWidths: const {0: FixedColumnWidth(44), 1: FlexColumnWidth(), 2: FlexColumnWidth(), 3: FlexColumnWidth(1.3)},
+            columnWidths: const {0: FixedColumnWidth(48), 1: FlexColumnWidth(1.2), 2: FlexColumnWidth()},
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             children: [
-              const TableRow(children: [
-                Text('Parça', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                Text('Uzunluk', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                Text('Puan', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                Text('Dikey_RMS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-              ]),
+              TableRow(children: [hucre('Parça', kalin: true), hucre('Puanınız', kalin: true), hucre('Ölçülen', kalin: true)]),
               for (final p in v.parcalar)
                 TableRow(children: [
-                  Text('${p.no}', style: const TextStyle(fontSize: 12.5)),
-                  Text('${p.uzunluk.round()} m', style: const TextStyle(fontSize: 12.5)),
-                  Row(children: [
-                    Container(width: 10, height: 10, color: p.puan == null ? const Color(0xFFADB5BD) : _puanRengi(p.puan!)),
-                    const SizedBox(width: 4),
-                    Text(p.puan?.toString() ?? '-', style: const TextStyle(fontSize: 12.5)),
-                  ]),
-                  Text(p.rms == null ? '-' : '${_ondalik(p.rms!, 2)} m/s²', style: const TextStyle(fontSize: 12.5)),
+                  hucre('${p.no}'),
+                  p.puan == null ? hucre('-') : etiket(_puanRengi(p.puan!), '${p.puan} ${_puanAdlari[p.puan! - 1]}'),
+                  p.rms == null ? hucre('-') : etiket(_Sinif.rms(p.rms!).renk, _Sinif.rms(p.rms!).ad),
                 ]),
             ],
           ),
+          not: 'Ölçülen: parçadaki ortalama sarsıntı (hız düzeltmesiz). Ayrıntılı karşılaştırma bilgisayardaki analizde.',
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -768,41 +653,30 @@ class _PuanSayfasi extends StatelessWidget {
 }
 
 class _OzetSayfasi extends StatelessWidget {
-  const _OzetSayfasi(this.v, this.ad);
+  const _OzetSayfasi(this.v);
   final _Veri v;
-  final String ad;
 
   @override
   Widget build(BuildContext context) {
     final s = v.satirlar;
     if (s.isEmpty) return const Center(child: Text('Kayıtta veri yok'));
     final sure = s.last.t.difference(s.first.t).inSeconds;
-    final hareket = s.where((x) => (x.hiz ?? 0) >= 3).toList();
-    final hizlar = [for (final x in s) if (x.hiz != null) x.hiz!];
-    double medyan(List<double> l) {
-      if (l.isEmpty) return double.nan;
-      final k = [...l]..sort();
-      return k[k.length ~/ 2];
+    final hareket = s.where((x) => x.hareket).toList();
+    final hiz = _medyan([for (final x in hareket) x.hiz!]);
+    // Yolun sarsıntı sınıflarına dağılımı (25 m'lik parçalar, uzunlukla ağırlıklı)
+    final pay = {for (final k in _Sinif.values) k: 0.0};
+    for (final b in v.bolumler) {
+      if (b.rms != null) pay[_Sinif.rms(b.rms!)] = pay[_Sinif.rms(b.rms!)]! + b.uzunluk;
     }
-
-    final kaynaklar = <String, int>{};
-    for (final i in v.isaretler) {
-      final k = i.basis.kaynak.isEmpty ? 'bilinmiyor' : i.basis.kaynak;
-      kaynaklar[k] = (kaynaklar[k] ?? 0) + 1;
-    }
-    final uyari = s.where((x) => x.uyari).length;
-    final isaretUyari = v.isaretler.where((i) => i.cukur?.uyari ?? false).length;
+    final toplam = pay.values.fold(0.0, (a, b) => a + b);
+    final puanli = v.parcalar.where((p) => p.puan != null).length;
     final satirlar = <(String, String)>[
       ('Süre', '${sure ~/ 60} dk ${sure % 60} sn'),
-      ('GPS ile yol', '~${v.mesafe.round()} m'),
-      ('En yüksek hız', hizlar.isEmpty ? '-' : '${_ondalik(hizlar.reduce(max), 1)} km/h'),
-      ('Hareket hâlinde medyan hız', hareket.isEmpty ? '-' : '${_ondalik(medyan([for (final x in hareket) x.hiz!]), 1)} km/h'),
-      ('Medyan Dikey_RMS (hareket)', hareket.isEmpty ? '-' : '${_ondalik(medyan([for (final x in hareket) x.rms]), 2)} m/s²'),
-      ('En büyük ivme tepesi', '${_ondalik(s.map((x) => x.tepe).reduce(max), 1)} m/s²'),
-      ('Çukur işareti', v.isaretler.isEmpty ? 'yok' : '${v.isaretler.length} (${kaynaklar.entries.map((e) => '${e.key} ${e.value}').join(', ')})'),
-      ('Uygulamanın anlık uyarısı', '$uyari satır${v.isaretler.isEmpty ? '' : '; işaretli çukurların $isaretUyari tanesinde'}'),
-      ('Puanlanan parça', v.parcalar.isEmpty ? 'puanlanmadı' : '${v.parcalar.where((p) => p.puan != null).length} / ${v.parcalar.length}'),
-      for (final a in ['Çukur modu', 'Scooter', 'Hava durumu', 'Cihaz'])
+      ('Yol', '~${v.mesafe.round()} m'),
+      ('Ortalama hız', hiz == null ? '-' : '${_ondalik(hiz, 0)} km/h'),
+      ('Çukur işaretim', '${v.isaretler.length}'),
+      ('Puanlanan parça', v.parcalar.isEmpty ? 'puanlanmadı' : '$puanli / ${v.parcalar.length}'),
+      for (final a in ['Scooter', 'Hava durumu'])
         if (v.bilgi[a] != null) (a, v.bilgi[a]!),
     ];
     return ListView(
@@ -813,31 +687,45 @@ class _OzetSayfasi extends StatelessWidget {
             margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: const Color(0xFFFFF3CD), borderRadius: BorderRadius.circular(10)),
-            child: const Text('TEST SÜRÜŞÜ: konum ve hız sanaldır (YTÜ Davutpaşa); sarsıntı gerçek ivmeölçerden.',
-                style: TextStyle(fontSize: 12.5)),
+            child: const Text('TEST SÜRÜŞÜ: konum ve hız sanaldır (YTÜ Davutpaşa); sarsıntı gerçek ivmeölçerden.', style: TextStyle(fontSize: 12.5)),
+          ),
+        if (toplam > 0)
+          _kart(
+            'Yolun durumu',
+            Column(children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Row(children: [
+                  for (final k in _Sinif.values)
+                    if (pay[k]! > 0) Expanded(flex: (pay[k]! / toplam * 1000).round(), child: Container(height: 18, color: k.renk)),
+                ]),
+              ),
+              const SizedBox(height: 8),
+              for (final k in _Sinif.values)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(children: [
+                    Container(width: 12, height: 12, decoration: BoxDecoration(color: k.renk, borderRadius: BorderRadius.circular(3))),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(k.ad, style: const TextStyle(fontSize: 13))),
+                    Text('%${(pay[k]! / toplam * 100).round()}  (~${pay[k]!.round()} m)', style: const TextStyle(fontSize: 13)),
+                  ]),
+                ),
+            ]),
           ),
         _kart(
           'Özet',
           Table(
-            columnWidths: const {0: FlexColumnWidth(1.1), 1: FlexColumnWidth(1.4)},
+            columnWidths: const {0: FlexColumnWidth(1), 1: FlexColumnWidth(1.5)},
             children: [
               for (final (a, b) in satirlar)
                 TableRow(children: [
-                  Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(a, style: const TextStyle(fontSize: 12.5, color: _gri))),
-                  Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(b, style: const TextStyle(fontSize: 12.5))),
+                  Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(a, style: const TextStyle(fontSize: 13, color: _gri))),
+                  Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text(b, style: const TextStyle(fontSize: 13))),
                 ]),
             ],
           ),
-          not: ad,
-        ),
-        _kart(
-          'Bu önizleme hakkında',
-          const Text(
-            'Telefonda gösterim içindir; ham ölçümleri olduğu gibi gösterir. Bilgisayardaki analiz bunlara ek olarak GPS\'i '
-            'OpenStreetMap yollarına oturtur, sarsıntıyı hıza göre düzeltir (sokak indeksi), darbeleri çevredeki sarsıntıya göre bulur, '
-            'işaretleri darbelerle eşleştirir ve puan-indeks ilişkisini test eder.',
-            style: TextStyle(fontSize: 12.5, height: 1.35),
-          ),
+          not: 'Telefondaki önizleme gösterim içindir; asıl analiz bilgisayardaki betiktedir.',
         ),
       ],
     );

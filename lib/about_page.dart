@@ -129,7 +129,7 @@ class AboutPage extends StatelessWidget {
           const _InfoCard(
             title: 'Test sürüşü (sanal GPS)',
             lines: [
-              'Ayarlar\'dan açılır. Gerçek GPS yerine konum YTÜ Davutpaşa Yerleşkesi\'nde 150 m yarıçaplı bir tur üzerinde, hız 4-20 km/h arasında üretilir; sarsıntı gerçek ivmeölçerden ölçülür.',
+              'Ayarlar\'dan açılır. Gerçek GPS yerine konum YTÜ Davutpaşa Yerleşkesi\'nin iç yollarında ~1,9 km\'lik bir tur üzerinde (başladığı yere döner), hız 4-20 km/h arasında üretilir; sarsıntı gerçek ivmeölçerden ölçülür.',
               'GPS\'i olmayan cihazda veya kapalı alanda uygulamayı denemek içindir. Kayıtlar test_ ile başlar, Kayıtlar listesinde TEST yazar; hava durumu alınmaz.',
               'Puanlamada en kısa parça 50 m yerine 5 m\'dir. Analiz betikleri klasör taramasında test kayıtlarını atlar. Tez verisi için kapalı tutun.',
             ],
@@ -141,7 +141,7 @@ class AboutPage extends StatelessWidget {
               'Her kayıt için mikromobilite_<tarih_saat>.csv (veri), ..._bilgi.txt (cihaz, sensör, ayarlar) ve puanlandıysa ..._puan.csv oluşur.',
               'Kayıt bitince dosyalar telefonun Belgeler/Mikromobilite klasörüne kopyalanır: dosya yöneticisinden ve USB ile bilgisayardan erişilir (Android 9 ve öncesinde ilk açılışta dosya izni istenir).',
               'Başlıktaki klasör simgesinden eski kayıtlar tekrar paylaşılabilir, puanlanabilir veya silinebilir. Uygulamadan silmek Belgeler\'deki kopyayı silmez.',
-              'Bir kayda dokununca önizleme açılır: sarsıntıya göre renkli harita, hız ve sarsıntı grafikleri, çukur işaretleri, puanlar ve özet. Gösterim içindir; asıl analiz bilgisayardaki betiktedir.',
+              'Bir kayda dokununca sade önizleme açılır: 25 m\'lik parçalarda üç renkli sarsıntı haritası (düzgün / orta / sarsıntılı), sarsıntı ve hız grafikleri, çukur işaretleri, puanlar ve özet. Gösterim içindir; asıl analiz bilgisayardaki betiktedir.',
             ],
           ),
           const _InfoCard(

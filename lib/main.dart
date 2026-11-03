@@ -15,6 +15,7 @@ import 'device_info.dart';
 import 'hava_durumu.dart';
 import 'puanlama.dart';
 import 'recordings_page.dart';
+import 'test_surusu.dart';
 
 void main() {
   runApp(const MyApp());
@@ -63,15 +64,9 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   bool _initializingLocation = false;
 
   // TEST SÜRÜŞÜ (Ayarlar): gerçek GPS yerine sanal konum ve hız üretilir; ivmeölçer gerçektir.
-  // Güzergâh YTÜ Davutpaşa Yerleşkesi içinde 150 m yarıçaplı bir dairedir (merkez ve dairenin tamamı OSM'deki
-  // yerleşke sınırının içinde).
+  // Güzergâh YTÜ Davutpaşa Yerleşkesi iç yollarında kapalı bir turdur (test_surusu.dart).
   bool _testSurusu = false;
   Timer? _simTimer;
-  int _simTick = 0;
-  double _simAci = 0.0; // sanal güzergâhtaki (daire) konum açısı, radyan
-  static const double _simMerkezEnlem = 41.0245;
-  static const double _simMerkezBoylam = 28.8895;
-  static const double _simYaricap = 150.0; // m
 
   // Harita (Esri Light Gray Canvas / flutter_map): o anki ham GPS konumunu takip eder
   final MapController _mapController = MapController();
@@ -417,9 +412,9 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     }
   }
 
-  // Sanal GPS: 0,5 sn'de bir, daire üzerinde ilerleyen konum ve değişken hız. Her 60 sn'nin ilk 6 sn'si duruştur.
+  // Sanal GPS: 0,5 sn'de bir, kampüs turunda ilerleyen konum ve değişken hız (SanalTur)
   void _startSimulation() {
-    _simTick = 0;
+    final tur = SanalTur();
     if (mounted) {
       setState(() {
         _gpsStatus = 'TEST SÜRÜŞÜ: sanal GPS başlatılıyor...';
@@ -428,19 +423,16 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     }
     _simTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
       if (!mounted) return;
-      _simTick++;
-      final double dongu = (_simTick * 0.5) % 60; // sn
-      final double hizKmh = dongu < 6 ? 0.0 : 12.0 + 8.0 * sin(dongu / 60 * 2 * pi); // 4-20 km/h
-      _simAci += (hizKmh / 3.6 * 0.5) / _simYaricap;
+      tur.ilerle(0.5);
       final now = DateTime.now();
       setState(() {
         _gpsStatus = '';
         _rejectedAccuracy = null;
-        currentLat = _simMerkezEnlem + _simYaricap * cos(_simAci) / 111320.0;
-        currentLon = _simMerkezBoylam + _simYaricap * sin(_simAci) / (111320.0 * cos(_simMerkezEnlem * pi / 180));
+        currentLat = tur.konum.latitude;
+        currentLon = tur.konum.longitude;
         currentAccuracy = 5.0;
-        currentRawSpeed = hizKmh;
-        currentFusedSpeed = hizKmh * 0.97;
+        currentRawSpeed = tur.hizKmh;
+        currentFusedSpeed = tur.hizKmh * 0.97;
         lastFixTime = now;
         lastFusedFixTime = now;
       });

@@ -115,17 +115,16 @@ sürücü o parçadan geçişin ne kadar rahat olduğunu puanlar:
 
 ## Kayıt önizlemesi (telefonda, gösterim için)
 
-Kayıtlar sayfasında bir kayda dokununca önizleme açılır (test sürüşleri dahil). Sekmelere dokunarak veya kaydırarak:
+Kayıtlar sayfasında bir kayda dokununca sade bir önizleme açılır (test sürüşleri dahil). Sekmelere dokunarak veya kaydırarak:
 
-- **Harita:** güzergâh Dikey_RMS'e göre renkli (yeşil < 3 ... kırmızı ≥ 9 m/s²), çukur işaretleri numaralı lacivert kare,
-  uygulamanın anlık uyarıları kırmızı halka. Konum GPS gecikmesine göre 1 sn düzeltilir.
-- **Grafikler:** zamana göre hız ve Dikey_RMS (basış anları kesikli çizgi, işaretli çukur = basıştan önceki 5 sn'deki en büyük tepe),
-  hıza göre sarsıntı dağılımı, işaret listesi (kaynak, tepe, tepki süresi).
-- **Puanlar:** parçalar puan rengiyle haritada, puan - medyan Dikey_RMS grafiği ve basit Spearman r, parça tablosu.
-- **Özet:** süre, yol, hız, sarsıntı, işaret / uyarı sayıları, `_bilgi.txt` etiketleri.
+- **Harita:** güzergâh 25 m'lik parçalara bölünür; her parça ortalama dikey sarsıntısına göre üç renkten birini alır
+  (yeşil düzgün < 5, turuncu orta 5-8, kırmızı sarsıntılı ≥ 8 m/s²). Çukur işaretleri lacivert kare. Altlık gri sokak haritası.
+- **Grafikler:** sarsıntının 5 sn'lik ortalaması (arka planda üç sınıf) ve hız; çukur işaretleri dikey çizgi.
+- **Puanlar:** parçalar puan rengiyle haritada; her parça için puanınız ve ölçülen sarsıntı sınıfı yan yana.
+- **Özet:** yolun düzgün / orta / sarsıntılı payı, süre, yol, hız, işaret ve puan sayıları, scooter, hava durumu.
 
-Önizleme ham değerleri gösterir; haritaya oturtma, hız düzeltmeli indeks, çevreye göre darbe tespiti ve anlamlılık testi
-bilgisayardaki analizdedir. CSV'yi Excel vb. ile açma düğmesi önizlemenin üst çubuğundadır.
+Uygulamanın anlık uyarıları ve tek tek sarsıntı tepeleri önizlemede gösterilmez. Haritaya oturtma, hız düzeltmeli indeks,
+darbe tespiti ve istatistik bilgisayardaki analizdedir. CSV'yi Excel vb. ile açma düğmesi önizlemenin üst çubuğundadır.
 
 ## Ayarlar ve kayıt etiketleri
 
@@ -138,8 +137,8 @@ servisinden alınır ve `_bilgi.txt`'ye yazılır. Konum ~1 km'ye yuvarlanarak g
 ## Test sürüşü (Ayarlar, sanal GPS)
 
 GPS'i olmayan bir cihazda (ör. yalnızca Wi-Fi tablet) veya kapalı alanda uygulamayı denemek için. Açılınca gerçek GPS
-kullanılmaz: konum YTÜ Davutpaşa Yerleşkesi içinde 150 m yarıçaplı bir daire üzerinde ilerler, hız 4-20 km/h arasında değişir
-(dakikada bir 6 sn duruş). **Sarsıntı gerçek ivmeölçerden ölçülür**: telefonu sallayarak çukur işareti, uyarı ve puanlama denenebilir.
+kullanılmaz: konum YTÜ Davutpaşa Yerleşkesi'nin iç yollarını izleyerek orta bloğun çevresinde ~1,9 km'lik bir tur atar
+(OpenStreetMap yolları) ve başladığı yere döner; orada 6 sn durup yeni tura başlar. Hız 4-20 km/h arasında değişir. **Sarsıntı gerçek ivmeölçerden ölçülür**: telefonu sallayarak çukur işareti, uyarı ve puanlama denenebilir.
 
 - Kayıtlar `test_mikromobilite_<tarih_saat>.csv` adıyla oluşur, Kayıtlar listesinde **TEST** yazar; `_bilgi.txt`'ye
   "TEST SÜRÜŞÜ" satırı eklenir, hava durumu alınmaz.

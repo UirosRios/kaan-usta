@@ -10,6 +10,23 @@ import 'package:latlong2/latlong.dart';
 // puan ölçümden bağımsız bir referans olsun. Puanlar kaydın yanına <kayıt>_puan.csv olarak yazılır; analiz betiği
 // her parçanın hız düzeltmeli sarsıntı indeksini puanla karşılaştırır.
 
+// Sade altlık: Esri sokak haritası griye çevrilip açılır (sarı yollar göz yormasın, renkli çizgiler öne çıksın).
+// Gri Canvas altlığı 16. seviyeden sonra bulanıklaştığı için renkli haritanın griye çevrilmişi kullanılır; sokak adları
+// 19. seviyeye kadar keskin kalır. Masaüstü analiz haritasındaki "sade" altlıkla aynı yaklaşım.
+Widget sadeAltlik() => ColorFiltered(
+      colorFilter: const ColorFilter.matrix(<double>[
+        0.17, 0.57, 0.06, 0, 70, //
+        0.17, 0.57, 0.06, 0, 70,
+        0.17, 0.57, 0.06, 0, 70,
+        0, 0, 0, 1, 0,
+      ]),
+      child: TileLayer(
+        urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+        userAgentPackageName: 'tr.edu.yildiz.kaan_usta',
+        maxNativeZoom: 19,
+      ),
+    );
+
 // Kayda ait puan dosyası (aynı ad + _puan.csv)
 File puanFileFor(File csv) => File(csv.path.replaceAll(RegExp(r'\.csv$'), '_puan.csv'));
 
@@ -296,12 +313,8 @@ class _PuanlamaSayfasiState extends State<PuanlamaSayfasi> {
         },
       ),
       children: [
-        // Sokak adları görünsün diye renkli sokak haritası. Ölçülen sarsıntı haritada yoktur (kör puanlama).
-        TileLayer(
-          urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-          userAgentPackageName: 'tr.edu.yildiz.kaan_usta',
-          maxNativeZoom: 19,
-        ),
+        // Sokak adları görünen sade (gri) altlık. Ölçülen sarsıntı haritada yoktur (kör puanlama).
+        sadeAltlik(),
         PolylineLayer(polylines: [
           Polyline(points: _iz, strokeWidth: 3, color: const Color(0x99495057)),
           Polyline(points: p.noktalar, strokeWidth: 8, color: const Color(0xFF0D6EFD), borderStrokeWidth: 2, borderColor: Colors.white),

@@ -185,8 +185,8 @@ class _AyarlarPageState extends State<AyarlarPage> {
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Sanal GPS kullan', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                     subtitle: const Text(
-                      'Konum YTÜ Davutpaşa Yerleşkesi\'nde 150 m yarıçaplı bir tur üzerinde, hız 4-20 km/h arasında üretilir '
-                      '(dakikada bir 6 sn duruş). Sarsıntı gerçek ivmeölçerden ölçülür. GPS\'i olmayan cihazda veya kapalı '
+                      'Konum YTÜ Davutpaşa Yerleşkesi\'nin iç yollarında ~1,9 km\'lik bir tur üzerinde üretilir: başladığı '
+                      'yere dönünce 6 sn durup yeni tura başlar, hız 4-20 km/h. Sarsıntı gerçek ivmeölçerden ölçülür. GPS\'i olmayan cihazda veya kapalı '
                       'alanda uygulamayı denemek içindir. Kayıtlar "test_" ile başlar, bilgi dosyasında TEST SÜRÜŞÜ yazar, '
                       'analiz betikleri klasör taramasında bunları atlar. Puanlamada parçalar 50 m yerine 5 m\'den başlar. '
                       'Tez verisi için kapalı tutun.',
