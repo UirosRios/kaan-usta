@@ -63,7 +63,7 @@ class KayitServisi : Service() {
                 acquire(6 * 60 * 60 * 1000L) // en fazla 6 saat
             }
         }
-        tuslariDinle()
+        if (intent?.getBooleanExtra(TUSLAR, false) == true) tuslariDinle()
         return START_NOT_STICKY
     }
 
@@ -177,6 +177,8 @@ class KayitServisi : Service() {
     companion object {
         private const val KANAL = "kayit"
         private const val BILDIRIM_NO = 1
+
+        const val TUSLAR = "tuslar" // Intent ekstrası: tuşlar çukur işareti olsun mu
 
         // İşaretin kaynağı (CSV'de Isaret_Kaynak): ekran ve tus telefonu sarsar, kumanda ve kulaklik sarsmaz
         const val KAYNAK_TUS = "tus"

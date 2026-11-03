@@ -47,12 +47,25 @@ Sokaklara göre sarsıntı sıralaması da çıkarır. Birden fazla sürüş `an
 yol kalitesi haritası ve tekrar eden darbe noktaları elde edilir. Ayrıntılar: [analiz/README.md](analiz/README.md).
 
 Python kurmadan kullanmak için **Windows uygulaması** (`KaanUstaAnaliz.exe`, Actions → "Windows Uygulaması Derle" → Artifacts):
-CSV ve `_bilgi.txt` dosyaları pencereye sürüklenir, tek düğmeyle analiz / birleştirme yapılır. Betikler uygulamanın içinde gelir;
+CSV, `_bilgi.txt` ve `_puan.csv` dosyaları pencereye sürüklenir, tek düğmeyle analiz / birleştirme yapılır. Betikler uygulamanın içinde gelir;
 değiştiklerinde uygulama yeniden indirilmeden **GitHub'dan güncelle** veya **Betik dosyası yükle** ile yenilenir.
+
+## Kayıt sırasında çukur: üç mod (Ayarlar)
+
+| Mod | Sürücü ne görür / yapar | Ne zaman |
+|---|---|---|
+| **Çukurları ben işaretlerim** (varsayılan) | ÇUKUR butonu, ses tuşu, kumanda veya kulaklıkla işaretler; otomatik uyarı **gösterilmez** | Doğrulama sürüşleri |
+| **Otomatik çukur uyarısı** | Sert darbede ekran kırmızı yanar, sesli uyarı; işaret butonu yok | Gösterim, uyarının denenmesi |
+| **Yalnızca ölçüm** | Hiçbiri | Ekrana dokunmadan ölçüm |
+
+- **Neden işaret modunda uyarı yok:** Uyarıyı gören sürücü uyarı geldiği için basar; işaretler ölçümden bağımsız olmaz ve
+  doğrulama değerini yitirir. Uyarıyı görmeyen sürücünün işaretleri bağımsız bir referanstır.
+- Her modda uygulamanın otomatik tespiti CSV'nin `Cukur` sütununa **sessizce** yazılır; analiz betiği sürücünün işaretleriyle karşılaştırır.
+  Seçilen mod `_bilgi.txt`'ye yazılır.
 
 ## Anlık çukur uyarısı
 
-Kayıt sırasında 0,5 saniyelik penceredeki en büyük dikey ivme (|Dikey_Min| veya Dikey_Max) **35 m/s²**'yi aşarsa
+Yalnızca **Otomatik çukur uyarısı** modunda: kayıt sırasında 0,5 saniyelik penceredeki en büyük dikey ivme (|Dikey_Min| veya Dikey_Max) **35 m/s²**'yi aşarsa
 ve GPS hızı 3 km/h'in üstündeyse ekrandaki sarsıntı kartı 1,5 saniye **kırmızı yanar** ve **sesli uyarı** verilir, CSV'de o satırın `Cukur`
 sütununa `1` yazılır. Kartın altında bu kayıttaki uyarı sayısı (UYARI) görünür.
 
@@ -65,7 +78,7 @@ sütununa `1` yazılır. Kartın altında bu kayıttaki uyarı sayısı (UYARI) 
 
 ## Çukur işaretleme (doğrulama için)
 
-Kayıt sırasında ekranda büyük turuncu **ÇUKUR** butonu çıkar. Sürücü çukurdan geçince işaretler; kısa bir çift bip duyulur
+**Çukurları ben işaretlerim** modunda kayıt sırasında ekranda büyük turuncu **ÇUKUR** butonu çıkar. Sürücü çukurdan geçince işaretler; kısa bir çift bip duyulur
 ve o an CSV'deki `Isaret` ve `Isaret_Kaynak` sütunlarına yazılır. Analiz betiği basıştan önceki 5 saniyedeki sarsıntı tepesini
 bularak çukurun anını ve konumunu çıkarır ve otomatik darbe tespitinin bu işaretlerin kaçını bulduğunu raporlar.
 İşaretler sistemin bağımsız bir referansla karşılaştırılması (doğrulama) içindir.
@@ -80,11 +93,30 @@ bularak çukurun anını ve konumunu çıkarır ve otomatik darbe tespitinin bu 
 - **Titreşim yok:** Geri bildirim yalnızca sesle verilir; titreşim motoru ivmeölçere karışırdı.
 - **Çift basma:** 1 saniye içindeki ikinci basış sayılmaz.
 - **Durdurma:** Kayıt sırasında **DURDUR** butonu, ÇUKUR butonuna basarken yanlışlıkla kaydı bitirmesin diye basılı tutularak çalışır.
+- Diğer modlarda buton çıkmaz, tuşlar normal çalışır.
+
+## Sürüş sonrası konfor puanlaması (doğrulama için)
+
+DURDUR'dan sonra **Sürüşü puanla** ekranı açılır. Güzergâh dönüş noktalarından parçalara bölünür (kabaca her sokak bir parça;
+uzun düz yollar en fazla ~200 m, en kısa parça 50 m). Haritada sırayla her parça mavi gösterilir (yeşil nokta başı, kırmızı sonu);
+sürücü o parçadan geçişin ne kadar rahat olduğunu puanlar:
+
+| 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|
+| Çok sarsıntılı | Sarsıntılı | Orta | Rahat | Çok rahat |
+
+- **Kör puanlama:** Haritada ölçülen sarsıntı gösterilmez; puan ölçümden bağımsız olmalıdır.
+- **Hatırlamıyorum** seçilebilir, **Geri** ile önceki parça düzeltilebilir. **Sonra** ile geçilirse Kayıtlar sayfasındaki
+  **yıldız** simgesinden sonradan puanlanır (puanlar değiştirilebilir). Sürüş akılda tazeyken puanlamak önerilir.
+- Puanlar `mikromobilite_<tarih_saat>_puan.csv` dosyasına yazılır: parça no, başlangıç / bitiş zamanı ve konumu, uzunluk, puan,
+  durum (`puanlandi` / `hatirlamiyorum` / `puanlanmadi`), puanlama zamanı.
+- Analiz betiği her parçanın hız düzeltmeli sarsıntı indeksini puanla karşılaştırır (Spearman sıra korelasyonu); birleştirme bütün
+  sürüşlerin parçalarını birlikte değerlendirir. Ayrıntı: [analiz/README.md](analiz/README.md).
 
 ## Ayarlar ve kayıt etiketleri
 
 Başlıktaki **dişli** simgesinden açılan Ayarlar sayfasında kullanılan scooter (marka / model) bir kez yazılır; her kaydın
-`_bilgi.txt` dosyasına otomatik eklenir. Şartlar değişince buradan güncellenir.
+`_bilgi.txt` dosyasına otomatik eklenir. Şartlar değişince buradan güncellenir. Kayıt sırasında çukur modu da buradan seçilir (yukarıda).
 
 Kayıt başında internet ve GPS konumu varsa **hava durumu** (durum, sıcaklık, yağış, rüzgâr, nem) [Open-Meteo](https://open-meteo.com)
 servisinden alınır ve `_bilgi.txt`'ye yazılır. Konum ~1 km'ye yuvarlanarak gönderilir. Alınamazsa hava durumu satırı yazılmaz.
@@ -92,10 +124,15 @@ servisinden alınır ve `_bilgi.txt`'ye yazılır. Konum ~1 km'ye yuvarlanarak g
 ## Kayıt dosyaları
 
 - Veriler kayıt sırasında **5 saniyede bir** dosyaya yazılır; uygulama kapanırsa en fazla son 5 saniye kaybolur.
-- Her kayıt iki dosyadır: `mikromobilite_<tarih_saat>.csv` (veri) ve `..._bilgi.txt`
-  (telefon modeli, Android ve uygulama sürümü, sensör adları/çözünürlük/ölçüm aralığı, ölçüm ayarları).
-- Uygulamada başlıktaki **klasör** simgesinden eski kayıtlar tekrar paylaşılabilir veya silinebilir.
-- Klasör: `Android/data/tr.edu.yildiz.kaan_usta/files/kayitlar` (USB ile bilgisayardan da erişilebilir).
+- Her kayıt `mikromobilite_<tarih_saat>.csv` (veri), `..._bilgi.txt` (telefon modeli, Android ve uygulama sürümü,
+  sensör adları/çözünürlük/ölçüm aralığı, ölçüm ayarları, çukur modu) ve puanlandıysa `..._puan.csv` dosyalarıdır.
+- **Telefonda erişilebilir kopya:** Kayıt bitince (ve puanlama sonrası) dosyalar telefonun **Belgeler/Mikromobilite**
+  (`Documents/Mikromobilite`) klasörüne kopyalanır: dosya yöneticisinden açılır, USB ile bilgisayara alınır. Android 10 ve sonrasında
+  izin gerekmez; Android 9 ve öncesinde ilk açılışta dosya izni istenir. Daha önceki kayıtlar da uygulama açılınca kopyalanır.
+  Kayıtlar sayfasının üstündeki klasör-ok simgesi hepsini yeniden kopyalar.
+- Uygulamada başlıktaki **klasör** simgesinden eski kayıtlar tekrar paylaşılabilir, puanlanabilir veya silinebilir
+  (uygulamadan silmek Belgeler'deki kopyayı silmez).
+- Uygulamanın kendi klasörü: `Android/data/tr.edu.yildiz.kaan_usta/files/kayitlar` (Android 11 ve sonrasında dosya yöneticileri göstermez).
 
 ## Kullanılan sensörler
 

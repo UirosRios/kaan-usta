@@ -1,6 +1,8 @@
 package tr.edu.yildiz.kaan_usta
 
 import android.annotation.SuppressLint
+import android.content.ContentUris
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -12,20 +14,23 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.provider.MediaStore
 import android.view.KeyEvent
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 
 // Ham GPS: Fused / birleşik konum servisini atlayıp doğrudan GPS donanımını (GPS_PROVIDER) dinler.
 // Hız, GNSS yongasının Doppler ölçümünden gelir; yumuşatma yapılmaz.
 class MainActivity : FlutterActivity() {
     private var listener: LocationListener? = null
     private var gnssCallback: Any? = null // GnssStatus.Callback (Android 7+)
-    private var kayitta = false // kayıt sürerken tuşlar çukur işareti olur
+    private var tuslarIsaret = false // kayıt "çukurları ben işaretlerim" modundayken tuşlar çukur işareti olur
     private var isaretKanali: MethodChannel? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -99,7 +104,8 @@ class MainActivity : FlutterActivity() {
                 val intent = Intent(this, KayitServisi::class.java)
                 when (call.method) {
                     "baslat" -> {
-                        kayitta = true
+                        tuslarIsaret = call.argument<Boolean>("tuslar") ?: false
+                        intent.putExtra(KayitServisi.TUSLAR, tuslarIsaret)
                         // Android 13+: bildirim izni (verilmezse hizmet yine çalışır, yalnızca bildirim görünmez)
                         if (Build.VERSION.SDK_INT >= 33 &&
                             checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED
@@ -121,12 +127,39 @@ class MainActivity : FlutterActivity() {
                         }
                     }
                     "durdur" -> {
-                        kayitta = false
+                        tuslarIsaret = false
                         stopService(intent)
                         result.success(true)
                     }
                     else -> result.notImplemented()
                 }
+            }
+
+        // Kayıtları telefonun Belgeler/Mikromobilite klasörüne kopyala (dosya yöneticisinden ve USB ile görünür).
+        // Kayıt uygulamanın kendi klasörüne yazılır; Android 11+ o klasörü başka uygulamalara göstermez.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "kaan_usta/dosya")
+            .setMethodCallHandler { call, result ->
+                if (call.method != "disaAktar") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+                val yollar = call.argument<List<String>>("yollar") ?: emptyList()
+                val uzerineYaz = call.argument<Boolean>("uzerineYaz") ?: true
+                if (Build.VERSION.SDK_INT in 23..28 &&
+                    checkSelfPermission(YAZMA_IZNI) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    requestPermissions(arrayOf(YAZMA_IZNI), 2)
+                    result.success(mapOf("kopyalanan" to 0, "izin" to false))
+                    return@setMethodCallHandler
+                }
+                Thread {
+                    val yanit: Map<String, Any?> = try {
+                        mapOf("kopyalanan" to disaAktar(yollar, uzerineYaz), "izin" to true)
+                    } catch (e: Exception) {
+                        mapOf("kopyalanan" to 0, "izin" to true, "hata" to e.message)
+                    }
+                    runOnUiThread { result.success(yanit) }
+                }.start()
             }
 
         // Cihaz ve sensör bilgisi: her kaydın _bilgi.txt dosyasına ve Teknik Bilgi sayfasına yazılır
@@ -137,6 +170,8 @@ class MainActivity : FlutterActivity() {
     }
 
     companion object {
+        private const val DISA_KLASOR = "Documents/Mikromobilite/"
+        private const val YAZMA_IZNI = "android.permission.WRITE_EXTERNAL_STORAGE"
         private val MEDYA_TUSLARI = setOf(
             KeyEvent.KEYCODE_HEADSETHOOK, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY,
             KeyEvent.KEYCODE_MEDIA_PAUSE, KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_MEDIA_PREVIOUS,
@@ -145,6 +180,44 @@ class MainActivity : FlutterActivity() {
             KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_ENTER,
             KeyEvent.KEYCODE_NUMPAD_ENTER, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_CAMERA,
         )
+    }
+
+    // Kopyalanan dosya sayısı. uzerineYaz = false: zaten kopyalanmış dosyalar atlanır.
+    private fun disaAktar(yollar: List<String>, uzerineYaz: Boolean): Int {
+        var sayi = 0
+        if (Build.VERSION.SDK_INT >= 29) {
+            val cr = contentResolver
+            val koleksiyon = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            for (yol in yollar) {
+                val f = File(yol)
+                if (!f.isFile) continue
+                val mevcut = cr.query(
+                    koleksiyon, arrayOf(MediaStore.MediaColumns._ID),
+                    "${MediaStore.MediaColumns.RELATIVE_PATH}=? AND ${MediaStore.MediaColumns.DISPLAY_NAME}=?",
+                    arrayOf(DISA_KLASOR, f.name), null,
+                )?.use { c -> if (c.moveToFirst()) ContentUris.withAppendedId(koleksiyon, c.getLong(0)) else null }
+                if (mevcut != null && !uzerineYaz) continue
+                val uri = mevcut ?: cr.insert(koleksiyon, ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, f.name)
+                    put(MediaStore.MediaColumns.MIME_TYPE, if (f.name.endsWith(".csv")) "text/csv" else "text/plain")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, DISA_KLASOR)
+                }) ?: continue
+                cr.openOutputStream(uri, "wt")?.use { cikis -> f.inputStream().use { it.copyTo(cikis) } } ?: continue
+                sayi++
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            val hedef = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "Mikromobilite")
+            hedef.mkdirs()
+            for (yol in yollar) {
+                val f = File(yol)
+                val h = File(hedef, f.name)
+                if (!f.isFile || (h.exists() && !uzerineYaz)) continue
+                f.copyTo(h, overwrite = true)
+                sayi++
+            }
+        }
+        return sayi
     }
 
     @Suppress("DEPRECATION")
@@ -173,9 +246,9 @@ class MainActivity : FlutterActivity() {
     }
 
     // Ekran açıkken: telefonun ses tuşları, Bluetooth kumanda (çoğu ses açma veya Enter gönderir) ve kulaklık tuşu.
-    // Kayıt sırasında bu tuşlar çukur işareti olur ve başka işe yaramaz; kayıt yokken normal çalışır.
+    // İşaret modunda kayıt sürerken bu tuşlar çukur işareti olur ve başka işe yaramaz; diğer zamanlarda normal çalışır.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (kayitta && event.keyCode in ISARET_TUSLARI) {
+        if (tuslarIsaret && event.keyCode in ISARET_TUSLARI) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) KayitServisi.isaretBildir(kaynak(event))
             return true
         }

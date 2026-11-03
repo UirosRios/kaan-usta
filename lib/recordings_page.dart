@@ -1,11 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'puanlama.dart';
 
-// Kayıt klasörü: Android/data/<uygulama>/files/kayitlar
-// Telefon USB ile bilgisayara bağlanınca da bu klasörden dosyalar kopyalanabilir.
+// Kayıt klasörü: Android/data/<uygulama>/files/kayitlar. Kayıt bitince dosyalar telefonun
+// Belgeler/Mikromobilite klasörüne de kopyalanır (telefonToKopyala): dosya yöneticisinden ve USB ile görünür.
 Future<Directory> recordingsDirectory() async {
   final base = await getExternalStorageDirectory() ?? await getApplicationDocumentsDirectory();
   final dir = Directory('${base.path}/kayitlar');
@@ -19,11 +21,45 @@ String? aktifKayitYolu;
 // Kayda ait cihaz/sensör bilgi dosyası (aynı ad + _bilgi.txt)
 File infoFileFor(File csv) => File(csv.path.replaceAll(RegExp(r'\.csv$'), '_bilgi.txt'));
 
-// CSV ve varsa bilgi dosyasını birlikte paylaş
+// Bir kaydın var olan dosyaları: CSV, _bilgi.txt, _puan.csv
+Future<List<File>> kayitDosyalari(File csv) async =>
+    [for (final f in [csv, infoFileFor(csv), puanFileFor(csv)]) if (await f.exists()) f];
+
+// CSV, bilgi ve varsa puan dosyasını birlikte paylaş
 Future<void> shareRecording(File csv) async {
-  final info = infoFileFor(csv);
-  final files = [XFile(csv.path), if (await info.exists()) XFile(info.path)];
+  final files = [for (final f in await kayitDosyalari(csv)) XFile(f.path)];
   await SharePlus.instance.share(ShareParams(files: files, text: 'Tez Sensör Verisi (CSV) - KAAN USTA'));
+}
+
+// Telefonun Belgeler/Mikromobilite klasörü (MainActivity.kt)
+const String telefonKlasoru = 'Belgeler/Mikromobilite';
+const MethodChannel _dosyaKanali = MethodChannel('kaan_usta/dosya');
+
+// Dosyaları Belgeler/Mikromobilite klasörüne kopyala. uzerineYaz = false: önceden kopyalananlar atlanır.
+// Sorun varsa kullanıcıya gösterilecek açıklama, yoksa null döner.
+Future<String?> telefonaKopyala(List<File> dosyalar, {bool uzerineYaz = true}) async {
+  if (dosyalar.isEmpty) return null;
+  try {
+    final yanit = await _dosyaKanali.invokeMapMethod<String, dynamic>(
+        'disaAktar', {'yollar': [for (final f in dosyalar) f.path], 'uzerineYaz': uzerineYaz});
+    if (yanit == null) return null;
+    if (yanit['izin'] == false) return 'Kayıtları $telefonKlasoru klasörüne kopyalamak için dosya izni verin, sonra tekrar deneyin.';
+    if (yanit['hata'] != null) return '$telefonKlasoru klasörüne kopyalanamadı: ${yanit['hata']}';
+    return null;
+  } catch (e) {
+    return '$telefonKlasoru klasörüne kopyalanamadı: $e';
+  }
+}
+
+// Bütün kayıtları (süren kayıt hariç) kopyala
+Future<String?> tumKayitlariKopyala({bool uzerineYaz = false}) async {
+  final dir = await recordingsDirectory();
+  final csvler = dir.listSync().whereType<File>().where((f) => f.path.endsWith('.csv') && !f.path.endsWith('_puan.csv'));
+  final dosyalar = <File>[
+    for (final csv in csvler)
+      if (csv.path != aktifKayitYolu) ...await kayitDosyalari(csv),
+  ];
+  return telefonaKopyala(dosyalar, uzerineYaz: uzerineYaz);
 }
 
 // Geçmiş kayıtlar: listele, yeniden paylaş, sil
@@ -46,7 +82,7 @@ class _RecordingsPageState extends State<RecordingsPage> {
 
   Future<void> _load() async {
     final dir = await recordingsDirectory();
-    final files = dir.listSync().whereType<File>().where((f) => f.path.endsWith('.csv')).toList()
+    final files = dir.listSync().whereType<File>().where((f) => f.path.endsWith('.csv') && !f.path.endsWith('_puan.csv')).toList()
       ..sort((a, b) => b.path.compareTo(a.path)); // dosya adı tarih içerdiği için en yeni üstte
     if (mounted) {
       setState(() {
@@ -69,10 +105,24 @@ class _RecordingsPageState extends State<RecordingsPage> {
       ),
     );
     if (ok != true) return;
-    await csv.delete();
-    final info = infoFileFor(csv);
-    if (await info.exists()) await info.delete();
+    for (final f in await kayitDosyalari(csv)) {
+      await f.delete();
+    }
     _load();
+  }
+
+  Future<void> _puanla(File csv) async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => PuanlamaSayfasi(csv: csv)));
+    final sorun = await telefonaKopyala(await kayitDosyalari(csv));
+    if (sorun != null && mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(sorun)));
+    _load();
+  }
+
+  Future<void> _hepsiniKopyala() async {
+    final sorun = await tumKayitlariKopyala(uzerineYaz: true);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(sorun ?? 'Kayıtlar $telefonKlasoru klasörüne kopyalandı')));
+    }
   }
 
   // CSV'yi telefondaki bir uygulamayla aç (Excel, Google E-Tablolar vb.)
@@ -107,6 +157,13 @@ class _RecordingsPageState extends State<RecordingsPage> {
         backgroundColor: const Color(0xFF003366),
         foregroundColor: Colors.white,
         title: const Text('Kayıtlar'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.drive_folder_upload),
+            tooltip: '$telefonKlasoru klasörüne kopyala',
+            onPressed: _hepsiniKopyala,
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -114,10 +171,22 @@ class _RecordingsPageState extends State<RecordingsPage> {
               ? const Center(child: Text('Henüz kayıt yok', style: TextStyle(color: Color(0xFF6C757D))))
               : ListView.builder(
                   padding: const EdgeInsets.all(12),
-                  itemCount: _files.length,
-                  itemBuilder: (context, i) {
-                    final f = _files[i];
+                  itemCount: _files.length + 1,
+                  itemBuilder: (context, sira) {
+                    if (sira == 0) {
+                      return const Padding(
+                        padding: EdgeInsets.fromLTRB(4, 0, 4, 8),
+                        child: Text(
+                          'Kayıtlar telefonun $telefonKlasoru klasörüne de kopyalanır (dosya yöneticisi veya USB). '
+                          'Yıldız: sürüşü konfor açısından puanla.',
+                          style: TextStyle(fontSize: 12.5, color: Color(0xFF6C757D)),
+                        ),
+                      );
+                    }
+                    final f = _files[sira - 1];
                     final stat = f.statSync();
+                    final puanli = puanFileFor(f).existsSync();
+                    final suruyor = f.path == aktifKayitYolu;
                     return Card(
                       color: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -127,7 +196,7 @@ class _RecordingsPageState extends State<RecordingsPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(f.uri.pathSegments.last, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
-                            Text(f.path == aktifKayitYolu ? 'Kayıt sürüyor' : '${_size(stat.size)} · açmak için dokunun'),
+                            Text(suruyor ? 'Kayıt sürüyor' : '${_size(stat.size)} · ${puanli ? 'puanlandı' : 'puanlanmadı'} · açmak için dokunun'),
                           ],
                         ),
                         isThreeLine: true,
@@ -135,11 +204,16 @@ class _RecordingsPageState extends State<RecordingsPage> {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            IconButton(
+                              icon: Icon(puanli ? Icons.star : Icons.star_border, color: const Color(0xFFFD7E14)),
+                              tooltip: 'Konfor puanla',
+                              onPressed: suruyor ? null : () => _puanla(f),
+                            ),
                             IconButton(icon: const Icon(Icons.share, color: Color(0xFF003366)), tooltip: 'Paylaş', onPressed: () => shareRecording(f)),
                             IconButton(
                               icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                               tooltip: 'Sil',
-                              onPressed: f.path == aktifKayitYolu ? null : () => _delete(f),
+                              onPressed: suruyor ? null : () => _delete(f),
                             ),
                           ],
                         ),

@@ -8,6 +8,8 @@ her kayıt için şunları üretir:
   <ad>_satirlar.csv    Tüm satırlar: düzeltilmiş konum/hız, durum, darbe ve çukur işaretleri
   <ad>_isaretler.csv   Sürücünün çukur işaretleri (buton / kumanda / kulaklık) ve eşleşen çukurlar (yalnızca basış varsa)
   <ad>_olaylar.csv     Otomatik bulunan darbeler
+  <ad>_puanlar.csv     Sürücünün konfor puanları ve parçaların sarsıntı indeksi (yalnızca _puan.csv varsa)
+  <ad>_puan_grafik.png Puan - indeks karşılaştırması (yalnızca _puan.csv varsa)
   <ad>_harita.html     Uydu görüntüsü üzerinde güzergâh (renk = sarsıntı), işaretli çukurlar ve darbeler
   <ad>_harita.geojson  Aynı veri, QGIS / ArcGIS için
   <ad>_grafik.png      Hız, sarsıntı, hız-sarsıntı ilişkisi ve güzergâh (matplotlib kuruluysa)
@@ -46,6 +48,7 @@ import html
 import json
 import math
 import os
+import random
 import re
 import statistics as st
 from collections import defaultdict
@@ -462,10 +465,180 @@ def bilgi_oku(csv_yol):
     if os.path.exists(yol):
         with open(yol, encoding='utf-8', errors='replace') as f:
             for satir in f:
-                for anahtar, ad in (('Scooter:', 'scooter'), ('Hava durumu:', 'hava')):
+                for anahtar, ad in (('Scooter:', 'scooter'), ('Hava durumu:', 'hava'), ('Çukur modu:', 'cukur_modu')):
                     if satir.startswith(anahtar):
                         etiket[ad] = satir[len(anahtar):].strip()
     return etiket
+
+
+# ---------------------------------------------------------------- sürücünün konfor puanları (doğrulama)
+
+PUAN_OLCEK = {1: 'çok sarsıntılı', 2: 'sarsıntılı', 3: 'orta', 4: 'rahat', 5: 'çok rahat'}
+PUAN_EN_AZ_SATIR = 4  # parçada en az 2 sn hareket yoksa karşılaştırmaya girmez
+
+
+def puan_oku(csv_yol):
+    """Uygulamanın sürüş sonrası konfor puanlaması (<kayıt>_puan.csv): parçalar ve 1-5 puanları (yoksa boş liste)"""
+    yol = re.sub(r'\.csv$', '', csv_yol) + '_puan.csv'
+    if not os.path.exists(yol):
+        return []
+    parcalar = []
+    with open(yol, encoding='utf-8-sig') as f:
+        for d in csv.DictReader(f, delimiter=';'):
+            try:
+                puan = int(d['Puan']) if (d.get('Puan') or '').strip() else None
+                parcalar.append(dict(no=int(d['Parca']), bas=zaman(d['Baslangic']), bit=zaman(d['Bitis']),
+                                     bas_metin=d['Baslangic'], uzunluk=sayi(d.get('Uzunluk_m')) or 0.0,
+                                     puan=puan if puan in PUAN_OLCEK else None, durum=(d.get('Durum') or '').strip(),
+                                     bas_enlem=sayi(d.get('Baslangic_Enlem')), bas_boylam=sayi(d.get('Baslangic_Boylam')),
+                                     bit_enlem=sayi(d.get('Bitis_Enlem')), bit_boylam=sayi(d.get('Bitis_Boylam'))))
+            except (KeyError, ValueError):
+                continue
+    return parcalar
+
+
+def puan_degerlendir(parcalar, hareket, b, gecikme):
+    """Her parçanın hareket satırları: parça sınırları GPS ölçüm zamanlarıdır; satırın sarsıntısı merkez + gecikme
+    anındaki GPS konumuna aittir."""
+    for p in parcalar:
+        g = [s for s in hareket if p['bas'] <= s['merkez'] + gecikme <= p['bit']]
+        p['n'] = len(g)
+        p['hiz'] = st.median(s['d_hiz'] for s in g) if g else None
+        p['rms'] = st.median(s['rms'] for s in g) if g else None
+        p['indeks'] = (st.median(duzeltilmis_rms(s, b) for s in g) if b is not None else p['rms']) if g else None
+        p['darbe'] = sum(1 for s in g if s['darbe'])
+        adlar = defaultdict(int)
+        for s in g:
+            adlar[sokak_adi(s)] += 1
+        p['sokak'] = max(adlar, key=adlar.get) if adlar else ''
+    return parcalar
+
+
+def siralar(x):
+    """Sıra numaraları (1'den), eşitlere ortalama sıra"""
+    sira = sorted(range(len(x)), key=lambda i: x[i])
+    r = [0.0] * len(x)
+    i = 0
+    while i < len(sira):
+        j = i
+        while j + 1 < len(sira) and x[sira[j + 1]] == x[sira[i]]:
+            j += 1
+        for k in range(i, j + 1):
+            r[sira[k]] = (i + j) / 2 + 1
+        i = j + 1
+    return r
+
+
+def spearman(x, y):
+    rx, ry = siralar(x), siralar(y)
+    mx, my = st.mean(rx), st.mean(ry)
+    sxy = sum((a - mx) * (b - my) for a, b in zip(rx, ry))
+    sxx = sum((a - mx) ** 2 for a in rx)
+    syy = sum((b - my) ** 2 for b in ry)
+    return sxy / math.sqrt(sxx * syy) if sxx > 0 and syy > 0 else None
+
+
+def spearman_testi(x, y, tekrar=10000):
+    """Spearman r ve iki yönlü permütasyon testi p değeri (dağılım varsayımı yok; küçük n için uygun)"""
+    r = spearman(x, y)
+    if r is None:
+        return None, None
+    rnd = random.Random(1)
+    y = list(y)
+    asan = 0
+    for _ in range(tekrar):
+        rnd.shuffle(y)
+        rp = spearman(x, y)
+        if rp is not None and abs(rp) >= abs(r) - 1e-12:
+            asan += 1
+    return r, (asan + 1) / (tekrar + 1)
+
+
+def puan_karsilastirma(parcalar):
+    """Karşılaştırmaya giren parçalar, Spearman r, p ve puan düzeyine göre indeks medyanları"""
+    giren = [p for p in parcalar if p['puan'] is not None and p.get('n', 0) >= PUAN_EN_AZ_SATIR and p['indeks'] is not None]
+    r = pd = None
+    if len(giren) >= 5 and len({p['puan'] for p in giren}) >= 2:
+        r, pd = spearman_testi([p['puan'] for p in giren], [p['indeks'] for p in giren])
+    duzey = []
+    for puan in sorted(PUAN_OLCEK):
+        g = [p['indeks'] for p in giren if p['puan'] == puan]
+        if g:
+            duzey.append(dict(puan=puan, n=len(g), indeks=st.median(g), en_az=min(g), en_cok=max(g)))
+    return dict(giren=giren, r=r, p=pd, duzey=duzey)
+
+
+def puan_ozeti(y, parcalar, k, coklu=False):
+    """Özet metnine konfor puanı bölümü (k: puan_karsilastirma sonucu)"""
+    yanitsiz = sum(1 for p in parcalar if p['puan'] is None)
+    hatir = sum(1 for p in parcalar if p['durum'] == 'hatirlamiyorum')
+    y('SÜRÜCÜNÜN KONFOR PUANLARI (doğrulama; 1 = çok sarsıntılı ... 5 = çok rahat)')
+    y(f'  {len(parcalar)} parça, {len(parcalar) - yanitsiz} tanesi puanlandı ({hatir} hatırlamıyorum, {yanitsiz - hatir} puanlanmadı); '
+      f'karşılaştırmaya giren: {len(k["giren"])} (en az {PUAN_EN_AZ_SATIR / 2:.0f} sn hareket).')
+    if k['r'] is not None:
+        y(f'  Spearman sıra korelasyonu (puan - hız düzeltmeli indeks): r = {tr(k["r"])}  '
+          f'(permütasyon testi p = {tr(k["p"], 3)}, n = {len(k["giren"])})')
+        y('  Beklenen yön negatiftir: rahat bulunan parçada sarsıntı düşük. |r| ≥ 0,5 güçlü, 0,3-0,5 orta, < 0,3 zayıf ilişki.')
+    else:
+        y('  Korelasyon için en az 5 parça ve en az iki farklı puan gerekir.')
+    if k['duzey']:
+        y(f'  {"Puan":<22}{"Parça":>6}{"İndeks medyan":>15}{"aralık":>16}')
+        for d in k['duzey']:
+            y(f'  {d["puan"]} {PUAN_OLCEK[d["puan"]]:<20}{d["n"]:>6}{tr(d["indeks"]):>15}{tr(d["en_az"]) + "-" + tr(d["en_cok"]):>16}')
+    if not coklu:
+        y(f'  {"Parça":<7}{"Saat":<10}{"Yol":>6}  {"Sokak":<28}{"Puan":>5}{"İndeks":>8}{"Hız":>7}{"Darbe":>7}')
+        for p in parcalar:
+            y(f'  {p["no"]:<7}{p["bas_metin"][11:19]:<10}{p["uzunluk"]:>6.0f}  {p["sokak"][:27]:<28}{p["puan"] or "-":>5}'
+              f'{tr(p["indeks"]) or "-":>8}{tr(p["hiz"], 1) or "-":>7}{p["darbe"]:>7}')
+    y('')
+
+
+def puanlar_yaz(yol, parcalar, surus=False):
+    with open(yol, 'w', encoding='utf-8-sig', newline='') as f:
+        w = csv.writer(f, delimiter=';')
+        w.writerow((['Surus'] if surus else []) + ['Parca', 'Baslangic', 'Uzunluk_m', 'Sokak', 'Puan', 'Durum', 'Satir',
+                                                    'Medyan_Hiz_kmh', 'Medyan_Dikey_RMS', 'Indeks_15kmh', 'Darbe',
+                                                    'Baslangic_Enlem', 'Baslangic_Boylam', 'Bitis_Enlem', 'Bitis_Boylam'])
+        for p in parcalar:
+            w.writerow(([p['surus']] if surus else []) + [
+                p['no'], p['bas_metin'], f'{p["uzunluk"]:.0f}', p['sokak'], p['puan'] or '', p['durum'], p['n'],
+                tr(p['hiz'], 1), tr(p['rms'], 3), tr(p['indeks'], 3), p['darbe'],
+                tr(p['bas_enlem'], 6), tr(p['bas_boylam'], 6), tr(p['bit_enlem'], 6), tr(p['bit_boylam'], 6)])
+
+
+def puan_grafik_yaz(yol, baslik, k):
+    """Puan (x) - hız düzeltmeli indeks (y): her nokta bir parça, siyah: puan düzeyinin medyanı"""
+    if not k['giren']:
+        return
+    try:
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+    except ImportError:
+        return
+    INK, INK2, MUTED, GRID, AXIS, SURF, TURUNCU = '#0b0b0b', '#52514e', '#898781', '#e1e0d9', '#c3c2b7', '#fcfcfb', '#eb6834'
+    plt.rcParams.update({'font.size': 10, 'axes.edgecolor': AXIS, 'axes.labelcolor': INK2, 'xtick.color': MUTED,
+                         'ytick.color': MUTED, 'axes.facecolor': SURF, 'figure.facecolor': SURF, 'axes.grid': True,
+                         'grid.color': GRID, 'grid.linewidth': 0.6, 'axes.spines.top': False, 'axes.spines.right': False,
+                         'axes.titlesize': 11, 'axes.titleweight': 'bold', 'axes.titlecolor': INK, 'axes.titlelocation': 'left'})
+    fig, ax = plt.subplots(figsize=(7, 5))
+    rnd = random.Random(2)
+    ax.scatter([p['puan'] + rnd.uniform(-0.12, 0.12) for p in k['giren']], [p['indeks'] for p in k['giren']],
+               s=[18 + min(p['uzunluk'], 300) / 5 for p in k['giren']], color=TURUNCU, alpha=0.55, edgecolors='none')
+    if k['duzey']:
+        ax.plot([d['puan'] for d in k['duzey']], [d['indeks'] for d in k['duzey']], color=INK, lw=2, marker='o', ms=7,
+                markerfacecolor=INK, markeredgecolor=SURF, markeredgewidth=2)
+    ax.set_xticks(sorted(PUAN_OLCEK))
+    ax.set_xticklabels([f'{n}\n{a}' for n, a in sorted(PUAN_OLCEK.items())], fontsize=8.5)
+    ax.set_xlim(0.5, 5.5)
+    ax.set_ylim(bottom=0)
+    ax.set_ylabel(f'Hız düzeltmeli Dikey_RMS, {HIZ_REF:.0f} km/h (m/s²)')
+    ek = f'Spearman r = {tr(k["r"])}, p = {tr(k["p"], 3)}, n = {len(k["giren"])}' if k['r'] is not None else f'n = {len(k["giren"])}'
+    ax.set_title(f'Sürücünün konfor puanı ve ölçülen sarsıntı ({ek})')
+    fig.suptitle(baslik, x=0.02, ha='left', fontsize=12, fontweight='bold', color=INK)
+    fig.text(0.02, 0.005, 'Her nokta bir parça (büyüklüğü parça uzunluğu); siyah çizgi: puan düzeyinin medyanı', fontsize=8, color=MUTED)
+    fig.savefig(yol, dpi=130, bbox_inches='tight')
+    plt.close(fig)
 
 
 def hiz_tablosu(hareket, aralik):
@@ -510,6 +683,8 @@ def ozet_yaz(yol, ad, satirlar, r, tablo, ayar, osm_kaynak):
     etiket = r.get('etiket', {})
     if etiket:
         y(f'Scooter: {etiket.get("scooter", "-")}   Hava durumu: {etiket.get("hava", "alınamadı")}')
+    if etiket.get('cukur_modu'):
+        y(f'Çukur modu: {etiket["cukur_modu"]}')
     y(f'GPS ile ölçülen yol: ~{yol_m:.0f} m   En yüksek hız: {tr(max((o["hiz"] for o in olcumler), default=0), 1)} km/h')
     y('')
     y('AYARLAR')
@@ -572,12 +747,17 @@ def ozet_yaz(yol, ad, satirlar, r, tablo, ayar, osm_kaynak):
         if r['oturtma'] is None:
             y('  (Haritaya oturtma yapılmadığı için sokak adları yok; internet bağlantısıyla yeniden çalıştırın.)')
         y('')
+    if r.get('puanlar'):
+        puan_ozeti(y, r['puanlar'], puan_karsilastirma(r['puanlar']))
     uyarilar = [s for s in satirlar if s['uyg_cukur']]
     if uyarilar:
         darbe_t = [o['t'] for o in olaylar]
         ortak = sum(1 for u in uyarilar if any(abs(u['t'] - t) <= 1.0 for t in darbe_t))
         uyarisiz = sum(1 for t in darbe_t if not any(abs(u['t'] - t) <= 1.0 for u in uyarilar))
-        y(f'UYGULAMANIN ANLIK ÇUKUR UYARILARI ({len(uyarilar)} uyarı; Cukur sütunu)')
+        mod = r.get('etiket', {}).get('cukur_modu')
+        gizli = mod is not None and not mod.startswith('Otomatik')  # eski kayıtlarda mod yazılmaz: uyarı gösteriliyordu
+        y(f'UYGULAMANIN ANLIK ÇUKUR UYARILARI ({len(uyarilar)} uyarı; Cukur sütunu'
+          + ('; sürücüye gösterilmedi, yalnızca kayda yazıldı)' if gizli else ')'))
         y(f'  {ortak} tanesi aşağıdaki otomatik darbelerle aynı an (±1 sn). Betiğin bulduğu {len(darbe_t)} darbenin '
           f'{uyarisiz} tanesinde uyarı yanmamış: uygulama sabit ve yüksek bir eşik kullanır (en sert darbeler),')
         y('  betik ise her darbeyi çevresindeki sarsıntıyla karşılaştırır.')
@@ -1074,6 +1254,7 @@ def dosya_analiz(yol, ayar, klasor=None, yaz=True, onbellek=None):
     r['satirlar'] = satirlar
     r['etiket'] = bilgi_oku(yol)
     r['osm_kaynak'] = osm_kaynak
+    r['puanlar'] = puan_degerlendir(puan_oku(yol), r['hareket'], r['hiz_ussu'], ayar.gecikme)
     if yaz:
         def cikti(son):
             return os.path.join(klasor, f'{ad}_{son}')
@@ -1087,6 +1268,9 @@ def dosya_analiz(yol, ayar, klasor=None, yaz=True, onbellek=None):
         geojson_yaz(cikti('harita.geojson'), satirlar, r)
         harita_yaz(cikti('harita.html'), ad, satirlar, r, ayar)
         grafik_yaz(cikti('grafik.png'), ad, satirlar, r, tablo)
+        if r['puanlar']:
+            puanlar_yaz(cikti('puanlar.csv'), r['puanlar'])
+            puan_grafik_yaz(cikti('puan_grafik.png'), f'Konfor puanı – {ad}', puan_karsilastirma(r['puanlar']))
     return r
 
 

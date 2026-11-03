@@ -10,6 +10,8 @@ ayıklama, darbe tespiti), sonra birleştirilir:
   birlesik_suruslar.csv    Sürüş listesi (scooter, hava durumu, medyan hız / sarsıntı, darbe)
   birlesik_darbeler.csv    Darbe noktaları ve kaç farklı sürüşte görüldükleri
   birlesik_hucreler.geojson  Hücreler (QGIS / ArcGIS)
+  birlesik_puanlar.csv     Sürücünün konfor puanları ve parçaların indeksi (puanlanmış sürüş varsa)
+  birlesik_puan_grafik.png Bütün sürüşlerde puan - indeks karşılaştırması (puanlanmış sürüş varsa)
 
 Hız düzeltmeli indeks: aynı 25 m'lik hücre içindeki hız farklarından sarsıntının hıza bağlılığı
 (RMS ∝ hız^b) tahmin edilir ve her ölçüm 15 km/h'e çevrilir. Böylece bir sokakta hızlı, ötekinde yavaş
@@ -49,7 +51,7 @@ def hucre_tablosu(hareket, olaylar, b):
     return tablo
 
 
-def ozet_yaz(yol, suruslar, sokaklar, hucreler, noktalar, b, osm_kaynak):
+def ozet_yaz(yol, suruslar, sokaklar, hucreler, noktalar, b, osm_kaynak, puanlar, isaret):
     satir = []
     y = satir.append
     y(f'BİRLEŞİK ANALİZ - {len(suruslar)} sürüş')
@@ -91,6 +93,18 @@ def ozet_yaz(yol, suruslar, sokaklar, hucreler, noktalar, b, osm_kaynak):
         y(f'  Nokta {n}: {k["enlem"]:.6f}, {k["boylam"]:.6f} ±{k["belirsizlik_m"]:.0f} m  {k["surus_sayisi"]} sürüş, '
           f'{len(k["olaylar"])} geçiş, en büyük tepe {sa.tr(k["en_buyuk"], 1)} m/s²  {sa.maps_link(k["enlem"], k["boylam"])}')
     y('')
+    if isaret['basis']:
+        y(f'SÜRÜCÜNÜN ÇUKUR İŞARETLERİ ({isaret["surus"]} sürüşte {isaret["basis"]} basış; doğrulama)')
+        y(f'  {isaret["eslesen"]} basış bir sarsıntı tepesiyle eşleşti (çukurun anı bulundu).')
+        if isaret['eslesen']:
+            y(f'  Otomatik darbe tespiti işaretli çukurların {isaret["bulunan"]}/{isaret["eslesen"]} tanesini buldu '
+              f'(%{100 * isaret["bulunan"] / isaret["eslesen"]:.0f}; duyarlılık).')
+        if isaret['darbe']:
+            y(f'  İşaret verilen sürüşlerdeki {isaret["darbe"]} otomatik darbenin {isaret["isaretli_darbe"]} tanesi işaretli bir çukurla aynı an '
+              f'(%{100 * isaret["isaretli_darbe"] / isaret["darbe"]:.0f}). Kalanlar rögar, derz vb. ya da sürücünün işaretlemediği çukurlar olabilir.')
+        y('')
+    if puanlar:
+        sa.puan_ozeti(y, puanlar, sa.puan_karsilastirma(puanlar), coklu=True)
     y(f'Haritada {len(hucreler)} hücre (25 m, en az {EN_AZ_SATIR} satır). Tek sürüşte geçilen hücreler daha soluk gösterilir.')
     with open(yol, 'w', encoding='utf-8') as f:
         f.write('\n'.join(satir) + '\n')
@@ -217,6 +231,8 @@ def main():
     # birbirinden uzak sürüşler için dev bir alan istenmez. Bir indirme başarısız olursa diğerleri denenmez.
     ayar.cikti = None
     suruslar, hareket, olaylar, kaynaklar, adlar = [], [], [], defaultdict(int), set()
+    puanli = []  # (sürüş adı, puan parçaları, hareket satırları): indeks birleşik hız üssüyle yeniden hesaplanır
+    isaret = dict(surus=0, basis=0, eslesen=0, bulunan=0, darbe=0, isaretli_darbe=0)
     for yol in dosyalar:
         ad = os.path.splitext(os.path.basename(yol))[0]
         if ad in adlar:  # farklı klasörlerde aynı adlı dosya: ayrı sürüş olarak say
@@ -236,6 +252,16 @@ def main():
             s['surus'] = ad
         hareket += r['hareket']
         olaylar += r['olaylar']
+        if r['puanlar']:
+            puanli.append((ad, r['puanlar'], r['hareket']))
+        if r['isaretler']:
+            eslesen = [i for i in r['isaretler'] if i['cukur'] is not None]
+            isaret['surus'] += 1
+            isaret['basis'] += len(r['isaretler'])
+            isaret['eslesen'] += len(eslesen)
+            isaret['bulunan'] += sum(1 for i in eslesen if i['cukur']['darbe'])
+            isaret['darbe'] += len(r['olaylar'])
+            isaret['isaretli_darbe'] += sum(1 for o in r['olaylar'] if o['cukur'])
         st_ = r['satirlar']
         suruslar.append(dict(
             ad=ad, baslangic=st_[0]['zaman_metin'][:19], sure=st_[-1]['t'] - st_[0]['t'] + 0.5,
@@ -257,9 +283,18 @@ def main():
         k['surus_sayisi'] = len({o['surus'] for o in k['olaylar']})
     noktalar.sort(key=lambda k: (-k['surus_sayisi'], -len(k['olaylar']), -k['en_buyuk']))
 
+    puanlar = []
+    for ad, parcalar, h in puanli:
+        for p_ in sa.puan_degerlendir(parcalar, h, b, ayar.gecikme):
+            p_['surus'] = ad
+            puanlar.append(p_)
+
     def yol_(son):
         return os.path.join(cikti, f'birlesik_{son}')
-    ozet_yaz(yol_('ozet.txt'), suruslar, sokaklar, hucreler, noktalar, b, osm_kaynak)
+    ozet_yaz(yol_('ozet.txt'), suruslar, sokaklar, hucreler, noktalar, b, osm_kaynak, puanlar, isaret)
+    if puanlar:
+        sa.puanlar_yaz(yol_('puanlar.csv'), puanlar, surus=True)
+        sa.puan_grafik_yaz(yol_('puan_grafik.png'), f'Konfor puanı – {len(puanli)} sürüş', sa.puan_karsilastirma(puanlar))
     sa.sokaklar_yaz(yol_('sokaklar.csv'), sokaklar, surus_sayisi=True)
     suruslar_yaz(yol_('suruslar.csv'), suruslar)
     darbeler_yaz(yol_('darbeler.csv'), noktalar)

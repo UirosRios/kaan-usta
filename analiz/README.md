@@ -14,8 +14,9 @@
 1. **İndirme:** GitHub'da depo → **Actions** → en son başarılı **"Windows Uygulaması Derle"** çalıştırması →
    alttaki **Artifacts**'tan `kaan-usta-analiz-windows` (zip içinde `KaanUstaAnaliz.exe`). İstediğiniz yere koyun.
    İlk açılışta Windows "Bilinmeyen yayımcı" uyarısı verebilir: **Ek bilgi → Yine de çalıştır**. Açılması birkaç saniye sürer.
-2. **Dosyaları bırakın:** Kaydın CSV'sini ve `_bilgi.txt` dosyasını (veya kayıtların bulunduğu klasörü) pencereye sürükleyin.
-   `_bilgi.txt` başka bir klasördeyse uygulama onu CSV'nin yanına kopyalar (betik orada arar).
+2. **Dosyaları bırakın:** Kaydın CSV'sini, `_bilgi.txt` ve varsa `_puan.csv` dosyasını (veya kayıtların bulunduğu klasörü,
+   örneğin telefondan kopyalanan `Belgeler/Mikromobilite`) pencereye sürükleyin. `_bilgi.txt` / `_puan.csv` başka bir klasördeyse
+   uygulama onları CSV'nin yanına kopyalar (betik orada arar).
 3. **Çalıştırın:**
    - **Analiz et (her sürüş ayrı)** = `surus_analizi.py`. Sonuç CSV'nin yanında `..._analiz` klasöründe; tek dosyada harita, çok dosyada klasör açılır.
    - **Birleştir (yol kalitesi haritası)** = `birlestir.py`. Sonuç ilk CSV'nin (veya bırakılan klasörün) içinde `birlesik_analiz` klasöründe; harita açılır.
@@ -91,6 +92,10 @@ python birlestir.py kayitlar
 | `birlesik_suruslar.csv` | Sürüş listesi |
 | `birlesik_darbeler.csv` | Darbe noktaları, kaç sürüşte ve hangi sürüşlerde görüldükleri |
 | `birlesik_hucreler.geojson` | Hücreler, QGIS / ArcGIS için |
+| `birlesik_puanlar.csv`, `birlesik_puan_grafik.png` | Puanlanmış sürüş varsa: bütün sürüşlerin parçaları, sürücü puanı ve indeks; puan-indeks karşılaştırması |
+
+Özette ayrıca doğrulama sonuçları yer alır: sürücünün çukur işaretlerinin kaçını otomatik tespitin bulduğu (duyarlılık),
+otomatik darbelerin kaçının işaretli bir çukura denk geldiği ve konfor puanlarıyla indeks arasındaki Spearman korelasyonu.
 
 `--tek-tek` eklenirse her sürüşün ayrı analizi de bu klasöre yazılır.
 
@@ -106,7 +111,11 @@ python birlestir.py kayitlar
 | `_olaylar.csv` | Otomatik bulunan darbeler ve gruplandıkları noktalar |
 | `_sokaklar.csv` | Sokaklara göre sarsıntı: yol, medyan hız ve Dikey_RMS, hız düzeltmeli indeks, darbe sayısı (en bozuktan en düzgüne) |
 | `_grafik.png` | Hız, sarsıntı (otomatik darbeler işaretli), hız-sarsıntı ilişkisi, güzergâh |
+| `_puanlar.csv` | `_puan.csv` varsa: her parçanın sürücü puanı, en çok geçilen sokak, medyan hız / Dikey_RMS, hız düzeltmeli indeks, darbe |
+| `_puan_grafik.png` | `_puan.csv` varsa: puan (1-5) - indeks dağılımı, Spearman r ve p |
 | `_osm.json` | İndirilen yol verisi (önbellek) |
+
+Kaydın `_bilgi.txt` ve `_puan.csv` dosyaları CSV'nin yanındaysa okunur (uygulamanın Belgeler/Mikromobilite klasörüne kopyaladığı gibi).
 
 ## Yöntem
 
@@ -171,6 +180,18 @@ değeri çevresindeki sarsıntıya göre en büyük olan aranır. Bir önceki ba
   Bütün çukurları yakalamak, yanlış alarmdan önemliyse `--darbe-taban ortak` kullanın.
 - **Gruplama:** Farklı geçişlerde, merkezine 10 m'den (`--kume-yaricap`) yakın darbeler / çukurlar aynı nokta olarak gruplanır.
   Aynı yerden ne kadar çok, özellikle iki yönde geçilirse konum o kadar iyileşir.
+
+**Sürücünün konfor puanları (`_puan.csv`; doğrulama):**
+- **Kaynak:** Uygulama sürüşten sonra güzergâhı dönüşlerden parçalara böler (en kısa 50 m, en uzun ~200 m); sürücü her parçayı
+  ölçülen sarsıntıyı görmeden 1 (çok sarsıntılı) - 5 (çok rahat) arası puanlar.
+- **Eşleştirme:** Parça sınırları GPS ölçüm zamanlarıdır. Bir satırın sarsıntısı, gecikme düzeltmesiyle (satır ortası + 1 sn)
+  hangi GPS anına denk geliyorsa o parçaya girer. En az 4 hareket satırı (2 sn) olmayan parça karşılaştırmaya girmez.
+- **Karşılaştırma:** Parçanın hız düzeltmeli indeksi (sokak tablosundaki gibi, 15 km/h'te beklenen Dikey_RMS) ile puan arasında
+  Spearman sıra korelasyonu. Beklenen yön negatiftir (rahat parçada sarsıntı düşük). Puan sıralı (ordinal) bir ölçek olduğu için
+  Pearson yerine sıra korelasyonu kullanılır. p değeri permütasyon testidir (10 000 karıştırma, iki yönlü): dağılım varsayımı yoktur,
+  küçük örnekte de geçerlidir. Korelasyon için en az 5 parça ve en az iki farklı puan gerekir.
+- **Güç:** Tek sürüş genellikle 5-15 parça verir; anlamlılık için birleştirmede bütün sürüşlerin parçaları birlikte değerlendirilir.
+  Birleştirmede indeks, bütün sürüşlerden tahmin edilen ortak hız üssüyle yeniden hesaplanır.
 
 **Sokaklara göre özet ve hız düzeltmeli indeks:**
 - **Sokak:** Satırlar haritaya oturtulduğu OpenStreetMap yoluna göre gruplanır (oturtma yoksa tek grup "yol dışı").

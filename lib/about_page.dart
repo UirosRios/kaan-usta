@@ -93,7 +93,8 @@ class AboutPage extends StatelessWidget {
           const _InfoCard(
             title: 'Anlık çukur uyarısı',
             lines: [
-              'Kayıt sırasında 0,5 sn içindeki en büyük dikey ivme 35 m/s²\'yi aşarsa ve GPS hızı 3 km/h\'in üstündeyse sarsıntı kartı 1,5 sn kırmızı yanar ve uygulama sesli uyarı verir.',
+              'Yalnızca Ayarlar\'da "Otomatik çukur uyarısı" seçiliyse: kayıt sırasında 0,5 sn içindeki en büyük dikey ivme 35 m/s²\'yi aşarsa ve GPS hızı 3 km/h\'in üstündeyse sarsıntı kartı 1,5 sn kırmızı yanar ve uygulama sesli uyarı verir.',
+              'Diğer modlarda uyarı gösterilmez ama tespit yine CSV\'ye yazılır (sürücünün işaretleriyle karşılaştırma için).',
               'O satırın CSV\'deki Cukur sütununa 1 yazılır. Kartın altındaki UYARI sayısı bu kayıttaki uyarı sayısıdır.',
               'Uyarı yalnızca en sert darbeleri gösterir; ayrıntılı darbe tespiti analiz betiğiyle yapılır.',
             ],
@@ -101,11 +102,20 @@ class AboutPage extends StatelessWidget {
           const _InfoCard(
             title: 'Çukur işareti (doğrulama)',
             lines: [
-              'Kayıt sırasında çukurdan geçince turuncu ÇUKUR butonuna, telefonun ses tuşuna, Bluetooth kumandaya veya kulaklık tuşuna basın; kısa bir çift bip duyulur.',
+              'Ayarlar\'da "Çukurları ben işaretlerim" seçiliyse (varsayılan) kayıt sırasında çukurdan geçince turuncu ÇUKUR butonuna, telefonun ses tuşuna, Bluetooth kumandaya veya kulaklık tuşuna basın; kısa bir çift bip duyulur.',
               'Basış CSV\'de Isaret ve Isaret_Kaynak sütunlarına yazılır. Analiz betiği basıştan önceki 5 sn\'deki sarsıntı tepesini bularak çukurun anını ve konumunu çıkarır, otomatik darbe tespitini bu işaretlerle karşılaştırır.',
               'Ekrana veya telefonun tuşuna basmak telefonu sarsar: o an ve sonraki 0,5 sn analizde dışlanır. Kumanda ve kulaklık telefonu sarsmaz.',
               'Ekran kapalıyken de tuşlar çalışır. O sırada başka bir uygulama müzik çalıyorsa medya tuşları ona gidebilir.',
               '1 sn içindeki ikinci basış sayılmaz. Kayıt sırasında ses tuşları sesi değiştirmez; DURDUR basılı tutularak çalışır.',
+            ],
+          ),
+          const _InfoCard(
+            title: 'Konfor puanlaması (doğrulama)',
+            lines: [
+              'Kayıt bitince güzergâh dönüşlerden parçalara bölünür (kabaca her sokak bir parça, uzun düz yollar en fazla ~200 m).',
+              'Her parça için ne kadar rahat geçildiği 1 (çok sarsıntılı) - 5 (çok rahat) arası puanlanır. Haritada ölçülen sarsıntı gösterilmez: puan ölçümden bağımsız olmalıdır.',
+              '"Sonra" ile geçilebilir; Kayıtlar sayfasındaki yıldızdan sonradan puanlanabilir veya puan değiştirilebilir.',
+              'Puanlar kaydın _puan.csv dosyasına yazılır. Analiz betiği her parçanın hız düzeltmeli sarsıntı indeksini puanla karşılaştırır (Spearman sıra korelasyonu).',
             ],
           ),
           const _InfoCard(
@@ -120,9 +130,9 @@ class AboutPage extends StatelessWidget {
             title: 'Kayıt dosyaları',
             lines: [
               'Veriler kayıt sırasında 5 saniyede bir dosyaya yazılır; uygulama kapanırsa en fazla son 5 saniye kaybolur.',
-              'Her kayıt için iki dosya oluşur: mikromobilite_<tarih_saat>.csv (veri) ve ..._bilgi.txt (cihaz, sensör ve ayarlar).',
-              'Başlıktaki klasör simgesinden eski kayıtlar tekrar paylaşılabilir veya silinebilir.',
-              'Klasör: Android/data/tr.edu.yildiz.kaan_usta/files/kayitlar (telefon USB ile bilgisayara bağlanınca da erişilebilir).',
+              'Her kayıt için mikromobilite_<tarih_saat>.csv (veri), ..._bilgi.txt (cihaz, sensör, ayarlar) ve puanlandıysa ..._puan.csv oluşur.',
+              'Kayıt bitince dosyalar telefonun Belgeler/Mikromobilite klasörüne kopyalanır: dosya yöneticisinden ve USB ile bilgisayardan erişilir (Android 9 ve öncesinde ilk açılışta dosya izni istenir).',
+              'Başlıktaki klasör simgesinden eski kayıtlar tekrar paylaşılabilir, puanlanabilir veya silinebilir. Uygulamadan silmek Belgeler\'deki kopyayı silmez.',
             ],
           ),
           const _InfoCard(

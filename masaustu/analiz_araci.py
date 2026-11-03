@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """KAAN USTA sürüş analizi: analiz betiklerini Python kurmadan çalıştıran masaüstü uygulaması (Windows).
 
-CSV ve _bilgi.txt dosyaları pencereye sürüklenir, tek düğmeyle surus_analizi.py veya birlestir.py çalışır.
+CSV, _bilgi.txt ve _puan.csv dosyaları pencereye sürüklenir, tek düğmeyle surus_analizi.py veya birlestir.py çalışır.
 Sonuçlar CSV'nin yanına yazılır, bitince harita açılır.
 
 Betikler uygulamanın içinde gömülü gelir. Betikler değişince uygulamayı yeniden indirmek gerekmez:
@@ -241,7 +241,7 @@ class Uygulama:
 
         self.birakma = tk.Label(
             ust, relief='groove', bd=2, height=2, bg='#f3f6fa', fg='#33475b', font=('Segoe UI', 11),
-            text=('CSV ve _bilgi.txt dosyalarını (veya kayıtların bulunduğu klasörü) buraya sürükleyip bırakın'
+            text=('CSV, _bilgi.txt ve _puan.csv dosyalarını (veya kayıtların bulunduğu klasörü) buraya sürükleyip bırakın'
                   if TkinterDnD else 'Dosyaları aşağıdaki düğmelerle seçin'))
         self.birakma.grid(row=0, column=0, sticky='we')
 
@@ -358,22 +358,25 @@ class Uygulama:
         self.girdiler.clear()
 
     def hazirla(self):
-        """CSV / klasör listesini döndürür. Başka klasörden bırakılan _bilgi.txt, betik CSV'nin yanında
+        """CSV / klasör listesini döndürür. Başka klasörden bırakılan _bilgi.txt ve _puan.csv, betik CSV'nin yanında
         aradığı için CSV'nin yanına kopyalanır."""
-        csvler = [g for g in self.girdiler if os.path.isdir(g) or g.lower().endswith('.csv')]
+        def eslik(yol):  # kaydın eşlik eden dosyası: (son ek) veya None
+            ad = os.path.basename(yol).lower()
+            return next((son for son in ('_bilgi.txt', '_puan.csv') if ad.endswith(son)), None)
+        csvler = [g for g in self.girdiler if os.path.isdir(g) or (g.lower().endswith('.csv') and not eslik(g))]
         csv_adlari = {os.path.basename(c).lower(): c for c in csvler if not os.path.isdir(c)}
-        for txt in (g for g in self.girdiler if g.lower().endswith('.txt')):
-            ad = os.path.basename(txt)
-            if not ad.lower().endswith('_bilgi.txt'):
-                self.yaz(f'Uyarı: {ad} bir _bilgi.txt dosyası değil, kullanılmadı\n')
+        for yol in (g for g in self.girdiler if not os.path.isdir(g) and g not in csvler):
+            ad, son = os.path.basename(yol), eslik(yol)
+            if son is None:
+                self.yaz(f'Uyarı: {ad} bir _bilgi.txt / _puan.csv dosyası değil, kullanılmadı\n')
                 continue
-            csv_yol = csv_adlari.get(ad[:-len('_bilgi.txt')].lower() + '.csv')
+            csv_yol = csv_adlari.get(ad[:-len(son)].lower() + '.csv')
             if csv_yol is None:
                 self.yaz(f'Uyarı: {ad} dosyasının CSV\'si listede yok, kullanılmadı\n')
                 continue
             hedef = os.path.join(os.path.dirname(csv_yol), ad)
             if not os.path.exists(hedef):
-                shutil.copy2(txt, hedef)
+                shutil.copy2(yol, hedef)
                 self.yaz(f'{ad} CSV\'nin yanına kopyalandı\n')
         return csvler
 

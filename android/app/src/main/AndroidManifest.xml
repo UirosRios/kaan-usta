@@ -11,6 +11,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Kayıtları Belgeler/Mikromobilite klasörüne kopyalamak için; yalnızca Android 9 ve öncesinde gerekir -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
     <!-- open_filex eklentisinin eklediği medya/depolama izinleri gereksiz: kayıtlar uygulamanın kendi
          klasöründe olduğu için CSV'yi açmak izin istemez -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove"/>

@@ -15,7 +15,8 @@ Kullanıcıyla Türkçe konuşulur; kod, yorumlar, commit mesajları ve belgeler
 
 ## Kayıt CSV biçimi
 
-Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Her kaydın yanında `_bilgi.txt` (cihaz, scooter, hava durumu).
+Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Her kaydın yanında `_bilgi.txt` (cihaz, scooter, hava durumu,
+çukur modu) ve puanlandıysa `_puan.csv` (sürüş sonrası parça parça 1-5 konfor puanı; doğrulama için).
 
 ## Doğrulama
 

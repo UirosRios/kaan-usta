@@ -1,9 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// Kayıt sırasında çukurlar nasıl ele alınır. Her durumda uygulamanın otomatik tespiti CSV'nin Cukur sütununa
+// sessizce yazılır; mod yalnızca sürücünün gördüğünü / yaptığını belirler.
+enum CukurModu {
+  // Doğrulama sürüşü: sürücü çukurları kendisi işaretler (buton, ses tuşu, kumanda, kulaklık). Otomatik uyarı
+  // gösterilmez: uyarıyı gören sürücünün işaretleri ölçümden bağımsız olmazdı.
+  isaret('isaret', 'Çukurları ben işaretlerim (doğrulama)'),
+  // Sürücü sert darbede ekranda kırmızı ışık ve sesle uyarılır; işaret butonu yok
+  uyari('uyari', 'Otomatik çukur uyarısı'),
+  // Yalnızca ölçüm: ne işaret ne uyarı
+  kapali('kapali', 'Yalnızca ölçüm (işaret ve uyarı yok)');
+
+  const CukurModu(this.kod, this.ad);
+  final String kod;
+  final String ad;
+}
+
 // Kalıcı ayarlar: telefonda saklanır, her kaydın _bilgi.txt dosyasına otomatik yazılır
 class Ayarlar {
   static const String _scooterAnahtar = 'scooter';
+  static const String _cukurModuAnahtar = 'cukur_modu';
+
+  static Future<CukurModu> cukurModu() async {
+    final kod = (await SharedPreferences.getInstance()).getString(_cukurModuAnahtar);
+    return CukurModu.values.firstWhere((m) => m.kod == kod, orElse: () => CukurModu.isaret);
+  }
+
+  static Future<void> cukurModuKaydet(CukurModu mod) async =>
+      (await SharedPreferences.getInstance()).setString(_cukurModuAnahtar, mod.kod);
 
   static Future<String> scooter() async => (await SharedPreferences.getInstance()).getString(_scooterAnahtar) ?? '';
 
@@ -21,18 +46,29 @@ class AyarlarPage extends StatefulWidget {
 class _AyarlarPageState extends State<AyarlarPage> {
   final TextEditingController _scooter = TextEditingController();
   bool _yuklendi = false;
+  CukurModu _cukurModu = CukurModu.isaret;
 
   @override
   void initState() {
     super.initState();
-    Ayarlar.scooter().then((deger) {
+    Future.wait([Ayarlar.scooter(), Ayarlar.cukurModu()]).then((d) {
       if (!mounted) return;
       setState(() {
-        _scooter.text = deger;
+        _scooter.text = d[0] as String;
+        _cukurModu = d[1] as CukurModu;
         _yuklendi = true;
       });
     });
   }
+
+  static const Map<CukurModu, String> _modAciklama = {
+    CukurModu.isaret: 'Çukurdan geçince ÇUKUR butonuna, ses tuşuna, Bluetooth kumandaya veya kulaklık tuşuna basarsınız. '
+        'Otomatik uyarı gösterilmez: uyarıyı görmeyen sürücünün işaretleri ölçümden bağımsız bir referans olur. '
+        'Doğrulama sürüşleri için önerilir.',
+    CukurModu.uyari: 'Sert darbede sarsıntı kartı kırmızı yanar ve sesli uyarı verilir. İşaret butonu çıkmaz, '
+        'ses tuşları normal çalışır.',
+    CukurModu.kapali: 'Ekrana dokunmadan yalnızca ölçüm yapılır.',
+  };
 
   @override
   void dispose() {
@@ -75,6 +111,50 @@ class _AyarlarPageState extends State<AyarlarPage> {
                     ),
                     // Her değişiklik hemen kaydedilir
                     onChanged: Ayarlar.scooterKaydet,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Card(
+            color: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(4, 16, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(left: 12),
+                    child: Text('KAYIT SIRASINDA ÇUKUR', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF003366))),
+                  ),
+                  RadioGroup<CukurModu>(
+                    groupValue: _cukurModu,
+                    onChanged: (mod) {
+                      if (mod == null || !_yuklendi) return;
+                      setState(() => _cukurModu = mod);
+                      Ayarlar.cukurModuKaydet(mod);
+                    },
+                    child: Column(
+                      children: [
+                        for (final mod in CukurModu.values)
+                          RadioListTile<CukurModu>(
+                            value: mod,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(mod.ad, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                            subtitle: Text(_modAciklama[mod]!, style: const TextStyle(fontSize: 12.5, height: 1.3)),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 12, top: 4),
+                    child: Text(
+                      'Her modda uygulamanın otomatik tespiti kayda sessizce yazılır; analiz betiği işaretlerle karşılaştırır. '
+                      'Değişiklik bir sonraki kayıtta geçerli olur.',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF6C757D), height: 1.3),
+                    ),
                   ),
                 ],
               ),
