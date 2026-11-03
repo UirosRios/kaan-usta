@@ -141,6 +141,7 @@ class AboutPage extends StatelessWidget {
               'Her kayıt için mikromobilite_<tarih_saat>.csv (veri), ..._bilgi.txt (cihaz, sensör, ayarlar) ve puanlandıysa ..._puan.csv oluşur.',
               'Kayıt bitince dosyalar telefonun Belgeler/Mikromobilite klasörüne kopyalanır: dosya yöneticisinden ve USB ile bilgisayardan erişilir (Android 9 ve öncesinde ilk açılışta dosya izni istenir).',
               'Başlıktaki klasör simgesinden eski kayıtlar tekrar paylaşılabilir, puanlanabilir veya silinebilir. Uygulamadan silmek Belgeler\'deki kopyayı silmez.',
+              'Bir kayda dokununca önizleme açılır: sarsıntıya göre renkli harita, hız ve sarsıntı grafikleri, çukur işaretleri, puanlar ve özet. Gösterim içindir; asıl analiz bilgisayardaki betiktedir.',
             ],
           ),
           const _InfoCard(

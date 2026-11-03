@@ -113,6 +113,20 @@ sürücü o parçadan geçişin ne kadar rahat olduğunu puanlar:
 - Analiz betiği her parçanın hız düzeltmeli sarsıntı indeksini puanla karşılaştırır (Spearman sıra korelasyonu); birleştirme bütün
   sürüşlerin parçalarını birlikte değerlendirir. Ayrıntı: [analiz/README.md](analiz/README.md).
 
+## Kayıt önizlemesi (telefonda, gösterim için)
+
+Kayıtlar sayfasında bir kayda dokununca önizleme açılır (test sürüşleri dahil). Sekmelere dokunarak veya kaydırarak:
+
+- **Harita:** güzergâh Dikey_RMS'e göre renkli (yeşil < 3 ... kırmızı ≥ 9 m/s²), çukur işaretleri numaralı lacivert kare,
+  uygulamanın anlık uyarıları kırmızı halka. Konum GPS gecikmesine göre 1 sn düzeltilir.
+- **Grafikler:** zamana göre hız ve Dikey_RMS (basış anları kesikli çizgi, işaretli çukur = basıştan önceki 5 sn'deki en büyük tepe),
+  hıza göre sarsıntı dağılımı, işaret listesi (kaynak, tepe, tepki süresi).
+- **Puanlar:** parçalar puan rengiyle haritada, puan - medyan Dikey_RMS grafiği ve basit Spearman r, parça tablosu.
+- **Özet:** süre, yol, hız, sarsıntı, işaret / uyarı sayıları, `_bilgi.txt` etiketleri.
+
+Önizleme ham değerleri gösterir; haritaya oturtma, hız düzeltmeli indeks, çevreye göre darbe tespiti ve anlamlılık testi
+bilgisayardaki analizdedir. CSV'yi Excel vb. ile açma düğmesi önizlemenin üst çubuğundadır.
+
 ## Ayarlar ve kayıt etiketleri
 
 Başlıktaki **dişli** simgesinden açılan Ayarlar sayfasında kullanılan scooter (marka / model) bir kez yazılır; her kaydın

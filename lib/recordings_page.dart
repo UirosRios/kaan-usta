@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'onizleme.dart';
 import 'puanlama.dart';
 
 // Kayıt klasörü: Android/data/<uygulama>/files/kayitlar. Kayıt bitince dosyalar telefonun
@@ -24,6 +25,20 @@ File infoFileFor(File csv) => File(csv.path.replaceAll(RegExp(r'\.csv$'), '_bilg
 // Bir kaydın var olan dosyaları: CSV, _bilgi.txt, _puan.csv
 Future<List<File>> kayitDosyalari(File csv) async =>
     [for (final f in [csv, infoFileFor(csv), puanFileFor(csv)]) if (await f.exists()) f];
+
+// CSV'yi telefondaki bir uygulamayla aç (Excel, Google E-Tablolar vb.)
+Future<void> kaydiAc(BuildContext context, File csv) async {
+  final messenger = ScaffoldMessenger.of(context);
+  var result = await OpenFilex.open(csv.path, type: 'text/csv');
+  // Bazı uygulamalar CSV'yi yalnızca Excel türüyle tanır
+  if (result.type == ResultType.noAppToOpen) result = await OpenFilex.open(csv.path, type: 'application/vnd.ms-excel');
+  if (result.type != ResultType.done) {
+    final text = result.type == ResultType.noAppToOpen
+        ? 'CSV açabilecek uygulama bulunamadı (Excel veya Google E-Tablolar yükleyin ya da Paylaş ile gönderin)'
+        : 'Dosya açılamadı: ${result.message}';
+    messenger.showSnackBar(SnackBar(content: Text(text)));
+  }
+}
 
 // CSV, bilgi ve varsa puan dosyasını birlikte paylaş
 Future<void> shareRecording(File csv) async {
@@ -125,17 +140,10 @@ class _RecordingsPageState extends State<RecordingsPage> {
     }
   }
 
-  // CSV'yi telefondaki bir uygulamayla aç (Excel, Google E-Tablolar vb.)
-  Future<void> _open(File csv) async {
-    var result = await OpenFilex.open(csv.path, type: 'text/csv');
-    // Bazı uygulamalar CSV'yi yalnızca Excel türüyle tanır
-    if (result.type == ResultType.noAppToOpen) result = await OpenFilex.open(csv.path, type: 'application/vnd.ms-excel');
-    if (result.type != ResultType.done && mounted) {
-      final text = result.type == ResultType.noAppToOpen
-          ? 'CSV açabilecek uygulama bulunamadı (Excel veya Google E-Tablolar yükleyin ya da Paylaş ile gönderin)'
-          : 'Dosya açılamadı: ${result.message}';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
-    }
+  // Kayıt önizlemesi: harita, grafikler, puanlar, özet (gösterim amaçlı; asıl analiz bilgisayarda)
+  Future<void> _onizle(File csv) async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => OnizlemeSayfasi(csv: csv)));
+    _load();
   }
 
   // mikromobilite_20261024_011502.csv -> 24 Ekim 2026, 01:15:02; test_ önekli -> TEST · ... (ad farklıysa dosya adı)
@@ -180,7 +188,7 @@ class _RecordingsPageState extends State<RecordingsPage> {
                         padding: EdgeInsets.fromLTRB(4, 0, 4, 8),
                         child: Text(
                           'Kayıtlar telefonun $telefonKlasoru klasörüne de kopyalanır (dosya yöneticisi veya USB). '
-                          'Yıldız: sürüşü konfor açısından puanla.',
+                          'Dokunun: harita ve grafiklerle önizleme. Yıldız: sürüşü konfor açısından puanla.',
                           style: TextStyle(fontSize: 12.5, color: Color(0xFF6C757D)),
                         ),
                       );
@@ -198,11 +206,11 @@ class _RecordingsPageState extends State<RecordingsPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(f.uri.pathSegments.last, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
-                            Text(suruyor ? 'Kayıt sürüyor' : '${_size(stat.size)} · ${puanli ? 'puanlandı' : 'puanlanmadı'} · açmak için dokunun'),
+                            Text(suruyor ? 'Kayıt sürüyor' : '${_size(stat.size)} · ${puanli ? 'puanlandı' : 'puanlanmadı'} · önizleme için dokunun'),
                           ],
                         ),
                         isThreeLine: true,
-                        onTap: () => _open(f),
+                        onTap: suruyor ? null : () => _onizle(f),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
