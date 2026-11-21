@@ -123,8 +123,9 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
 
 ## Git
 
-- Değişiklikleri doğrudan `main` dalına gönder. Oturum ayrı bir dal açtıysa işi bitirince `main` ile birleştir
-  (ileri alarak) ve `main`'e gönder. Bu, kullanıcının kalıcı iznidir.
+- Doğrudan `main` dalında çalış, commit et ve `main`'e gönder; ayrı dal açma (kullanıcının kalıcı isteği ve izni).
+  Oturum `claude/...` gibi ayrı bir dalla başladıysa, değişiklik yapmadan önce `main`'e geç
+  (`git checkout main && git pull --ff-only`); o dalda iş yapıldıysa önce `main` ile ileri alarak birleştir.
 
 ## Açık işler / sıradaki adımlar
 
