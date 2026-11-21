@@ -53,8 +53,9 @@ kütüphane (örn. pandas, scipy) kullanırsa betik güncellemesi yetmez; kütü
 **Her sürüşten sonra**
 
 4. **Dosyaları bilgisayara alın:** Telefonda uygulamanın **Kayıtlar** sayfasından CSV'yi paylaşın (e-posta, Drive vb.) ya da
-   telefonu USB ile bağlayıp `Android/data/tr.edu.yildiz.kaan_usta/files/kayitlar` klasöründen kopyalayın.
-   CSV'yi `analiz` klasörüne koyun.
+   telefonu USB ile bağlayıp **Belgeler/Mikromobilite** klasöründen kopyalayın (uygulama her kaydı oraya kopyalar;
+   `Android/data/...` altındaki kendi klasörünü Android 11 ve sonrasında dosya yöneticileri göstermez).
+   CSV'yi, varsa `_bilgi.txt` ve `_puan.csv` dosyalarıyla birlikte, `analiz` klasörüne koyun.
 5. **Betiği çalıştırın:** `analiz` klasöründe adres çubuğuna tıklayın, **cmd** yazıp Enter'a basın. Açılan pencerede
    (dosya adını kendi dosyanızınkiyle değiştirin):
    ```
@@ -219,7 +220,7 @@ Simülasyon çukur butonunu (ekrandan basış, dokunma etkisiyle) da içerir. Ha
 - gecikmeli basan, bazen unutan, bazen yanlış basan bir sürücü.
 
 ```
-python simulasyon.py                       # 9 senaryo x 12 tekrar, sonuç tablosu
+python simulasyon.py                       # 10 senaryo x 12 tekrar, sonuç tablosu
 python simulasyon.py --ornek ornek         # ayrıca örnek sürüş ve tüm analiz çıktıları
 python simulasyon.py --birlesik ornek_birlesik   # yüzeyi bilinen sokaklarda 3 sürüş üret ve birleştir
 ```
