@@ -49,7 +49,7 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   çakışan kayıtlar aynı kesit. Kodu (K01, K02 …) telefon verir (önerilen; örnek dosyada öyle), QGIS'te düzeltilebilir;
   sokak adı OSM'den analizde verilir (telefon çevrimdışı ad alamaz). Eşikler kesinleşmedi.
 
-### Uygulama 2.0 planı (henüz yapılmadı; önce örnek GeoPackage onaylanacak)
+### Uygulama 2.0 planı (henüz yapılmadı; örnek GeoPackage onaylandı, uygulama planı kullanıcı onayı bekliyor)
 
 - **Ham kayıt:** ivmeölçer 3 eksen ve **jiroskop** (kullanıcı istedi) ~200 Hz, her GPS_PROVIDER konumu (hız, yön, doğruluk,
   yükseklik, uydu sayısı), her basış; hepsi **aynı saatle** (sensör zaman damgası). Telefonda filtre yok (yalnızca nokta
@@ -191,10 +191,10 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
 
 ## Açık işler / sıradaki adımlar
 
-- Örnek GeoPackage'ı (`qgis/ornek/`, `qgis/ornek_uret.py`; 24 Kasım'da gönderildi, GDAL ile okundu; 25 Kasım'da kullanıcı
-  QGIS'te (Windows, Türkçe arayüz) açtı, katmanlar doğru yerde,
-  resmî `validate_gpkg.py` çalıştırılamadı) kullanıcı ve arkadaşı QGIS'te açıp onaylayacak; sonra uygulama 2.0.
-  Açık soru: günlük `_ham.gpkg` ~60 MB (dakikada ~1,5 MB) Claude'a nasıl ulaşacak.
+- **Örnek GeoPackage biçimi ONAYLANDI** (25 Kasım 2026; `qgis/ornek/`, `qgis/ornek_uret.py`; GDAL ile okundu, kullanıcı
+  QGIS'te (Windows, Türkçe arayüz) açtı; resmî `validate_gpkg.py` çalıştırılamadı). Sıradaki iş: uygulama 2.0.
+- Veri aktarımı: `_ham.gpkg` (dakikada ~1,5 MB, günde ~60 MB) sohbete yüklenir; sığmazsa Google Drive (oturumda Drive
+  bağlantısı var).
   Kullanıcının QGIS stil seçimi (renk ayırt etmekte zorlanıyor; renge dayanmayan ayrım tercih): `gps_noktalari` Blues
   (ters çevirmeden; koyu = sarsıntılı), `insan_cukurlar` kırmızı üçgen, `claude_cukurlar` gölge efektli (drop shadow) daire.
   QGIS seçim rengi sarı; anlatımda renk yerine "seçili satırlara yakınlaştır" kullan. Hazır stil: kullanıcının QGIS'te
