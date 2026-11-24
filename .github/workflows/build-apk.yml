@@ -34,6 +34,15 @@ jobs:
 
       - run: flutter pub get
       - run: flutter analyze
+      # Android NDK: SQLite kitaplığı (package:sqlite3) APK'ya yerel kitaplık olarak girdiği için gerekli. Gradle kendisi
+      # indirirken bozuk dosya alabildiği için önceden ve 3 denemeyle kurulur. Sürüm Flutter 3.47.7'nin istediği NDK'dır.
+      - name: Android NDK
+        run: |
+          for i in 1 2 3; do
+            (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;28.2.13676358" > /dev/null && break
+            echo "NDK kurulamadı, yeniden deneniyor ($i)"; sleep 15
+          done
+          test -d "$ANDROID_HOME/ndk/28.2.13676358"
       # Yapı numarası = derleme sırası: kayıtların _bilgi.txt dosyasında hangi APK ile alındıkları görünür
       - run: flutter build apk --release --build-number=${{ github.run_number }}
 
