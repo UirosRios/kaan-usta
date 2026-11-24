@@ -58,8 +58,11 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
 - **Çıktı:** her sürüş günü için GeoPackage, **yazarına göre ayrı dosyalar**: `*_ham.gpkg` (Claude'a gider) ve `*_insan.gpkg`
   (işaret + puan; sürücüde kalır). Claude `*_claude.gpkg` üretir. Ayrıntı: `qgis/README.md`.
 - Kalkacaklar: otomatik çukur uyarısı modu ve `Cukur` sütunu, 0,5 sn özet CSV, her DURDUR'dan sonra açılan paylaşım ekranı,
-  dönüşlere göre otomatik parçalama (`Parcalama`), puanlamadaki "Sonra", önizlemedeki sarsıntı renkleri, kayıt sırasında
-  canlı sarsıntı gösterimi. Yerine: gün sonunda tek "Günün kayıtlarını gönder".
+  dönüşlere göre otomatik parçalama (`Parcalama`), puanlamadaki "Sonra", önizlemedeki sarsıntı renkleri. Yerine: gün sonunda
+  tek "Günün kayıtlarını gönder".
+- **Kayıt sırasında sarsıntı ve harita görünmeye devam eder** (kullanıcı istedi, 25 Kasım).
+- **Kesit adı:** Kayıtlar sayfasında kesite ad verilebilir (`kesit_adi`; aynı kesitin bütün kayıtlarına uygulanır, sonraki
+  kayıtlar da alır). Alan `kayitlar`, `insan_puanlar`, `claude_puanlar` katmanlarında (kullanıcı istedi, 25 Kasım).
 - Kalacaklar: işaret yolları (kulaklık / kumanda / ses tuşu / ekran), test sürüşü (sanal GPS), Belgeler/Mikromobilite kopyası.
 - **Uygulama 2.0 mühendislik kuralları** (kodlamadan önce karar verildi):
   - Test edilebilirlik mimariyi belirler: CI yalnızca Kotlin'in derlendiğini kanıtlar. GeoPackage yazımı, sarsıntı özeti ve kesit
@@ -72,7 +75,8 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   - Gönder düğmesi varsayılan olarak yalnızca ham dosyayı paylaşır. v1 kayıtlarına dokunulmaz.
   - `lib/` veya `android/` içeren her `main` gönderimi yüklenebilir APK üretir: yalnızca `flutter analyze` temiz durumlar
     gönderilir, kullanıcıya hangi derleme numarasını kuracağı söylenir.
-  - QML stillerini uygulamaya gömmek, kullanıcı QGIS 4.2.3'te kendiliğinden uygulandığını doğruladıktan sonra.
+  - QML stilleri uygulamanın ürettiği dosyalara da gömülür (kullanıcı QGIS 4.2.3'te kendiliğinden uygulandığını doğruladı,
+    25 Kasım; altlık ve birleştirme projede kalır, bu normal).
 - Sıra: örnek GeoPackage onayı → uygulama 2.0 (`flutter analyze`, telefonda denenmedi) → deneme çıkışı (gerçek örnekleme hızı,
   ekran kapalıyken kulaklık, dosya boyutu, QGIS'te açılış) → geliştirme sürüşleri → algoritma → test sürüşleri.
 

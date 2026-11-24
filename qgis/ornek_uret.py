@@ -39,6 +39,8 @@ TUR = [
     (41.024384, 28.893583), (41.024557, 28.893640),
 ]
 KESITLER = {"K01": (0, 4), "K02": (11, 12), "K03": (17, 21)}  # turdaki nokta aralıkları
+# Kullanıcının Kayıtlar sayfasında verdiği kesit adı (K03'e ad verilmemiş: boş görünür)
+KESIT_ADI = {"K01": "Kuzey yolu", "K02": "Parke yol", "K03": None}
 
 # Zemin: 15 km/h'te dikey sarsıntı RMS'i (m/s², telefon gidonda; v1 Kadıköy ölçümleri düzeyinde)
 ZEMIN_RMS = {"iyi_asfalt": 3.6, "yamali_asfalt": 5.2, "parke": 9.5}
@@ -332,7 +334,8 @@ def main():
     # ------------------------------------------------------------------ ham
     ham = GeoPackage(os.path.join(CIKTI, f"ornek_{GUN}_ham.gpkg"), SON_DEGISIKLIK)
     ham.katman("kayitlar", "LINESTRING", [
-        ("kayit_no", "TEXT"), ("kesit", "TEXT"), ("yon", "TEXT"), ("baslangic", "DATETIME"), ("bitis", "DATETIME"),
+        ("kayit_no", "TEXT"), ("kesit", "TEXT"), ("kesit_adi", "TEXT"), ("yon", "TEXT"), ("baslangic", "DATETIME"),
+        ("bitis", "DATETIME"),
         ("baslangic_yerel", "TEXT"), ("sure_s", "REAL"), ("uzunluk_m", "REAL"), ("ort_hiz_kmh", "REAL"),
         ("gps_nokta", "INTEGER"), ("ivme_hz", "REAL"), ("jiro_hz", "REAL"), ("cihaz", "TEXT"), ("ivme_sensoru", "TEXT"),
         ("jiro_sensoru", "TEXT"), ("scooter", "TEXT"), ("hava", "TEXT"), ("sicaklik_c", "REAL"), ("yagis_mm", "REAL"),
@@ -358,7 +361,7 @@ def main():
                 uz += math.dist(xy(fx[i - 1]["enlem"], fx[i - 1]["boylam"]), xy(fx[i]["enlem"], fx[i]["boylam"]))
         hizlar = [f["hiz_kmh"] for f in fx if f["hiz_kmh"] >= 3]
         ham.ekle("kayitlar", [(
-            cizgi([(f["boylam"], f["enlem"]) for f in fx]), k["kayit_no"], sp["kesit"], k["yon"],
+            cizgi([(f["boylam"], f["enlem"]) for f in fx]), k["kayit_no"], sp["kesit"], KESIT_ADI[sp["kesit"]], k["yon"],
             zaman_utc(bas), zaman_utc(bas + timedelta(seconds=k["sure"])), zaman_yerel(bas)[:19], round(k["sure"], 1),
             round(uz, 1), round(sum(hizlar) / len(hizlar), 1), len(fx),
             round((len(k["ivme"]) - 1) / (k["ivme"][-1][0] - k["ivme"][0][0]), 1),
@@ -397,7 +400,7 @@ def main():
         ("hiz_kmh", "REAL"), ("kaynak", "TEXT"),
     ], NOT + "Sürücünün çukur basışları; konum basış anındaki ham GPS konumu (çukurun birkaç metre ilerisi).")
     insan.katman("insan_puanlar", "LINESTRING", [
-        ("kayit_no", "TEXT"), ("kesit", "TEXT"), ("puan", "INTEGER"), ("durum", "TEXT"),
+        ("kayit_no", "TEXT"), ("kesit", "TEXT"), ("kesit_adi", "TEXT"), ("puan", "INTEGER"), ("durum", "TEXT"),
         ("puanlama_zamani", "DATETIME"), ("isaret_sayisi", "INTEGER"),
     ], NOT + "Sürücünün kesite verdiği konfor puanı (1 çok kötü - 5 çok iyi); çizgi kaydın güzergâhı.")
     for k in kayitlar:
@@ -413,7 +416,7 @@ def main():
             insan.ekle("insan_cukurlar", isaretler)
         bitis = bas + timedelta(seconds=k["sure"])
         insan.ekle("insan_puanlar", [(
-            cizgi([(f["boylam"], f["enlem"]) for f in fx]), k["kayit_no"], sp["kesit"], sp["puan"],
+            cizgi([(f["boylam"], f["enlem"]) for f in fx]), k["kayit_no"], sp["kesit"], KESIT_ADI[sp["kesit"]], sp["puan"],
             "puanlandi" if sp["puan"] is not None else "hatirlamiyorum",
             zaman_utc(bitis + timedelta(seconds=rng.uniform(6, 12))), len(isaretler))])
     aciklamalar_ekle(insan, ACIKLAMA_INSAN)
@@ -427,7 +430,8 @@ def main():
         ("hiz_kmh", "REAL"), ("guven", "REAL"), ("tepe_ms2", "REAL"), ("algoritma", "TEXT"),
     ], NOT + CLAUDE_NOT + "Claude'un bulduğu çukur / ani sarsıntı noktaları (darbe anı ve GPS gecikmesi düzeltilmiş konum).")
     cl.katman("claude_puanlar", "LINESTRING", [
-        ("kayit_no", "TEXT"), ("kesit", "TEXT"), ("puan", "INTEGER"), ("puan_ondalik", "REAL"), ("indeks_ms2", "REAL"),
+        ("kayit_no", "TEXT"), ("kesit", "TEXT"), ("kesit_adi", "TEXT"), ("puan", "INTEGER"), ("puan_ondalik", "REAL"),
+        ("indeks_ms2", "REAL"),
         ("algoritma", "TEXT"),
     ], NOT + CLAUDE_NOT + "Claude'un kesite verdiği konfor puanı (1-5); çizgi kaydın güzergâhı.")
     ALG = "yer tutucu (algoritma henüz yok)"
@@ -470,7 +474,7 @@ def main():
         indeks = rms * (15 / (sum(hizlar) / len(hizlar))) ** 0.65
         pd = min(5.0, max(1.0, 5.6 - 0.42 * indeks))
         cl.ekle("claude_puanlar", [(cizgi([(f["boylam"], f["enlem"]) for f in fx]), k["kayit_no"], sp["kesit"],
-                                    int(pd + 0.5), round(pd, 2), round(indeks, 2), ALG)])
+                                    KESIT_ADI[sp["kesit"]], int(pd + 0.5), round(pd, 2), round(indeks, 2), ALG)])
     aciklamalar_ekle(cl, ACIKLAMA_CLAUDE)
     cl.stiller(stilleri_oku(), STIL_NOTU)
     cl.kapat()
@@ -498,6 +502,7 @@ def aciklamalar_ekle(gp, satirlar):
 ORTAK = [
     ("(tümü)", "kayit_no", "metin", "", "Kaydın kimliği: başlangıcın yerel tarih ve saati (YYYYMMDD_SSddss). Bütün dosyalarda aynı; katmanları bununla birleştirin."),
     ("(tümü)", "kesit", "metin", "", "Kesit kodu (K01, K02...). Telefon otomatik verir: başlangıç ve bitiş noktası önceki bir kayıtla ~30 m içinde örtüşen (ters yön dahil) kayıt aynı kesittir. Yanlışsa QGIS'te düzeltilebilir."),
+    ("(tümü)", "kesit_adi", "metin", "", "Kesitin adı: kullanıcı Kayıtlar sayfasında verir (ör. sokak adı); aynı kesitin bütün kayıtlarına uygulanır. Verilmediyse boş."),
     ("(tümü)", "t_s", "ondalık", "s", "Kayıt başından (BAŞLAT) bu yana geçen süre. Bütün sensörler ve basışlar aynı saatle ölçülür; katmanları zamanla eşleştirmek için bu alan kullanılır."),
     ("(tümü)", "zaman", "tarih-saat", "UTC", "Mutlak zaman (GeoPackage kuralı gereği UTC; İstanbul = UTC+3)."),
     ("(tümü)", "yerel_saat", "metin", "UTC+3", "Aynı an, İstanbul saatiyle okunabilir yazım."),

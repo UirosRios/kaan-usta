@@ -28,16 +28,16 @@ birimini verir.
 
 | Katman | Geometri | Öznitelikler |
 |---|---|---|
-| `kayitlar` | Çizgi (her kayıt = bir kesitin bir geçişi) | kayit_no, kesit, yon, baslangic, bitis, sure_s, uzunluk_m, ort_hiz_kmh, gps_nokta, ivme_hz, jiro_hz, cihaz, sensörler, scooter, hava, veri_kaynagi, uygulama_surumu |
+| `kayitlar` | Çizgi (her kayıt = bir kesitin bir geçişi) | kayit_no, kesit, kesit_adi, yon, baslangic, bitis, sure_s, uzunluk_m, ort_hiz_kmh, gps_nokta, ivme_hz, jiro_hz, cihaz, sensörler, scooter, hava, veri_kaynagi, uygulama_surumu |
 | `gps_noktalari` | Nokta (her GPS konumu, ~1 sn) | kayit_no, kesit, t_s, zaman, hiz_kmh, yon_derece, dogruluk_m, yukseklik_m, uydu, **dikey_rms**, **dikey_tepe**, ivme_ornek |
 | `ivme` | Yok (tablo, ~200 Hz) | kayit_no, t_s, x, y, z (m/s², yerçekimi dahil) |
 | `jiroskop` | Yok (tablo, ~200 Hz) | kayit_no, t_s, x, y, z (rad/s) |
 
 **`_insan.gpkg`**: `insan_cukurlar` (nokta: kayit_no, kesit, t_s, zaman, hiz_kmh, kaynak) ve `insan_puanlar`
-(çizgi: kayit_no, kesit, puan, durum, puanlama_zamani, isaret_sayisi).
+(çizgi: kayit_no, kesit, kesit_adi, puan, durum, puanlama_zamani, isaret_sayisi).
 
 **`_claude.gpkg`**: `claude_cukurlar` (nokta: kayit_no, kesit, t_s, zaman, hiz_kmh, guven, tepe_ms2, algoritma) ve
-`claude_puanlar` (çizgi: kayit_no, kesit, puan, puan_ondalik, indeks_ms2, algoritma).
+`claude_puanlar` (çizgi: kayit_no, kesit, kesit_adi, puan, puan_ondalik, indeks_ms2, algoritma).
 
 İnsan ve Claude katmanları aynı alan adlarını ve anahtarları kullanır, böylece yan yana konabilir.
 
@@ -62,6 +62,8 @@ açık bırakılır; böylece örnek verideki aralığın dışında kalan gerç
 - **`kesit`**: Telefon otomatik olarak verir. Başlangıç ve bitiş noktası daha önceki bir kayıtla ~30 m içinde örtüşen
   kayıtlar aynı kesit sayılır; ters yön de dahildir. Yanlış atanırsa QGIS'te düzeltilebilir. Sokak adı telefonda
   çevrimdışı bulunamadığı için analizde eklenecek.
+- **`kesit_adi`**: Kesitin adıdır (ör. sokak adı). Kullanıcı telefondaki Kayıtlar sayfasında verir; aynı kesitin bütün
+  kayıtlarına uygulanır. Verilmediyse boştur.
 - **`t_s`**: Kayıt başından (BAŞLAT) itibaren geçen saniyedir. Sensörler, GPS ve basışlar aynı saatle ölçülür.
   **İnsan ve Claude çukurlarını zamanla eşleştirin, mesafeyle değil.**
   - Claude'un noktası darbe anındadır.
