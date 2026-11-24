@@ -46,10 +46,6 @@ ayıklar, hıza göre sarsıntı tablosu çıkarır, darbeleri bulur ve sarsınt
 Sokaklara göre sarsıntı sıralaması da çıkarır. Birden fazla sürüş `analiz/birlestir.py` ile birleştirilerek
 yol kalitesi haritası ve tekrar eden darbe noktaları elde edilir. Ayrıntılar: [analiz/README.md](analiz/README.md).
 
-Python kurmadan kullanmak için **Windows uygulaması** (`KaanUstaAnaliz.exe`, Actions → "Windows Uygulaması Derle" → Artifacts):
-CSV, `_bilgi.txt` ve `_puan.csv` dosyaları pencereye sürüklenir, tek düğmeyle analiz / birleştirme yapılır. Betikler uygulamanın içinde gelir;
-değiştiklerinde uygulama yeniden indirilmeden **GitHub'dan güncelle** veya **Betik dosyası yükle** ile yenilenir.
-
 ## Kayıt sırasında çukur: üç mod (Ayarlar)
 
 | Mod | Sürücü ne görür / yapar | Ne zaman |

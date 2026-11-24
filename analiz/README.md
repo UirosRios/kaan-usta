@@ -7,35 +7,6 @@
 - Darbeleri (çukur vb.) otomatik tespit eder ve uygulamanın sürüş sırasındaki anlık çukur uyarılarıyla karşılaştırır.
 - Sonuçları sokak haritası üzerinde, sarsıntıya göre renklendirilmiş bir haritada gösterir.
 
-## En kolayı: Windows uygulaması (Python gerekmez)
-
-`KaanUstaAnaliz.exe`, betikleri içinde gömülü getirir. Python veya kütüphane kurmak gerekmez.
-
-1. **İndirme:** GitHub'da depo → **Actions** → en son başarılı **"Windows Uygulaması Derle"** çalıştırması →
-   alttaki **Artifacts**'tan `kaan-usta-analiz-windows` (zip içinde `KaanUstaAnaliz.exe`). İstediğiniz yere koyun.
-   İlk açılışta Windows "Bilinmeyen yayımcı" uyarısı verebilir: **Ek bilgi → Yine de çalıştır**. Açılması birkaç saniye sürer.
-2. **Dosyaları bırakın:** Kaydın CSV'sini, `_bilgi.txt` ve varsa `_puan.csv` dosyasını (veya kayıtların bulunduğu klasörü,
-   örneğin telefondan kopyalanan `Belgeler/Mikromobilite`) pencereye sürükleyin. `_bilgi.txt` / `_puan.csv` başka bir klasördeyse
-   uygulama onları CSV'nin yanına kopyalar (betik orada arar). Klasör bırakılınca uygulamanın test sürüşleri
-   (`test_mikromobilite_...`, sanal GPS) atlanır; denemek için test kaydının CSV'sini doğrudan bırakın.
-3. **Çalıştırın:**
-   - **Analiz et (her sürüş ayrı)** = `surus_analizi.py`. Sonuç CSV'nin yanında `..._analiz` klasöründe; tek dosyada harita, çok dosyada klasör açılır.
-   - **Birleştir (yol kalitesi haritası)** = `birlestir.py`. Sonuç ilk CSV'nin (veya bırakılan klasörün) içinde `birlesik_analiz` klasöründe; harita açılır.
-   - **Ek ayarlar:** Komut satırı ayarları aynen yazılabilir (örn. `--darbe-taban ortak`). **Tüm ayarları göster** listesini verir.
-
-**Betikleri güncelleme (uygulamayı yeniden indirmeden):**
-- **GitHub'dan güncelle:** Deponun varsayılan dalındaki `analiz/*.py` dosyalarını indirir (internet gerekir).
-- **Betik dosyası yükle…:** Seçtiğiniz `.py` dosyaları kullanılan betiklerin üzerine yazılır; seçmedikleriniz değişmez.
-  Bozuk (Python olarak okunamayan) dosya kabul edilmez.
-- **Varsayılana dön:** Uygulamanın içindeki gömülü betiklere döner.
-- Güncellenen betikler `%APPDATA%\KaanUstaAnaliz\betikler` klasöründe durur (**Klasörü aç**). Pencerenin altında hangi
-  betiklerin kullanıldığı (gömülü / GitHub / elle, tarih ve commit) yazar.
-
-**Sınır:** Uygulamanın içinde yalnızca Python'un standart kütüphanesi ve matplotlib (numpy dahil) vardır. Betikler ileride başka bir
-kütüphane (örn. pandas, scipy) kullanırsa betik güncellemesi yetmez; kütüphane `masaustu/gereksinimler.txt` ve
-`masaustu/analiz_araci.py` içindeki `_paketlenecek_moduller` listesine eklenip uygulama yeniden derlenmelidir.
-`analiz/` veya `masaustu/` her değiştiğinde GitHub uygulamayı kendiliğinden yeniden derler (gömülü betikler de güncellenir).
-
 ## Komut satırından kullanım (Windows)
 
 **Bir kez yapılacaklar**
