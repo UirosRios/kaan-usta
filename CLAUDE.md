@@ -46,7 +46,8 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
 - Kesitler önceden, **gözle** seçilir (ölçülen sarsıntıya bakmadan) ve tüm zemin türlerini kapsar (çok iyi asfalt … Arnavut
   kaldırımı, ray, kasis); tercihen > 150 m. Her kesit ≥ 3 geçiş (farklı gün / hız / iki yönlüyse iki yön). Hedef 20-25+ kesit.
 - **Kesit kimliği otomatik:** başlangıç ve bitiş noktaları ~30 m içinde (ters yön dahil) ve güzergâhı büyük ölçüde (%80+)
-  çakışan kayıtlar aynı kesit. Sokak adı OSM'den analizde verilir (telefon çevrimdışı ad alamaz). Eşikler kesinleşmedi.
+  çakışan kayıtlar aynı kesit. Kodu (K01, K02 …) telefon verir (önerilen; örnek dosyada öyle), QGIS'te düzeltilebilir;
+  sokak adı OSM'den analizde verilir (telefon çevrimdışı ad alamaz). Eşikler kesinleşmedi.
 
 ### Uygulama 2.0 planı (henüz yapılmadı; önce örnek GeoPackage onaylanacak)
 
@@ -190,7 +191,9 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
 
 ## Açık işler / sıradaki adımlar
 
-- Örnek GeoPackage'ı (`qgis/ornek/`) kullanıcı ve arkadaşı QGIS'te açıp onaylayacak; sonra uygulama 2.0.
+- Örnek GeoPackage'ı (`qgis/ornek/`, `qgis/ornek_uret.py`; 24 Kasım'da gönderildi, GDAL ile okundu, QGIS'te denenmedi,
+  resmî `validate_gpkg.py` çalıştırılamadı) kullanıcı ve arkadaşı QGIS'te açıp onaylayacak; sonra uygulama 2.0.
+  Açık soru: günlük `_ham.gpkg` ~60 MB (dakikada ~1,5 MB) Claude'a nasıl ulaşacak.
 - Telefonda dene (2.0 ile): ekran kapalıyken kulaklık / kumanda işareti, gerçek örnekleme hızı, dosya boyutu.
 - Kesit listesi (arkadaş + hoca, gözle, tüm zemin türleri) hazırlanacak; geliştirme ve test kesitleri ayrı sokaklar.
 - İstenirse: arkadaşın GPS'siz cihazlarda ağ konumuna düşme değişikliği.
