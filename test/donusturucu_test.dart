@@ -107,6 +107,11 @@ void main() {
   });
 
   const a = (41.027878, 28.889648), b = (41.026281, 28.888188); // YTÜ Davutpaşa, ~215 m
+  // Uygulamanın gömdüğü QGIS stilleri (pubspec assets: qgis/stiller/)
+  final stiller = {
+    for (final f in Directory('qgis/stiller').listSync().whereType<File>().where((f) => f.path.endsWith('.qml')))
+      f.uri.pathSegments.last.replaceAll('.qml', ''): f.readAsStringSync(),
+  };
   final gun = DateTime(2026, 11, 25, 10, 15, 2);
 
   String hamYaz(String ad, Uint8List v) {
@@ -147,7 +152,7 @@ void main() {
 
   test('çeviri: katmanlar, kesit, işaret, puan, ad, silme', () {
     final y1 = hamYaz('1', yapayKayit(baslangic: gun, a: a, b: b));
-    final s1 = donustur(hamDosya: y1, klasor: klasor.path, bilgi: const KayitBilgisi(cihaz: 'Deneme'), stiller: {'kayitlar': '<qgis/>'});
+    final s1 = donustur(hamDosya: y1, klasor: klasor.path, bilgi: const KayitBilgisi(cihaz: 'Deneme'), stiller: stiller);
     expect(s1.kayitNo, '20261125_101502');
     expect(s1.kesit, 'K01');
     expect(s1.yon, 'gidis');
@@ -164,7 +169,7 @@ void main() {
     final r = gp.db.select('SELECT dikey_tepe, ivme_ornek FROM gps_noktalari WHERE t_s > 12 ORDER BY t_s LIMIT 1').first;
     expect((r['dikey_tepe'] as num).toDouble(), greaterThan(15)); // çukur darbesi özette görünür
     expect(r['ivme_ornek'], 200);
-    expect(gp.db.select("SELECT count(*) AS n FROM layer_styles").first['n'], 1);
+    expect(gp.db.select("SELECT count(*) AS n FROM layer_styles").first['n'], 2); // kayitlar, gps_noktalari
     gp.kapat();
 
     // Ters yönde aynı kesit: dönüş, 2. geçiş
@@ -204,7 +209,7 @@ void main() {
 
   test('test sürüşü ayrı dosyalara', () {
     final y = hamYaz('t', yapayKayit(baslangic: gun, a: a, b: b, sanal: true));
-    final s = donustur(hamDosya: y, klasor: klasor.path, bilgi: const KayitBilgisi());
+    final s = donustur(hamDosya: y, klasor: klasor.path, bilgi: const KayitBilgisi(), stiller: stiller);
     expect(File(s.hamYol).uri.pathSegments.last, 'test_mikromobilite_20261125_ham.gpkg');
     expect(File('${klasor.path}/test_kesitler.json').existsSync(), isTrue);
     expect(kayitlariListele(klasor.path).single.test, isTrue);

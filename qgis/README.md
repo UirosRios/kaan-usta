@@ -3,8 +3,10 @@
 Uygulama 2.0 her sürüş günü için **GeoPackage** (`.gpkg`) dosyaları üretecek. GeoPackage QGIS'in kendi önerdiği
 biçimdir: tek dosyanın içinde birden çok katman ve her katmanın öznitelik tablosu bulunur. Ek program gerekmez.
 
-`ornek/` klasöründeki dosyalar **yapay örnektir** (gerçek sürüş değildir). Biçimi onaylamak için üretildiler.
-Uygulama henüz bu biçimi yazmıyor; biçim onaylanınca uygulamaya eklenecek.
+`ornek/` klasöründeki dosyalar **yapay örnektir** (gerçek sürüş değildir). Biçim kullanıcı ve arkadaşı tarafından
+onaylandı (25 Kasım 2026). Uygulama 2.0 aynı biçimi yazar (`lib/katmanlar.dart`); uygulamanın ürettiği bir dosyanın
+biçimi `python3 qgis/sema_karsilastir.py qgis/ornek/ornek_20261120_ham.gpkg <dosya>_ham.gpkg` ile denetlenir.
+Fark: uygulamada `insan_puanlar.durum` henüz puan verilmemiş kayıt için `puanlanmadi` olabilir.
 
 ## Üç dosya: kim üretir, kime gider
 

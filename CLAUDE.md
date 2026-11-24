@@ -113,7 +113,8 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
     `KayitServisi.kt` (ön plan hizmeti + MediaSession / VolumeProvider / sessiz AudioTrack; `isaretBildir` önce KayitMotoru'na yazar).
   - Testler: `test/donusturucu_test.dart` (yapay .kuham → gpkg; okuma, saat düzeltmesi, yarım dosya, kesit, puan, ad, silme, test
     dosyaları). `KAAN_TEST_CIKTI=<klasör> flutter test` çıktıları kopyalar; `python3 qgis/sema_karsilastir.py qgis/ornek/..._ham.gpkg
-    <çıktı>_ham.gpkg` biçimi denetler (25 Kasım: ham ve insan aynı).
+    <çıktı>_ham.gpkg` biçimi denetler (25 Kasım: gerçek ve test, ham ve insan dosyalarının dördü de örnekle aynı; testte gerçek
+    `qgis/stiller` kullanılır).
 - `analiz/`: v1 Python analiz betikleri (0,5 sn CSV biçimini okur; yeni ham biçim için karşılaştırma aşamasında yeniden ele alınacak).
   `surus_analizi.py` (tek sürüş), `birlestir.py` (sürüşleri birleştirme), `haritaya_oturtma.py` (OSM yollarına oturtma),
   `simulasyon.py` (gerçeği bilinen yapay sürüşlerle doğrulama). Yalnızca standart kütüphane ve matplotlib.
@@ -237,5 +238,12 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   (`kayitlar.ivme_hz`), dosya boyutu, sohbete yükleme, kesit otomatik atama, yarım kalan kayıt kurtarma.
   Bilinen sınırlar: kesit ataması yalnızca uç noktalara bakar (%80 güzergâh çakışması denetimi yok); işaret sayacı ekran
   yeniden kurulursa sıfırdan başlar (kayıttaki sayı doğrudur).
+  Hiç çalışmamış olanlar: `KayitMotoru.kt` hiçbir yerde çalıştırılmadı (yalnızca CI'da derlenir); Kotlin'in yazdığı .kuham baytları
+  ile Dart okuyucusu yalnızca okunarak eşleştirildi (test kendi baytlarını yazar). `package:sqlite3`'ün Android'de APK'ya
+  girdiği kanıtlanmadı: eksikse ilk DURDUR'da "Kayıt kaydedilemedi" çıkar (ham dosya korunur).
+- **İmza anahtarı sorusu (açık):** release APK debug anahtarıyla imzalanıyor ve CI'da sabit keystore yok; her derleme farklı
+  imzalanıyor olabilir → üstüne kurulamaz, kaldırıp kurmak gerekir. Kaldırma uygulama klasörünü (v1 kayıtları, 2.0 gün dosyaları,
+  `kesitler.json`) siler: kesit kodları K01'den yeniden başlar. Gerçek sürüşlerden önce karar: sabit keystore (GitHub sırrı) veya
+  kesit defterini Belgeler'e yedekleme. Kullanıcıya soruldu (25 Kasım).
 - Kesit listesi (arkadaş + hoca, gözle, tüm zemin türleri) hazırlanacak; geliştirme ve test kesitleri ayrı sokaklar.
 - İstenirse: arkadaşın GPS'siz cihazlarda ağ konumuna düşme değişikliği.
