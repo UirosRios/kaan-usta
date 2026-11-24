@@ -195,6 +195,10 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   QGIS'te (Windows, Türkçe arayüz) açtı, katmanlar doğru yerde,
   resmî `validate_gpkg.py` çalıştırılamadı) kullanıcı ve arkadaşı QGIS'te açıp onaylayacak; sonra uygulama 2.0.
   Açık soru: günlük `_ham.gpkg` ~60 MB (dakikada ~1,5 MB) Claude'a nasıl ulaşacak.
+  Kullanıcının QGIS stil seçimi (renk ayırt etmekte zorlanıyor; renge dayanmayan ayrım tercih): `gps_noktalari` Blues
+  (ters çevirmeden; koyu = sarsıntılı), `insan_cukurlar` kırmızı üçgen, `claude_cukurlar` gölge efektli (drop shadow) daire.
+  QGIS seçim rengi sarı; anlatımda renk yerine "seçili satırlara yakınlaştır" kullan. Hazır stil: kullanıcının QGIS'te
+  kaydettiği .qml / .qgz alınıp dosyalara gömülebilir (kendi yazdığım QML denenemez).
 - Telefonda dene (2.0 ile): ekran kapalıyken kulaklık / kumanda işareti, gerçek örnekleme hızı, dosya boyutu.
 - Kesit listesi (arkadaş + hoca, gözle, tüm zemin türleri) hazırlanacak; geliştirme ve test kesitleri ayrı sokaklar.
 - İstenirse: arkadaşın GPS'siz cihazlarda ağ konumuna düşme değişikliği.
