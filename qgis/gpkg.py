@@ -140,6 +140,24 @@ class GeoPackage:
         self.db.executemany(sql, hazir)
         self.katmanlar[ad][2] = kapsam
 
+    def stiller(self, qml_sozlugu, aciklama):
+        """QGIS'in GeoPackage'da varsayılan stil sakladığı `layer_styles` tablosunu yazar (QGIS'in kendi yazdığı biçim).
+        qml_sozlugu: {katman adı: QML metni}. QGIS katmanı eklerken useAsDefault = 1 olan stili kendiliğinden uygular."""
+        satirlar = []
+        for ad, qml in qml_sozlugu.items():
+            if ad in self.katmanlar:
+                geo = "geom" if self.katmanlar[ad][0] else ""
+                satirlar.append(("", "", ad, geo, ad, qml, None, 1, aciklama, "", None, self.son_degisiklik))
+        if not satirlar:
+            return
+        self.katman("layer_styles", None, [
+            ("f_table_catalog", "TEXT(256)"), ("f_table_schema", "TEXT(256)"), ("f_table_name", "TEXT(256)"),
+            ("f_geometry_column", "TEXT(256)"), ("styleName", "TEXT(30)"), ("styleQML", "TEXT"), ("styleSLD", "TEXT"),
+            ("useAsDefault", "BOOLEAN"), ("description", "TEXT"), ("owner", "TEXT(30)"), ("ui", "TEXT(30)"),
+            ("update_time", "DATETIME"),
+        ], "QGIS katman stilleri (QGIS katmanı eklerken kendiliğinden uygular).")
+        self.ekle("layer_styles", satirlar)
+
     def kapat(self):
         for ad, (geometri_turu, _, kapsam) in self.katmanlar.items():
             if geometri_turu and kapsam:

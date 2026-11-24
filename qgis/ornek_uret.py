@@ -25,6 +25,8 @@ SON_DEGISIKLIK = "2026-11-20T12:00:00.000Z"
 YEREL = timezone(timedelta(hours=3))  # İstanbul
 CIKTI = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ornek")
 NOT = "YAPAY ÖRNEK VERİ: gerçek sürüş değildir, yalnızca dosya biçimini göstermek için üretildi. "
+STIL_KLASORU = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stiller")
+STIL_NOTU = "Kullanıcının QGIS projesinden alınan görünüm (qgis/stil_cikar.py)."
 CLAUDE_NOT = "YER TUTUCU: algoritma henüz yok; değerler biçimi göstermek için basit bir hesapla dolduruldu. "
 
 # Uygulamadaki test sürüşü turu (lib/test_surusu.dart), YTÜ Davutpaşa iç yolları
@@ -385,6 +387,7 @@ def main():
         ham.ekle("ivme", [(k["kayit_no"], round(t, 4), x, y, z) for t, x, y, z in k["ivme"]])
         ham.ekle("jiroskop", [(k["kayit_no"], round(t, 4), x, y, z) for t, x, y, z in k["jiro"]])
     aciklamalar_ekle(ham, ACIKLAMA_HAM)
+    ham.stiller(stilleri_oku(), STIL_NOTU)
     ham.kapat()
 
     # ------------------------------------------------------------------ insan
@@ -414,6 +417,7 @@ def main():
             "puanlandi" if sp["puan"] is not None else "hatirlamiyorum",
             zaman_utc(bitis + timedelta(seconds=rng.uniform(6, 12))), len(isaretler))])
     aciklamalar_ekle(insan, ACIKLAMA_INSAN)
+    insan.stiller(stilleri_oku(), STIL_NOTU)
     insan.kapat()
 
     # ------------------------------------------------------------------ claude (yer tutucu)
@@ -468,12 +472,21 @@ def main():
         cl.ekle("claude_puanlar", [(cizgi([(f["boylam"], f["enlem"]) for f in fx]), k["kayit_no"], sp["kesit"],
                                     int(pd + 0.5), round(pd, 2), round(indeks, 2), ALG)])
     aciklamalar_ekle(cl, ACIKLAMA_CLAUDE)
+    cl.stiller(stilleri_oku(), STIL_NOTU)
     cl.kapat()
 
     for ad in ("ham", "insan", "claude"):
         yol = os.path.join(CIKTI, f"ornek_{GUN}_{ad}.gpkg")
         print(f"{yol}: {os.path.getsize(yol) / 1e6:.2f} MB")
     print(f"Toplam kayıt süresi: {sum(k['sure'] for k in kayitlar) / 60:.2f} dk")
+
+
+def stilleri_oku():
+    """qgis/stiller/<katman>.qml dosyaları (yoksa boş): QGIS'in kendiliğinden uygulayacağı varsayılan stiller."""
+    if not os.path.isdir(STIL_KLASORU):
+        return {}
+    return {ad[:-4]: open(os.path.join(STIL_KLASORU, ad), encoding="utf-8").read()
+            for ad in sorted(os.listdir(STIL_KLASORU)) if ad.endswith(".qml")}
 
 
 def aciklamalar_ekle(gp, satirlar):

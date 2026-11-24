@@ -21,7 +21,7 @@ Katman adları dosyalar arasında çakışmaz (`insan_...`, `claude_...`). Üç 
 
 ## Katmanlar
 
-Her dosyanın içinde bir de **`aciklamalar`** tablosu bulunur. Bu tablo veri sözlüğüdür ve her alanın anlamını ve
+Her dosyanın içinde bir de **`aciklamalar`** tablosu (ve QGIS'in stil tablosu `layer_styles`) bulunur. Bu tablo veri sözlüğüdür ve her alanın anlamını ve
 birimini verir.
 
 **`_ham.gpkg`**
@@ -40,6 +40,21 @@ birimini verir.
 `claude_puanlar` (çizgi: kayit_no, kesit, puan, puan_ondalik, indeks_ms2, algoritma).
 
 İnsan ve Claude katmanları aynı alan adlarını ve anahtarları kullanır, böylece yan yana konabilir.
+
+## Hazır görünüm (stiller)
+
+Dosyalar, kullanıcının QGIS'te hazırladığı görünümü içinde taşır (`layer_styles` tablosu; QGIS'in kendi varsayılan stil
+yeri). Katman QGIS'e eklenince bu görünüm kendiliğinden gelir:
+- `gps_noktalari`: Blues, `dikey_rms`'e göre 5 sınıf; koyu = sarsıntılı.
+- `insan_cukurlar`: kırmızı üçgen.
+- `claude_cukurlar`: gölgeli koyu kırmızı yıldız.
+
+Renk yerine biçim farkı kullanıldığı için renk ayırt etmede zorlananlar için de okunur.
+
+Stiller `stiller/*.qml` dosyalarındadır. QGIS'te görünüm değiştirilince proje (.qgz) kaydedilip
+`python qgis/stil_cikar.py proje.qgz` ile yeniden çıkarılır. Projeden yalnızca görünüm alınır; yazar adı, dosya
+yolları ve birleştirmeler alınmaz. Dereceli sınıflarda en alt sınıf 0'dan başlatılır, en üst sınıf "ve üstü" olarak
+açık bırakılır; böylece örnek verideki aralığın dışında kalan gerçek değerler haritadan kaybolmaz.
 
 ## Ortak anahtarlar ve bilinmesi gerekenler
 

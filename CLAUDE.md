@@ -197,8 +197,12 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   bağlantısı var).
   Kullanıcının QGIS stil seçimi (renk ayırt etmekte zorlanıyor; renge dayanmayan ayrım tercih): `gps_noktalari` Blues
   (ters çevirmeden; koyu = sarsıntılı), `insan_cukurlar` kırmızı üçgen, `claude_cukurlar` gölge efektli (drop shadow) daire.
-  QGIS seçim rengi sarı; anlatımda renk yerine "seçili satırlara yakınlaştır" kullan. Hazır stil: kullanıcının QGIS'te
-  kaydettiği .qml / .qgz alınıp dosyalara gömülebilir (kendi yazdığım QML denenemez).
+  QGIS seçim rengi sarı; anlatımda renk yerine "seçili satırlara yakınlaştır" kullan. Kullanıcı QGIS **4.2.3** kullanıyor.
+  25 Kasım: kullanıcının `deneme.qgz` projesinden stiller `qgis/stil_cikar.py` ile `qgis/stiller/*.qml`'e çıkarıldı ve
+  GeoPackage'ların `layer_styles` tablosuna gömüldü (QGIS katmanı eklerken uygular; GDAL ile okundu, QGIS'te otomatik
+  uygulanması denenmedi). Son hâli: Blues (`dikey_rms`, 5 sınıf, alt 0, üst açık), insan = kırmızı üçgen, Claude =
+  gölgeli koyu kırmızı yıldız, proje KRS EPSG:5254, altlık Esri Light Gray Base. Proje dosyasında kullanıcının adı ve
+  Windows yolu var: .qgz/.qgs **depoya konmaz**, yalnızca görünüm alınır. Uygulama 2.0 da aynı QML'leri gömmeli.
 - Telefonda dene (2.0 ile): ekran kapalıyken kulaklık / kumanda işareti, gerçek örnekleme hızı, dosya boyutu.
 - Kesit listesi (arkadaş + hoca, gözle, tüm zemin türleri) hazırlanacak; geliştirme ve test kesitleri ayrı sokaklar.
 - İstenirse: arkadaşın GPS'siz cihazlarda ağ konumuna düşme değişikliği.
