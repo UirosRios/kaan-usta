@@ -191,7 +191,8 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
 
 ## Açık işler / sıradaki adımlar
 
-- Örnek GeoPackage'ı (`qgis/ornek/`, `qgis/ornek_uret.py`; 24 Kasım'da gönderildi, GDAL ile okundu, QGIS'te denenmedi,
+- Örnek GeoPackage'ı (`qgis/ornek/`, `qgis/ornek_uret.py`; 24 Kasım'da gönderildi, GDAL ile okundu; 25 Kasım'da kullanıcı
+  QGIS'te (Windows, Türkçe arayüz) açtı, katmanlar doğru yerde,
   resmî `validate_gpkg.py` çalıştırılamadı) kullanıcı ve arkadaşı QGIS'te açıp onaylayacak; sonra uygulama 2.0.
   Açık soru: günlük `_ham.gpkg` ~60 MB (dakikada ~1,5 MB) Claude'a nasıl ulaşacak.
 - Telefonda dene (2.0 ile): ekran kapalıyken kulaklık / kumanda işareti, gerçek örnekleme hızı, dosya boyutu.

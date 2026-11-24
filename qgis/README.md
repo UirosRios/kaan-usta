@@ -61,18 +61,23 @@ birimini verir.
     telefonun takılma açısına bağlı olmaz.
   - Haritada renklendirmek için konmuştur. Ham değerler `ivme` tablosunda durur.
 
-## QGIS'te açma (QGIS'te denenmedi; dosyalar GDAL ile okunarak denetlendi)
+## QGIS'te açma
+
+Örnek dosyalar QGIS'te (Windows) açıldı ve katmanlar doğru yerde göründü (kullanıcı, 25 Kasım 2026). Aşağıdaki
+adımların hepsi henüz denenmedi.
 
 1. `.gpkg` dosyalarını QGIS penceresine sürükleyin. QGIS hangi katmanların ekleneceğini sorar; hepsini seçin.
-2. **Altlık:** Tarayıcı (Browser) panelinde XYZ Tiles → OpenStreetMap.
-3. **Öznitelik tablosu:** Katmana sağ tıklayın → Öznitelik Tablosunu Aç (Open Attribute Table).
-4. **Sarsıntıya göre renk:** `gps_noktalari` → Özellikler → Simgeleme (Symbology) → Dereceli (Graduated) →
+2. **Koordinat sistemi:** Sağ alttaki `EPSG:4326` yazısına tıklayın, `5254` arayın, **TUREF / TM30** seçin. Harita
+   metre cinsinden ve gerilmeden görünür.
+3. **Altlık:** Tarayıcı (Browser) panelinde XYZ Tiles → OpenStreetMap.
+4. **Öznitelik tablosu:** Katmana sağ tıklayın → Öznitelik Tablosunu Aç (Open Attribute Table).
+5. **Sarsıntıya göre renk:** `gps_noktalari` → Özellikler → Simgeleme (Symbology) → Dereceli (Graduated) →
    Değer: `dikey_rms`.
-5. **Puanları yan yana koyma:** `claude_puanlar` → Özellikler → Birleştirmeler (Joins) → + → katman `insan_puanlar`,
+6. **Puanları yan yana koyma:** `claude_puanlar` → Özellikler → Birleştirmeler (Joins) → + → katman `insan_puanlar`,
    alan `kayit_no` ↔ `kayit_no`.
-6. **Sürüşü zamanla oynatma:** `gps_noktalari` → Özellikler → Zamansal (Temporal) → tarih-saat içeren tek alan:
+7. **Sürüşü zamanla oynatma:** `gps_noktalari` → Özellikler → Zamansal (Temporal) → tarih-saat içeren tek alan:
    `zaman`. Ardından Görünüm → Paneller → Zaman Denetleyicisi (Temporal Controller).
-7. **Çukur eşleştirme örneği:** Katman → Katman Ekle → Sanal Katman (Virtual Layer). Aşağıdaki sorgu, Claude'un
+8. **Çukur eşleştirme örneği:** Katman → Katman Ekle → Sanal Katman (Virtual Layer). Aşağıdaki sorgu, Claude'un
    darbesinden sonraki 0-5 sn içinde gelen basışları eşleştirir:
    ```sql
    SELECT i.kayit_no, i.t_s AS insan_t_s, c.t_s AS claude_t_s, i.t_s - c.t_s AS fark_s, c.guven, c.geometry
