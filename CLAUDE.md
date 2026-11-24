@@ -10,12 +10,73 @@ Bu dosya oturumlar arası kalıcı hafızadır: bulut oturumu her seferinde sıf
 - Kullanıcıyla **Türkçe** konuşulur (unutulunca kullanıcı uyardı); kod, yorumlar, commit mesajları ve belgeler Türkçedir.
 - Kullanıcı hekimdir (yazılımcı değil): açıklamalar sade, teknik ayrıntı gerektiği kadar.
 - **"Bir sorun varsa önce sor, sonra yap."** Belirsiz / riskli / kapsam dışı değişikliklerde önce sor; açık istekleri doğrudan yap.
+  Büyük işlerde önce plan sunulur, kullanıcı onaylayınca ("başla") uygulanır.
 - Sonuçları dürüst raporla: telefonda denenmemiş özellikleri "denenmedi" diye belirt.
 - Hocaya gösterilecek açıklamalar istendiğinde Artifact sayfası olarak hazırlandı (uygulama mantığı, oturtma, çıktılar).
+- Örnek dosyaları / biçimleri **kullanıcı ve arkadaşı** onaylar (hoca değil).
+
+## Tez tasarımı (24 Kasım 2026'da değişti)
+
+Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
+- **Uygulama ham veri toplayıcıdır.** Sürüş sırasında sürücü çukurları işaretler, her kaydın sonunda kesite 1-5 konfor puanı verir.
+- **Claude**, yalnızca ham sensör + GPS verisinden kendi algoritmasıyla çukur noktaları ve kesit puanları üretir.
+  **Arkadaş ve kullanıcı** kendi işaret ve puanlarını verir. İkisi **QGIS**'te katman katman (öznitelik tablolarıyla)
+  karşılaştırılır (hocanın önerisi). Biçim GeoPackage; ayrıntı aşağıda.
+- Amaç: algoritma çukurları ne kadar doğru / duyarlı / özgül buluyor, puanları insan puanına ne kadar yakın.
+- **Bağımsızlık kuralı:** Claude bir sürüş gününün insan dosyasını (`*_insan.gpkg`: işaretler, puanlar) o günün Claude
+  katmanları (`*_claude.gpkg`) GitHub'a gönderilmeden **açmaz, okumaz, analiz etmez**. Yanlışlıkla gelirse açmadan kenara
+  koy ve kullanıcıya söyle. Algoritma bir test gününe bakılarak sonradan değiştirilmez (değişirse yeni sürüm, yeni test verisi).
+  İstisna: **geliştirme seti** (kullanıcı izin verdi): ilk sürüşlerde her şey görülür, algoritma ve 1-5 çevirisi bunlarla kurulur.
+  3 Kasım Kadıköy sürüşü geliştirme verisidir (eşikler onunla ayarlandı). **Test kesitleri geliştirme kesitlerinden ayrı sokaklar.**
+- Algoritma sohbette verilen yorum değil, depodaki koddur: aynı girdiden hep aynı sonucu üretir.
+- Gerçek sürüş güzergâhları ve verileri depoya konabilir (kullanıcı izni; depo herkese açık).
+- Daha önce önerilen resmî "dondur + mühürle" protokolü (git etiketi, tahminler referanstan önce GitHub'da) ve istatistik
+  planı şimdilik **park edildi**; resmî karşılaştırmaya geçilirse aşağıdaki "İleriki aşama" notundan yeniden kurulur.
+
+### Sürüş protokolü (karar verildi)
+
+- **Bir kayıt = bir kesit = bir puan.** Kesit boyunca zemin tek tip olmalı; zemin değişirse (asfalt → parke) orada durup yeni kayıt.
+- Başta: kesit başında dur, BAŞLAT, ~5 sn bekle, sür. Sonda: kesit sonunda dur, ~5 sn bekle, DURDUR (son çukurun işareti
+  ~1,3 sn sonra geldiği için; başlat/durdur dokunuşu duruşa denk gelsin). Her geçiş **aynı noktalarda** başlar ve biter.
+- Puan DURDUR'dan hemen sonra verilir (1-5 veya "Hatırlamıyorum"; "Sonra" kalkacak).
+- **Çukur tanımı:** ani sarsıntı hissi veren her şey (çukur, kasis, ray, rögar, kot farkı vb.). Arnavut kaldırımı gibi sürekli
+  pürüzlü zeminde her taşa değil, yalnızca zeminden belirgin ayrılan sarsıntılara basılır.
+- İşaret doğrulama sürüşlerinde **kulaklık / Bluetooth kumanda** ile verilir (ekran ve telefon tuşu telefonu sarsar;
+  ekran butonu yedek, kaynağı kaydedilir).
+- Kesitler önceden, **gözle** seçilir (ölçülen sarsıntıya bakmadan) ve tüm zemin türlerini kapsar (çok iyi asfalt … Arnavut
+  kaldırımı, ray, kasis); tercihen > 150 m. Her kesit ≥ 3 geçiş (farklı gün / hız / iki yönlüyse iki yön). Hedef 20-25+ kesit.
+- **Kesit kimliği otomatik:** başlangıç ve bitiş noktaları ~30 m içinde (ters yön dahil) ve güzergâhı büyük ölçüde (%80+)
+  çakışan kayıtlar aynı kesit. Sokak adı OSM'den analizde verilir (telefon çevrimdışı ad alamaz). Eşikler kesinleşmedi.
+
+### Uygulama 2.0 planı (henüz yapılmadı; önce örnek GeoPackage onaylanacak)
+
+- **Ham kayıt:** ivmeölçer 3 eksen ve **jiroskop** (kullanıcı istedi) ~200 Hz, her GPS_PROVIDER konumu (hız, yön, doğruluk,
+  yükseklik, uydu sayısı), her basış; hepsi **aynı saatle** (sensör zaman damgası). Telefonda filtre yok (yalnızca nokta
+  katmanındaki sarsıntı özeti; kullanıcı onayladı). Kayıt büyük olasılıkla Kotlin `KayitServisi`'ne taşınır
+  (`sensors_plus` `event.timestamp`'ın donanım saati mi geliş saati mi olduğu kontrol edilmeli).
+- **Çıktı:** her sürüş günü için GeoPackage, **yazarına göre ayrı dosyalar**: `*_ham.gpkg` (Claude'a gider) ve `*_insan.gpkg`
+  (işaret + puan; sürücüde kalır). Claude `*_claude.gpkg` üretir. Ayrıntı: `qgis/README.md`.
+- Kalkacaklar: otomatik çukur uyarısı modu ve `Cukur` sütunu, 0,5 sn özet CSV, her DURDUR'dan sonra açılan paylaşım ekranı,
+  dönüşlere göre otomatik parçalama (`Parcalama`), puanlamadaki "Sonra", önizlemedeki sarsıntı renkleri, kayıt sırasında
+  canlı sarsıntı gösterimi. Yerine: gün sonunda tek "Günün kayıtlarını gönder".
+- Kalacaklar: işaret yolları (kulaklık / kumanda / ses tuşu / ekran), test sürüşü (sanal GPS), Belgeler/Mikromobilite kopyası.
+- Sıra: örnek GeoPackage onayı → uygulama 2.0 (`flutter analyze`, telefonda denenmedi) → deneme çıkışı (gerçek örnekleme hızı,
+  ekran kapalıyken kulaklık, dosya boyutu, QGIS'te açılış) → geliştirme sürüşleri → algoritma → test sürüşleri.
+
+### İleriki aşama: resmî karşılaştırma planı (park edildi)
+
+- Konfor, birincil kesit düzeyi: insan puan ortalaması ↔ Claude kesit puanı (geçiş puanlarının ortalaması); ICC(A,1)
+  (iki yönlü, mutlak uyum), Bland–Altman (kabul: uyum sınırları ±1 puan), Spearman + permütasyon. İkincil geçiş düzeyi:
+  kuadratik ağırlıklı kappa, tam / ±1 uyum, 5×5 tablo; güven aralığı kesite göre bootstrap (10000, sabit tohum).
+  Tutarlılık: sürücü ve algoritma için tekrarlar arası ICC(1,1); "algoritma–sürücü uyumu, sürücü–sürücü uyumu kadar mı?".
+  Dahil etme: kesitte ≥ 2 geçerli insan ve algoritma puanı. 1-5 çevirisi geliştirme setinde kurulur.
+- Çukur: geçiş başına zamanla olay eşleştirme (tahmin, basıştan önceki ~5 sn içinde), duyarlılık, PPV, F1, km başına yanlış
+  alarm; özgüllük için 20 m hücreler (2×2, NPV, kappa); güven puanıyla ROC/AUC; referans konumu yalnızca basış zamanından.
+- Örneklem birimi kesittir (geçişler bağımsız değil). Hız üssü tek kısa geçişten kestirilemez; geliştirme setinde kestirilip dondurulur.
 
 ## Bölümler
 
-- `lib/`, `android/`, `assets/`: Flutter Android uygulaması (kayıt, çukur işareti / uyarısı, puanlama, önizleme, CSV dışa aktarma).
+- `lib/`, `android/`, `assets/`: Flutter Android uygulaması (şu an v1.4: kayıt, çukur işareti / uyarısı, puanlama, önizleme, CSV).
   - `main.dart`: ana ekran, kayıt motoru (0,5 sn pencere, ~200 Hz ivme, yerçekimi giderme 0,4 Hz yüksek geçiren), GPS, test sürüşü.
   - `ayarlar.dart`: scooter adı, çukur modu (`CukurModu`), test sürüşü anahtarı.
   - `puanlama.dart`: sürüş sonrası konfor puanlaması (`Parcalama`, `PuanlamaSayfasi`), `sadeAltlik()` gri harita altlığı.
@@ -26,16 +87,15 @@ Bu dosya oturumlar arası kalıcı hafızadır: bulut oturumu her seferinde sıf
   - Kotlin: `MainActivity.kt` (ham GPS_PROVIDER kanalı, tuş yakalama `dispatchKeyEvent`, `kaan_usta/dosya` MediaStore dışa aktarma),
     `KayitServisi.kt` (ön plan kayıt hizmeti; işaret modunda MediaSession + VolumeProvider + sessiz AudioTrack ile ekran kapalıyken
     kulaklık / Bluetooth kumanda / ses tuşu yakalama).
-- `analiz/`: Python analiz betikleri. `surus_analizi.py` (tek sürüş), `birlestir.py` (sürüşleri birleştirme),
-  `haritaya_oturtma.py` (OSM yollarına oturtma), `simulasyon.py` (gerçeği bilinen yapay sürüşlerle doğrulama).
-  Yalnızca standart kütüphane ve matplotlib kullanılır (masaüstü uygulaması bu ikisini gömülü getirir).
+- `analiz/`: v1 Python analiz betikleri (0,5 sn CSV biçimini okur; yeni ham biçim için karşılaştırma aşamasında yeniden ele alınacak).
+  `surus_analizi.py` (tek sürüş), `birlestir.py` (sürüşleri birleştirme), `haritaya_oturtma.py` (OSM yollarına oturtma),
+  `simulasyon.py` (gerçeği bilinen yapay sürüşlerle doğrulama). Yalnızca standart kütüphane ve matplotlib.
   Yöntem ve parametreler: `analiz/README.md`.
-- `masaustu/analiz_araci.py`: betikleri Python kurmadan çalıştıran Windows uygulaması (tkinter + PyInstaller).
-  Sürükle-bırak; `_bilgi.txt` / `_puan.csv` başka klasördeyse CSV'nin yanına kopyalar. "GitHub'dan güncelle" düğmesi betikleri
-  deponun varsayılan dalından (`main`) çeker.
+- `qgis/`: QGIS için GeoPackage biçimi (`README.md`), yazıcı ve örnek dosyalar.
+- Masaüstü Windows uygulaması (`masaustu/`, `build-windows.yml`) kullanıcı isteğiyle **kaldırıldı** (24 Kasım 2026).
 - Belgeler: `README.md` (uygulama), `analiz/README.md` (yöntem, çıktılar, sütunlar).
 
-## Kayıt CSV biçimi
+## v1.4 kayıt CSV biçimi (mevcut uygulama; 2.0'da GeoPackage'a geçecek)
 
 Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık:
 `Tarih_Saat;Enlem;Boylam;GPS_Doppler_Hiz_kmh;Duzeltilmis_GPS_Hiz_kmh;Dikey_RMS;Dikey_Min;Dikey_Max;Ivme_Ornek_Sayisi;GPS_Dogruluk_m;Cukur;Isaret;Isaret_Kaynak`
@@ -48,7 +108,7 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
 - Kayıt bitince dosyalar telefonun **Belgeler/Mikromobilite** klasörüne kopyalanır (Android 10+ izin yok; 9 ve öncesi
   WRITE_EXTERNAL_STORAGE). Uygulama açılışında eski kayıtlar da kopyalanır. Kullanıcı bunun çalıştığını doğruladı.
 
-## Uygulamanın özellikleri (v1.4.0+5)
+## Uygulamanın özellikleri (v1.4.0+5, mevcut)
 
 - **Çukur modu (Ayarlar, 3 seçenek):** "Çukurları ben işaretlerim" (varsayılan; ÇUKUR butonu + ses tuşu + Bluetooth kumanda +
   kulaklık tuşu, çift bip `assets/sesler/isaret.mp3`; otomatik uyarı gösterilmez ki işaretler ölçümden bağımsız olsun),
@@ -71,7 +131,7 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   World_Street_Map'in ColorFilter ile griye çevrilmişi (kullanıcı sarı yolların göz yorduğunu söyledi; gri Canvas 16. seviyeden
   sonra bulanık). Analiz HTML haritaları da "sade" (gri filtreli Esri) altlık kullanır; CARTO API anahtarı istediği için bırakıldı.
 
-## Analiz yöntemi (özet; ayrıntı `analiz/README.md`)
+## v1 analiz yöntemi (özet; ayrıntı `analiz/README.md`)
 
 - GPS gecikme düzeltmesi 1,0 sn; duruş eşiği 3 km/h.
 - Haritaya oturtma: HMM/Viterbi (Newson & Krumm). σ = max(doğruluk/1,5; 4 m), yol dışı eşiği max(2,5σ; 25 m), β = 5,
@@ -86,14 +146,14 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   Spearman (ortalama sıralar) + iki yönlü permütasyon testi (10000, tohum 1). `birlestir.py` tüm sürüşleri havuzlar ve
   işaret duyarlılığını (işaretli çukurların kaçını otomatik darbe buldu) raporlar.
 
-## Doğrulama durumu ve sonuçlar
+## v1 doğrulama sonuçları (eski tasarım; geliştirme verisi sayılır)
 
-- Hocanın itirazı: "validasyon yok". Çözüm: (1) sürücünün çukur işaretleri (manuel referans) ↔ otomatik darbe,
+- Hocanın itirazı: "validasyon yok". O zamanki çözüm: (1) sürücünün çukur işaretleri ↔ otomatik darbe,
   (2) sürüş sonrası kör konfor puanı ↔ hız düzeltmeli sarsıntı indeksi.
 - 3 Kasım 2026 Kadıköy sürüşü (`mikromobilite_20261103_155653`, Samsung SM-M215F, kulaklık tuşuyla 11 işaret):
   8 işaret net eşleşti ve 8/8'ini otomatik darbe tespiti de buldu; tepki süresi ~1,3 sn; 3 belirsiz (ikisi bir darbe noktasıyla
-  aynı yerde). En sert 10 darbenin 9'u işaretli. Puan: 7 parça, Spearman r = −0,75, p = 0,069 (n küçük; birleştirmeyle
-  güçlenecek). Mühürdar Karakolu (parke / Arnavut kaldırımı) puan 1, indeks ~12; diğerleri 3,7-5,3 (insan ince farkı ayırmıyor).
+  aynı yerde). En sert 10 darbenin 9'u işaretli. Puan: 7 parça, Spearman r = −0,75, p = 0,069 (n küçük).
+  Mühürdar Karakolu (parke / Arnavut kaldırımı) puan 1, indeks ~12; diğerleri 3,7-5,3 (insan ince farkı ayırmıyor).
   Sabit 35 m/s² anlık uyarı Arnavut kaldırımında 36 kez tetiklendi → uyarının doğrulama sürüşlerinde kapalı olması gerekçesi.
 - Kullanıcının doğruladıkları: kulaklık tuşu **ekran açıkken** çalışıyor; Belgeler klasörü çalışıyor.
 - **Henüz telefonda denenmedi:** kulaklık / kumanda tuşu **ekran kapalıyken**; v1.4.0'daki test sürüşü kampüs turu,
@@ -101,25 +161,26 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
 
 ## Doğrulama komutları
 
-- Analiz betiği değişince: `python analiz/simulasyon.py` (10 senaryo, rapor `analiz/ornek/simulasyon_raporu.md`).
+- v1 analiz betiği değişince: `python analiz/simulasyon.py` (10 senaryo, rapor `analiz/ornek/simulasyon_raporu.md`).
   Varsayılan değişirse raporu ve `analiz/ornek*` örnek çıktılarını yeniden üret.
+- GeoPackage dosyaları: QGIS bulut oturumunda yok. GDAL ile okunarak denetlenir: oturumun geçici klasöründe
+  `python3 -m venv gdalenv && gdalenv/bin/pip install pyogrio numpy` (GDAL gömülü gelir), sonra `pyogrio.list_layers`,
+  `read_info` (CRS, alan türleri), `pyogrio.raw.read`. Rapor: "GDAL ile doğrulandı, QGIS'te denenmedi".
 - Uygulama değişince: `flutter analyze` (info dahil temiz olmalı; CI'da uyarılar hata sayılır).
 - Bulut oturumunda Flutter kurulu değildir: CI ile aynı sürümü (stable **3.47.7**) oturumun geçici klasörüne indir,
   `git config --global --add safe.directory '*'` çalıştır, sonra `flutter analyze`. Ekranı görmek için geçici bir widget testi
   (`test/` altında, commit edilmez) `matchesGoldenFile` + `--update-goldens` ile PNG üretir; Roboto ve MaterialIcons yazı tipleri
   SDK'nın `bin/cache/artifacts/material_fonts` klasöründen FontLoader ile yüklenir, `path_provider` kanalı taklit edilir.
   Testte harita karoları yüklenmez (boş gri altlık normaldir).
-- Gerçek sürüş analizi için kullanıcının gönderdiği dosyaları oturumun geçici klasörüne kopyalayıp
-  `python analiz/surus_analizi.py <csv>` çalıştır; `_bilgi.txt` ve `_puan.csv` CSV'nin yanında olmalı.
+- Gerçek sürüş verisini oturumun geçici klasörüne kopyalayıp çalış. **Bağımsızlık kuralına uy** (insan dosyasını açma).
 
 ## Derleme (GitHub Actions)
 
 - `build-apk.yml`: yalnızca `lib/`, `android/`, `assets/`, `pubspec.*`, `analysis_options.yaml` değişince APK derler
   (Flutter 3.47.7 stable; önce `flutter analyze`). APK: Actions → "APK Derle" → Artifacts.
-- `build-windows.yml`: `analiz/` veya `masaustu/` değişince `KaanUstaAnaliz.exe` derler.
 - Bulut oturumunda `gh` yok; GitHub işlemleri MCP araçlarıyla. Depo herkese açık olduğundan derleme durumu
   `https://api.github.com/repos/UirosRios/kaan-usta/actions/runs` adresinden curl ile de okunabilir.
-- Sürüm `pubspec.yaml`'da (`1.4.0+5`); kullanıcıya görünür özellik eklenince küçük sürümü artır.
+- Sürüm `pubspec.yaml`'da (`1.4.0+5`); kullanıcıya görünür özellik eklenince küçük sürümü artır (ham veri sürümü 2.0.0 olacak).
 
 ## Git
 
@@ -129,6 +190,7 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
 
 ## Açık işler / sıradaki adımlar
 
-- Telefonda dene: ekran kapalıyken kulaklık / kumanda işareti; test sürüşü turu; sade önizleme ve gri altlık.
-- Daha fazla doğrulama sürüşü (işaret modu + puanlama) toplayıp `birlestir.py` ile havuzlanmış Spearman ve işaret duyarlılığı.
+- Örnek GeoPackage'ı (`qgis/ornek/`) kullanıcı ve arkadaşı QGIS'te açıp onaylayacak; sonra uygulama 2.0.
+- Telefonda dene (2.0 ile): ekran kapalıyken kulaklık / kumanda işareti, gerçek örnekleme hızı, dosya boyutu.
+- Kesit listesi (arkadaş + hoca, gözle, tüm zemin türleri) hazırlanacak; geliştirme ve test kesitleri ayrı sokaklar.
 - İstenirse: arkadaşın GPS'siz cihazlarda ağ konumuna düşme değişikliği.
