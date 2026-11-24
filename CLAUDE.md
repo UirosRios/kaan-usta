@@ -244,6 +244,10 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   `assets/flutter_assets/qgis/stiller/*.qml` var (artifact indirilip bakıldı). Derleme 33, Gradle NDK indirirken bozuk dosya
   aldığı için düştü; iş akışına NDK 28.2.13676358'i önceden, 3 denemeyle kuran adım eklendi (SQLite yerel kitaplığı NDK ister).
   İş akışı dosyası değişince derleme kendiliğinden başlamaz: `actions_run_trigger` run_workflow ile elle başlatılır.
+- **25 Kasım, APK 34 ile ilk açılış:** dışarıda ~5 dk GPS konumu gelmedi (2-3 görünen, 0 kullanılan uydu; Google Haritalar
+  konum buldu), sonra kendiliğinden düzeldi. Ekran GPS kodu (`kaan_usta/ham_gps`) v1.4 ile aynı; neden bulunamadı (büyük
+  olasılıkla yavaş ilk konum). Tekrarlarsa: uygulamayı kapatıp açma, yeniden başlatma, güç tasarrufu, "GPS Test" ile karşılaştırma.
+  Aynı sırada bulunan ekran hatası düzeltildi (derleme 35): test sürüşü kapatılınca eski sanal koordinat ve hız ekranda kalıyordu.
 - **İmza anahtarı sorusu (açık):** release APK debug anahtarıyla imzalanıyor ve CI'da sabit keystore yok. ÖLÇÜLDÜ: APK 32 ve 34'ün
   v2 imza sertifikaları farklı (sha256 d4028e13… / 7059a16f…) → üstüne kurulamaz, kaldırıp kurmak gerekir. Kaldırma uygulama klasörünü (v1 kayıtları, 2.0 gün dosyaları,
   `kesitler.json`) siler: kesit kodları K01'den yeniden başlar. Gerçek sürüşlerden önce karar: sabit keystore (GitHub sırrı) veya

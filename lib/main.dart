@@ -281,9 +281,14 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     _rejectedAccuracy = null;
     _gpsStatusAction = null;
     if (_simTimer != null) {
-      // Sanal konumdan gerçek GPS'e geçiliyor: son sanal konum gerçek kayda yazılmasın
+      // Sanal konumdan gerçek GPS'e geçiliyor: son sanal konum ve hız ekranda kalmasın
       lastFixTime = null;
       lastFusedFixTime = null;
+      currentLat = 0.0;
+      currentLon = 0.0;
+      currentAccuracy = 0.0;
+      currentRawSpeed = 0.0;
+      currentFusedSpeed = 0.0;
     }
     _simTimer?.cancel();
     _simTimer = null;
