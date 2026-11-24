@@ -239,10 +239,13 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   Bilinen sınırlar: kesit ataması yalnızca uç noktalara bakar (%80 güzergâh çakışması denetimi yok); işaret sayacı ekran
   yeniden kurulursa sıfırdan başlar (kayıttaki sayı doğrudur).
   Hiç çalışmamış olanlar: `KayitMotoru.kt` hiçbir yerde çalıştırılmadı (yalnızca CI'da derlenir); Kotlin'in yazdığı .kuham baytları
-  ile Dart okuyucusu yalnızca okunarak eşleştirildi (test kendi baytlarını yazar). `package:sqlite3`'ün Android'de APK'ya
-  girdiği kanıtlanmadı: eksikse ilk DURDUR'da "Kayıt kaydedilemedi" çıkar (ham dosya korunur).
-- **İmza anahtarı sorusu (açık):** release APK debug anahtarıyla imzalanıyor ve CI'da sabit keystore yok; her derleme farklı
-  imzalanıyor olabilir → üstüne kurulamaz, kaldırıp kurmak gerekir. Kaldırma uygulama klasörünü (v1 kayıtları, 2.0 gün dosyaları,
+  ile Dart okuyucusu yalnızca okunarak eşleştirildi (test kendi baytlarını yazar).
+- **APK 34** (25 Kasım, 2.0.0+34): derlendi. İçinde `lib/<abi>/libsqlite3.so` (arm64-v8a, armeabi-v7a, x86_64) ve
+  `assets/flutter_assets/qgis/stiller/*.qml` var (artifact indirilip bakıldı). Derleme 33, Gradle NDK indirirken bozuk dosya
+  aldığı için düştü; iş akışına NDK 28.2.13676358'i önceden, 3 denemeyle kuran adım eklendi (SQLite yerel kitaplığı NDK ister).
+  İş akışı dosyası değişince derleme kendiliğinden başlamaz: `actions_run_trigger` run_workflow ile elle başlatılır.
+- **İmza anahtarı sorusu (açık):** release APK debug anahtarıyla imzalanıyor ve CI'da sabit keystore yok. ÖLÇÜLDÜ: APK 32 ve 34'ün
+  v2 imza sertifikaları farklı (sha256 d4028e13… / 7059a16f…) → üstüne kurulamaz, kaldırıp kurmak gerekir. Kaldırma uygulama klasörünü (v1 kayıtları, 2.0 gün dosyaları,
   `kesitler.json`) siler: kesit kodları K01'den yeniden başlar. Gerçek sürüşlerden önce karar: sabit keystore (GitHub sırrı) veya
   kesit defterini Belgeler'e yedekleme. Kullanıcıya soruldu (25 Kasım).
 - Kesit listesi (arkadaş + hoca, gözle, tüm zemin türleri) hazırlanacak; geliştirme ve test kesitleri ayrı sokaklar.
