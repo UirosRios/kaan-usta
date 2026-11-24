@@ -61,6 +61,18 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   dönüşlere göre otomatik parçalama (`Parcalama`), puanlamadaki "Sonra", önizlemedeki sarsıntı renkleri, kayıt sırasında
   canlı sarsıntı gösterimi. Yerine: gün sonunda tek "Günün kayıtlarını gönder".
 - Kalacaklar: işaret yolları (kulaklık / kumanda / ses tuşu / ekran), test sürüşü (sanal GPS), Belgeler/Mikromobilite kopyası.
+- **Uygulama 2.0 mühendislik kuralları** (kodlamadan önce karar verildi):
+  - Test edilebilirlik mimariyi belirler: CI yalnızca Kotlin'in derlendiğini kanıtlar. GeoPackage yazımı, sarsıntı özeti ve kesit
+    atama bu bulut oturumunda çalıştırılabilecek yerde (Dart, host'ta `flutter test`) olmalı; Kotlin yalnızca yakalama yapar
+    (sensör, GPS, basış; hepsi `elapsedRealtimeNanos` saatiyle).
+  - Altın kontrol: uygulamanın ürettiği dosya pyogrio ile okunur; katmanlar, alan adları ve türleri `qgis/ornek/` ile aynı olmalı.
+  - Bağımlılıklar (SQLite paketi, `sensors_plus` zaman damgası) ezberden değil, güncel kaynak koduna bakılarak seçilir.
+  - Çökme güvenliği: ham veri geldikçe diske yazılır; bir kaydın eklenmesi sırasında çökme, günün önceki kayıtlarını bozmamalı.
+  - Test sürüşü yeni yoldan geçer, ayrı `test_` dosyalarına yazılır (kullanıcı evde prova edebilsin).
+  - Gönder düğmesi varsayılan olarak yalnızca ham dosyayı paylaşır. v1 kayıtlarına dokunulmaz.
+  - `lib/` veya `android/` içeren her `main` gönderimi yüklenebilir APK üretir: yalnızca `flutter analyze` temiz durumlar
+    gönderilir, kullanıcıya hangi derleme numarasını kuracağı söylenir.
+  - QML stillerini uygulamaya gömmek, kullanıcı QGIS 4.2.3'te kendiliğinden uygulandığını doğruladıktan sonra.
 - Sıra: örnek GeoPackage onayı → uygulama 2.0 (`flutter analyze`, telefonda denenmedi) → deneme çıkışı (gerçek örnekleme hızı,
   ekran kapalıyken kulaklık, dosya boyutu, QGIS'te açılış) → geliştirme sürüşleri → algoritma → test sürüşleri.
 
@@ -195,7 +207,7 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   QGIS'te (Windows, Türkçe arayüz) açtı; resmî `validate_gpkg.py` çalıştırılamadı). Sıradaki iş: uygulama 2.0.
 - Veri aktarımı: `_ham.gpkg` (dakikada ~1,5 MB, günde ~60 MB) sohbete yüklenir; sığmazsa Google Drive (oturumda Drive
   bağlantısı var).
-  Kullanıcının QGIS stil seçimi (renk ayırt etmekte zorlanıyor; renge dayanmayan ayrım tercih): `gps_noktalari` Blues
+  Kullanıcının QGIS stil tercihi (katmanlar renkle değil biçimle ayrılsın): `gps_noktalari` Blues
   (ters çevirmeden; koyu = sarsıntılı), `insan_cukurlar` kırmızı üçgen, `claude_cukurlar` gölge efektli (drop shadow) daire.
   QGIS seçim rengi sarı; anlatımda renk yerine "seçili satırlara yakınlaştır" kullan. Kullanıcı QGIS **4.2.3** kullanıyor.
   25 Kasım: kullanıcının `deneme.qgz` projesinden stiller `qgis/stil_cikar.py` ile `qgis/stiller/*.qml`'e çıkarıldı ve
