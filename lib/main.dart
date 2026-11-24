@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:audioplayers/audioplayers.dart';
@@ -10,10 +11,13 @@ import 'package:latlong2/latlong.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'about_page.dart';
+import 'arka_plan.dart';
 import 'ayarlar.dart';
 import 'device_info.dart';
+import 'donusturucu.dart';
 import 'hava_durumu.dart';
-import 'puanlama.dart';
+import 'kayitlar_sayfasi.dart';
+import 'puan_sayfasi.dart';
 import 'recordings_page.dart';
 import 'test_surusu.dart';
 
@@ -53,8 +57,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   double currentAccuracy = 0.0; // Ham GPS yatay konum doğruluğu (m)
   DateTime? lastFixTime; // Son geçerli ham GPS konumunun zamanı
   DateTime? lastFusedFixTime; // Son geçerli düzeltilmiş GPS konumunun zamanı
-  // Son konum bundan eskiyse (GPS kesildiyse) CSV'de konum / hız hücreleri boş bırakılır
-  static const Duration gpsMaxAge = Duration(seconds: 3);
   bool isRecording = false;
   String _gpsStatus = "GPS bekleniyor...";
   // GPS tanı bilgisi: uydu sayısı, 50 m filtresine takılan son doğruluk, durum yazısına dokununca açılacak ayar
@@ -72,11 +74,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   final MapController _mapController = MapController();
   bool _mapReady = false;
 
-  // Kayıt penceresi (500 ms) içindeki tüm dikey sarsıntı örnekleri.
-  // İvmeölçer ~200 Hz okunur; pencere başına istatistik çıkarılır ki
-  // 2 Hz kayıtta tek anlık değer alınmasından doğan örtüşme (aliasing) olmasın.
-  final List<double> _verticalWindow = [];
-
   // YERÇEKİMİ GİDERME: ivmenin üç ekseni de 0,4 Hz kesim frekanslı birinci dereceden yüksek geçiren filtreden
   // geçirilir (bilineer / Tustin dönüşümü). Filtre çıkışı titreşimdir; ham ivme − titreşim = yerçekimi vektörü,
   // yani telefonun o anki "aşağı" yönü. 0,4 Hz, ISO 2631-1 titreşim değerlendirmesinin alt bant sınırıdır.
@@ -87,63 +84,36 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   final List<double> _dynAcc = [0.0, 0.0, 0.0]; // titreşim bileşeni [x, y, z]
   DateTime? _lastAccelTime;
 
-  // Zamanlayıcı ve Veri Kayıt Değişkenleri
+  // Zamanlayıcılar
   String _liveDate = "Tarih Yükleniyor...";
   String _liveTime = "Saat Yükleniyor...";
   Timer? _clockTimer;
   Timer? _uiTimer;
-  Timer? _recordTimer;
-
-  // Kayıt dosyası: satırlar 5 saniyede bir dosyaya eklenir (uygulama kapanırsa en fazla son 5 sn kaybolur)
-  // Türkçe Excel biçimi: sütun ayırıcı noktalı virgül, ondalık ayırıcı virgül
-  // (Python: pd.read_csv(dosya, sep=';', decimal=','))
-  static const String _csvHeader = "Tarih_Saat;Enlem;Boylam;GPS_Doppler_Hiz_kmh;Duzeltilmis_GPS_Hiz_kmh;"
-      "Dikey_RMS;Dikey_Min;Dikey_Max;Ivme_Ornek_Sayisi;GPS_Dogruluk_m;Cukur;Isaret;Isaret_Kaynak";
-
-  // Sayıyı CSV için ondalık virgülle yaz
-  static String _num(double v, int digits) => v.toStringAsFixed(digits).replaceAll('.', ',');
-  File? _csvFile;
-  DateTime? _recordStart;
-  int _rowCount = 0;
-  final List<String> _pendingRows = [];
-  Future<void> _writeChain = Future.value();
-  bool _writeError = false;
   bool _busy = false; // başlatma/durdurma sürerken düğmeye ikinci kez basılmasını engeller
 
-  // ANLIK ÇUKUR UYARISI: 0,5 sn'lik penceredeki en büyük dikey ivme (|Dikey_Min| veya Dikey_Max) eşiği aşarsa
-  // sarsıntı kartı kırmızı yanar, sesli uyarı verilir ve CSV'de o satırın Cukur sütununa 1 yazılır. Sabit eşik seçildi: kayıt sırasında
-  // yalnızca geçmiş bilinir; geçmişe göre (göreli) eşik gerçek sürüşlerde sabit eşikten daha iyi sonuç vermedi.
-  // Hız eşiği: duruşta scooter'ı elle çevirmek / itmek uyarı vermesin. Ayrıntılı tespit analiz betiğindedir.
-  static const double cukurEsik = 35.0; // m/s²
-  static const double cukurMinHiz = 3.0; // km/h
-  static const Duration cukurIsikSuresi = Duration(milliseconds: 1500);
-  int _cukurCount = 0; // bu kayıttaki uyarı sayısı
-  DateTime? _cukurIsikBitis;
-  bool get _cukurIsigi => _cukurIsikBitis != null && DateTime.now().isBefore(_cukurIsikBitis!);
-  // Uyarı sesi: art arda gelen uyarılarda ses en fazla saniyede bir çalar
-  final AudioPlayer _uyariSesi = AudioPlayer();
-  DateTime? _sonSes;
+  // HAM VERİ KAYDI (2.0): ivmeölçer, jiroskop, GPS ve basışlar Android tarafında (KayitMotoru.kt) aynı saatle ikili bir
+  // dosyaya yazılır. DURDUR'dan sonra dosya o günün GeoPackage dosyalarına çevrilir (donusturucu.dart). Ekrandaki
+  // sarsıntı, hız ve harita yalnızca gösterim içindir.
+  String? _hamYol; // süren kaydın ham dosyası
+  DateTime? _recordStart;
 
-  // ÇUKUR İŞARETİ (doğrulama için): sürücü çukurdan geçince ekrandaki ÇUKUR butonuna, telefonun ses tuşuna,
-  // Bluetooth kumandaya veya kulaklık tuşuna basar. CSV'de o 0,5 sn'lik satırın Isaret (basış sayısı) ve
-  // Isaret_Kaynak (ekran / tus / kumanda / kulaklik) sütunlarına yazılır. Ekran ve telefon tuşu telefonu sarsar;
-  // analiz betiği o anı sarsıntı analizinden dışlar. Geri bildirim yalnızca sesle: titreşim ivmeölçere karışırdı.
+  // ÇUKUR İŞARETİ: sürücü çukurdan (ani sarsıntı veren her şeyden) geçince kulaklık / Bluetooth kumanda tuşuna,
+  // telefonun ses tuşuna veya ekrandaki ÇUKUR butonuna basar. Basış Android tarafında kayda yazılır (1 sn içindeki
+  // ikinci basış sayılmaz) ve buraya bildirilir. Geri bildirim yalnızca sesle: titreşim ivmeölçere karışırdı.
   static const MethodChannel _isaretKanali = MethodChannel('kaan_usta/isaret');
   final AudioPlayer _isaretSesi = AudioPlayer();
-  CukurModu _kayitModu = CukurModu.isaret; // kayıt başında ayarlardan okunur
-  bool get _durdurBasiliTut => _kayitModu == CukurModu.isaret;
   int _isaretSayisi = 0; // bu kayıttaki toplam işaret
-  int _pencereIsaret = 0; // içinde bulunulan 0,5 sn'lik penceredeki işaret
-  final Set<String> _pencereKaynak = {};
-  DateTime? _sonIsaret;
   bool _isaretParlama = false;
+
+  // QGIS görünümü (kullanıcının QGIS projesinden; qgis/stiller): GeoPackage dosyalarına gömülür
+  Map<String, String> _stiller = {};
 
   // Kayıt etiketleri: ayarlardaki scooter ve kayıt başındaki hava durumu (alınamazsa yazılmaz)
   String _kayitScooter = '';
   HavaDurumu? _hava;
   bool _havaBekleniyor = false; // kayıt başında GPS konumu yoksa ilk konumda bir kez denenir
 
-  // Ekran kapalıyken / uygulama arka plandayken kayıt sürsün diye Android ön plan hizmeti (MainActivity.kt)
+  // Ham veri kaydı ve ön plan hizmeti (MainActivity.kt / KayitMotoru.kt / KayitServisi.kt)
   static const MethodChannel _kayitServisi = MethodChannel('kaan_usta/kayit_servisi');
 
   // Abonelikler
@@ -160,26 +130,51 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     DeviceInfo.load();
     _startClock();
     _initSensors();
-    _initUyariSesi();
+    _initIsaretSesi();
     _isaretKanali.setMethodCallHandler((call) async {
-      if (call.method == 'isaret') _isaretle(call.arguments as String? ?? 'tus');
+      if (call.method == 'isaret') _isaretSayildi();
     });
-    // Önceki kayıtlardan Belgeler/Mikromobilite klasörüne kopyalanmamış olanlar (Android 9 ve öncesinde izin istenir)
-    tumKayitlariKopyala().then((sorun) {
-      if (sorun != null) _showMessage(sorun);
-    });
+    _acilistaDenetle();
+  }
+
+  // Açılışta: ekran yeniden kurulduysa süren kaydı geri al; yarım kalan (çevrilmemiş) ham dosyaları çevir;
+  // Belgeler/Mikromobilite klasörüne kopyalanmamış dosyaları kopyala (Android 9 ve öncesinde izin istenir)
+  Future<void> _acilistaDenetle() async {
+    await _stilleriYukle();
+    String? aktif;
+    try {
+      final d = await _kayitServisi.invokeMapMethod<String, dynamic>('durum');
+      if (d?['kayitta'] == true) aktif = d?['yol'] as String?;
+    } catch (e) {
+      debugPrint('Kayıt durumu okunamadı: $e');
+    }
+    if (aktif != null && mounted) {
+      setState(() {
+        isRecording = true;
+        _hamYol = aktif;
+        _recordStart = DateTime.now();
+      });
+      WakelockPlus.enable();
+    }
+    await _yarimKalanlariCevir(haric: aktif);
+    final sorun = await tumKayitlariKopyala();
+    if (sorun != null) _showMessage(sorun);
+  }
+
+  Future<void> _stilleriYukle() async {
+    final stiller = <String, String>{};
+    for (final ad in ['kayitlar', 'gps_noktalari', 'insan_cukurlar', 'insan_puanlar']) {
+      try {
+        stiller[ad] = await rootBundle.loadString('qgis/stiller/$ad.qml');
+      } catch (e) {
+        debugPrint('QGIS stili yüklenemedi ($ad): $e');
+      }
+    }
+    _stiller = stiller;
   }
 
   // Düşük gecikmeli çalma; başka uygulamanın sesini (müzik, navigasyon) durdurmaz
-  Future<void> _initUyariSesi() async {
-    try {
-      await _uyariSesi.setAudioContext(AudioContextConfig(focus: AudioContextConfigFocus.mixWithOthers).build());
-      await _uyariSesi.setPlayerMode(PlayerMode.lowLatency);
-      await _uyariSesi.setReleaseMode(ReleaseMode.stop);
-      await _uyariSesi.setSource(AssetSource('sesler/uyari.mp3'));
-    } catch (e) {
-      debugPrint('Uyarı sesi yüklenemedi: $e');
-    }
+  Future<void> _initIsaretSesi() async {
     try {
       await _isaretSesi.setAudioContext(AudioContextConfig(focus: AudioContextConfigFocus.mixWithOthers).build());
       await _isaretSesi.setPlayerMode(PlayerMode.lowLatency);
@@ -190,14 +185,15 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     }
   }
 
-  // Çukur işareti: 1 sn içindeki ikinci basış sayılmaz (yanlışlıkla çift basma, kumandanın tuş sekmesi)
-  void _isaretle(String kaynak) {
-    if (!isRecording || _kayitModu != CukurModu.isaret) return;
-    final now = DateTime.now();
-    if (_sonIsaret != null && now.difference(_sonIsaret!) < const Duration(seconds: 1)) return;
-    _sonIsaret = now;
-    _pencereIsaret++;
-    _pencereKaynak.add(kaynak);
+  // Ekrandaki ÇUKUR butonu: basış Android tarafında kayda yazılır, sayılırsa _isaretSayildi çağrılır
+  void _ekrandanIsaretle() {
+    if (!isRecording) return;
+    _kayitServisi.invokeMethod('isaret', 'ekran').catchError((Object e) => debugPrint('İşaret gönderilemedi: $e'));
+  }
+
+  // Basış kayda yazıldı (kaynağı ne olursa olsun): sayaç, kısa parlama ve çift bip
+  void _isaretSayildi() {
+    if (!mounted) return;
     setState(() {
       _isaretSayisi++;
       _isaretParlama = true;
@@ -206,12 +202,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       if (mounted) setState(() => _isaretParlama = false);
     });
     _isaretSesi.stop().then((_) => _isaretSesi.resume()).catchError((Object e) => debugPrint('İşaret sesi çalınamadı: $e'));
-  }
-
-  void _uyariSesiCal(DateTime now) {
-    if (_sonSes != null && now.difference(_sonSes!) < const Duration(seconds: 1)) return;
-    _sonSes = now;
-    _uyariSesi.stop().then((_) => _uyariSesi.resume()).catchError((Object e) => debugPrint('Uyarı sesi çalınamadı: $e'));
   }
 
   // 1. Canlı Saat ve Tarih Fonksiyonu
@@ -234,11 +224,9 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     });
   }
 
-  // 2. Sensörleri (GPS ve Z-Ekseni) Başlatma Fonksiyonu
+  // 2. Ekrandaki canlı değerler için sensörler (kayıt bunlardan bağımsız, Android tarafında yapılır)
   Future<void> _initSensors() async {
-    // Z-Ekseni (İvmeölçer) Sensörünü Başlat
-    // 5 ms (~200 Hz): kısa çukur darbelerinin (~30 ms) tepesi kaçmasın. Android 12+'da özel izin
-    // olmadan izin verilen en yüksek hız budur. Telefon daha yavaş verirse Ivme_Ornek_Sayisi'nda görülür.
+    // İvmeölçer (~200 Hz): ekrandaki dikey sarsıntı, toplam ve eğim
     accelSubscription = accelerometerEventStream(samplingPeriod: sensorSamplingPeriod).listen((AccelerometerEvent event) {
       final acc = [event.x, event.y, event.z];
 
@@ -266,8 +254,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       totalNet = sqrt(_dynAcc[0] * _dynAcc[0] + _dynAcc[1] * _dynAcc[1] + _dynAcc[2] * _dynAcc[2]);
       // Eğim: telefonun Z ekseni (ekrana dik) ile gerçek düşey arasındaki açı
       tiltDeg = gNorm > 0 ? acos((gz / gNorm).clamp(-1.0, 1.0)) * 180 / pi : 0.0;
-
-      if (isRecording) _verticalWindow.add(verticalNet);
     });
 
     await _initLocation();
@@ -436,6 +422,15 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
         lastFixTime = now;
         lastFusedFixTime = now;
       });
+      // Kayıt sürüyorsa sanal konum ham kayda yazılır (gerçek GPS'in yerine)
+      if (isRecording) {
+        _kayitServisi.invokeMethod('sanalKonum', {
+          'enlem': tur.konum.latitude,
+          'boylam': tur.konum.longitude,
+          'hiz': tur.hizKmh / 3.6,
+          'dogruluk': 5.0,
+        }).catchError((Object e) => debugPrint('Sanal konum yazılamadı: $e'));
+      }
       if (_mapReady) _mapController.move(LatLng(currentLat, currentLon), _mapController.camera.zoom);
     });
   }
@@ -450,196 +445,85 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     return parts.join('\n');
   }
 
-  // 3. KAYIT BAŞLATMA MOTORU
+  // 3. KAYIT BAŞLATMA
   Future<void> startRecording() async {
     if (isRecording || _busy) return;
     _busy = true;
+    final now = DateTime.now();
+    final String yol;
     try {
-      // Dosyayı hemen oluştur ve başlığı yaz
-      final now = DateTime.now();
       final dir = await recordingsDirectory();
-      final file = File('${dir.path}/${_testSurusu ? "test_" : ""}mikromobilite_${_fileStamp(now)}.csv');
-      await file.writeAsString('$_csvHeader\n', flush: true);
-      _csvFile = file;
-      aktifKayitYolu = file.path;
-      _recordStart = now;
-      _rowCount = 0;
-      _pendingRows.clear();
-      _writeError = false;
+      yol = '${dir.path}/ham_gecici/${_testSurusu ? "test_" : ""}${kayitNoFor(now)}.kuham';
       _kayitScooter = await Ayarlar.scooter();
-      _kayitModu = await Ayarlar.cukurModu();
       _hava = null;
-      await _writeInfoFile(null);
+      _hamYol = yol;
+      await _bilgiDosyasiYaz(); // çökme olursa kurtarılan kayıt da cihaz / scooter bilgisini alsın
+      final yanit = await _kayitServisi.invokeMapMethod<String, dynamic>('baslat', {'yol': yol, 'sanal': _testSurusu});
+      if (yanit?['servis'] != true) {
+        _showMessage('Arka planda kayıt yapılamıyor (konum izni yok): ekranı açık tutun.');
+      }
     } catch (e) {
       _busy = false;
-      aktifKayitYolu = null;
+      _hamYol = null;
       _showMessage("Kayıt başlatılamadı: $e");
       return;
     }
 
     setState(() {
       isRecording = true;
+      _recordStart = now;
+      _isaretSayisi = 0;
     });
     _busy = false;
-    // Kayıt sırasında ekranın kapanıp sensörlerin durmasını engelle
+    // Kayıt sırasında ekran kapanmasın (kapanırsa da kayıt arka planda sürer)
     WakelockPlus.enable();
-    // Ekran kilitlenir veya başka uygulamaya geçilirse kayıt arka planda sürsün
-    // İşaret modunda ses tuşu, Bluetooth kumanda ve kulaklık tuşu çukur işareti olur (MainActivity.kt / KayitServisi.kt)
-    _kayitServisi.invokeMethod<bool>('baslat', {'tuslar': _kayitModu == CukurModu.isaret}).then((basladi) {
-      if (basladi != true) _showMessage('Konum izni olmadığı için arka planda kayıt yapılamıyor: ekranı açık tutun.');
-    }).catchError((Object e) => _showMessage('Arka planda kayıt başlatılamadı: ekranı açık tutun. ($e)'));
     // Hava durumu: GPS konumu varsa hemen, yoksa ilk konum gelince (kayıt başından en fazla 60 sn sonra)
     _havaBekleniyor = !_testSurusu; // sanal konumun hava durumu anlamsız
     if (!_testSurusu && lastFixTime != null && DateTime.now().difference(lastFixTime!) <= const Duration(seconds: 60)) _havaDurumuAl();
-
-    _verticalWindow.clear();
-    _cukurCount = 0;
-    _cukurIsikBitis = null;
-    _isaretSayisi = 0;
-    _pencereIsaret = 0;
-    _pencereKaynak.clear();
-    _sonIsaret = null;
-
-    // Saniyede 2 kez (500 milisaniye) veri örnekleme
-    _recordTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      if (!isRecording) {
-        timer.cancel();
-        return;
-      }
-
-      // Pencere içindeki dikey sarsıntı istatistikleri (telefonun açısından bağımsız)
-      // Dikey_RMS: ana sarsıntı ölçüsü; Dikey_Min / Dikey_Max: darbe tepe değerleri
-      final vSamples = List<double>.from(_verticalWindow);
-      _verticalWindow.clear();
-      final int isaret = _pencereIsaret;
-      final String isaretKaynak = _pencereKaynak.join('+');
-      _pencereIsaret = 0;
-      _pencereKaynak.clear();
-      double vRms = 0, vMin = 0, vMax = 0;
-      if (vSamples.isNotEmpty) {
-        vRms = sqrt(vSamples.map((v) => v * v).reduce((a, b) => a + b) / vSamples.length);
-        vMin = vSamples.reduce(min);
-        vMax = vSamples.reduce(max);
-      }
-
-      // GPS 3 sn'den uzun süredir konum vermiyorsa eski konum / hız tekrarlanmasın: hücreler boş kalır
-      final now = DateTime.now();
-      bool fresh(DateTime? t) => t != null && now.difference(t) <= gpsMaxAge;
-      final bool gpsOk = fresh(lastFixTime);
-      final bool fusedOk = fresh(lastFusedFixTime);
-
-      // Anlık çukur uyarısı (GPS hızı yoksa hareket bilinmediği için uyarı verilmez)
-      final bool cukur = gpsOk && currentRawSpeed >= cukurMinHiz && max(vMin.abs(), vMax) >= cukurEsik;
-      // Uyarı yalnızca "Otomatik çukur uyarısı" modunda gösterilir; diğer modlarda yalnızca CSV'ye yazılır
-      if (cukur) {
-        _cukurCount++;
-        if (_kayitModu == CukurModu.uyari) {
-          setState(() => _cukurIsikBitis = now.add(cukurIsikSuresi));
-          _uyariSesiCal(now);
-        }
-      }
-
-      // O anki sensör verilerini CSV formatında noktalı virgülle ayırarak kaydet
-      // Tarih_Saat: 2026-10-23 14:05:31,512 (milisaniye de ondalık virgülle)
-      String row = [
-        now.toString().replaceAll('.', ','),
-        gpsOk ? _num(currentLat, 6) : '',
-        gpsOk ? _num(currentLon, 6) : '',
-        gpsOk ? _num(currentRawSpeed, 2) : '',
-        fusedOk ? _num(currentFusedSpeed, 2) : '',
-        _num(vRms, 4),
-        _num(vMin, 4),
-        _num(vMax, 4),
-        '${vSamples.length}',
-        gpsOk ? _num(currentAccuracy, 1) : '',
-        cukur ? '1' : '',
-        isaret > 0 ? '$isaret' : '',
-        isaretKaynak,
-      ].join(';');
-      _pendingRows.add(row);
-      _rowCount++;
-      // 10 satırda bir (5 sn) dosyaya ekle
-      if (_rowCount % 10 == 0) _flushPending();
-    });
   }
 
-  // Bekleyen satırları dosyanın sonuna ekle. Yazmalar sırayla yapılır (biri bitmeden diğeri başlamaz).
-  void _flushPending() {
-    final file = _csvFile;
-    if (_pendingRows.isEmpty || file == null) return;
-    final text = '${_pendingRows.join('\n')}\n';
-    _pendingRows.clear();
-    _writeChain = _writeChain.then((_) async {
-      try {
-        await file.writeAsString(text, mode: FileMode.append, flush: true);
-      } catch (e) {
-        debugPrint("Dosyaya yazılamadı: $e");
-        _writeError = true;
-      }
-    });
-  }
+  // Kayda ait bilgiler (cihaz, sensörler, scooter, hava durumu) ham dosyanın yanına yazılır; çeviride kullanılır
+  static File _bilgiDosyasi(String hamYol) => File('$hamYol.json');
 
-  // Kayda ait _bilgi.txt: cihaz, sensörler ve ölçüm ayarları. Başlangıçta yazılır, durdurunca güncellenir.
-  // Bilgi dosyası yazımları sırayla yapılır: kayıt başında, hava durumu gelince ve durdurunca yazılır;
-  // sonuncusu (durdurma) her zaman en son biter
-  Future<void> _infoChain = Future.value();
-  Future<void> _writeInfoFile(DateTime? end) {
-    _infoChain = _infoChain.then((_) => _writeInfoFileNow(end)).catchError((Object e) => debugPrint('Bilgi dosyası yazılamadı: $e'));
-    return _infoChain;
-  }
-
-  Future<void> _writeInfoFileNow(DateTime? end) async {
-    final file = _csvFile;
-    if (file == null) return;
+  Future<KayitBilgisi> _kayitBilgisi() async {
     final info = await DeviceInfo.load();
-    final lines = [
-      'Mikromobilite Veri Aracı - kayıt bilgisi',
-      'Veri dosyası: ${file.uri.pathSegments.last}',
-      'Kayıt başlangıcı: $_recordStart',
-      'Kayıt bitişi: ${end ?? "(kayıt sürüyor veya düzgün kapatılmadı)"}',
-      'Satır sayısı: ${end == null ? "(kayıt bitince yazılır; CSV'deki satırları sayın)" : _rowCount}',
-      if (_testSurusu) 'TEST SÜRÜŞÜ: konum ve GPS hızı SANAL (üretilmiş) değerlerdir, gerçek ölçüm değildir. Tez verisi olarak kullanmayın.',
-      'Çukur modu: ${_kayitModu.ad}',
-      'Çukur uyarısı sayısı: ${end == null ? "(kayıt bitince yazılır)" : _cukurCount}'
-          '${_kayitModu == CukurModu.uyari ? "" : " (sürücüye gösterilmedi)"}',
-      if (_kayitModu == CukurModu.isaret) 'Çukur işareti sayısı: ${end == null ? "(kayıt bitince yazılır)" : _isaretSayisi}',
-      'Scooter: ${_kayitScooter.isEmpty ? "belirtilmedi (Ayarlar)" : _kayitScooter}',
-      if (_hava != null) 'Hava durumu: ${_hava!.satir()}',
-      '',
-      ...DeviceInfo.describe(info),
-      '',
-      'CSV biçimi: sütun ayırıcı noktalı virgül (;), ondalık ayırıcı virgül (,) - Türkçe Excel ile doğrudan açılır',
-      '',
-      'Ölçüm ayarları:',
-      '  İstenen ivmeölçer örnekleme aralığı: 5 ms (~200 Hz)',
-      '  Kayıt penceresi: 0,5 s (saniyede 2 satır)',
-      '  Yerçekimi giderme: ivmenin üç eksenine birinci dereceden yüksek geçiren filtre (bilineer dönüşüm), kesim frekansı $gravityCutoffHz Hz',
-      '  Yerçekimi yönü = ham ivme − filtre çıkışı; Dikey_* = titreşimin bu yöne izdüşümü (telefonun montaj açısından bağımsız)',
-      '  GPS Doppler hızı ve konum: doğrudan GPS donanımı (Android GPS_PROVIDER), yumuşatma yok, istenen aralık 500 ms',
-      '  Düzeltilmiş GPS: Fused konum servisi, istenen aralık 500 ms',
-      '  GPS konum filtresi: doğruluğu 50 m\'den kötü konumlar atılır',
-      '  GPS kesintisi: son konum ${gpsMaxAge.inSeconds} sn\'den eskiyse Enlem, Boylam, GPS_Doppler_Hiz_kmh ve GPS_Dogruluk_m boş bırakılır;',
-      '  düzeltilmiş GPS ${gpsMaxAge.inSeconds} sn\'den eskiyse Duzeltilmis_GPS_Hiz_kmh boş bırakılır',
-      '  Cukur: anlık çukur uyarısı; yalnızca "Otomatik çukur uyarısı" modunda ekranda kırmızı yanar ve sesli uyarı verilir (1 = o 0,5 sn içinde |Dikey_Min| veya Dikey_Max ≥ ${cukurEsik.toStringAsFixed(0)} m/s² ve GPS hızı ≥ ${cukurMinHiz.toStringAsFixed(0)} km/h).',
-      '  Ayrıntılı darbe tespiti (çevredeki sarsıntıya göre, GPS gecikmesi düzeltilmiş) analiz betiğiyle yapılır.',
-      '  Isaret: sürücünün çukur işaretine o 0,5 sn içinde kaç kez bastığı (boş = basılmadı; 1 sn içindeki ikinci basış sayılmaz).',
-      '  Isaret_Kaynak: ekran (ÇUKUR butonu), tus (telefonun ses tuşu), kumanda (Bluetooth kumanda), kulaklik (kulaklık / medya tuşu).',
-      '  Basış çukurdan 1-3 sn sonra gelir; analiz betiği basıştan önceki en büyük sarsıntı tepesini çukur olarak eşleştirir.',
-    ];
-    await infoFileFor(file).writeAsString('${lines.join('\n')}\n', flush: true);
+    String sensor(String anahtar) {
+      final s = info[anahtar];
+      if (s is! Map) return '';
+      return '${s['name']} (${s['vendor']})';
+    }
+
+    final hava = _hava;
+    return KayitBilgisi(
+      cihaz: info.containsKey('hata') ? '' : '${info['manufacturer']} ${info['model']} (Android ${info['android']})',
+      ivmeSensoru: sensor('accelerometer'),
+      jiroSensoru: sensor('gyroscope'),
+      scooter: _kayitScooter,
+      uygulamaSurumu: info.containsKey('hata') ? '' : '${info['appVersion']} (yapı ${info['appBuild']})',
+      hava: hava?.durum,
+      sicaklik: hava?.sicaklik,
+      yagis: hava?.yagis,
+      ruzgar: hava?.ruzgar,
+    );
   }
 
-  String _fileStamp(DateTime t) {
-    String two(int v) => v.toString().padLeft(2, '0');
-    return '${t.year}${two(t.month)}${two(t.day)}_${two(t.hour)}${two(t.minute)}${two(t.second)}';
+  Future<void> _bilgiDosyasiYaz() async {
+    final yol = _hamYol;
+    if (yol == null) return;
+    try {
+      final f = _bilgiDosyasi(yol);
+      await f.parent.create(recursive: true);
+      await f.writeAsString(jsonEncode((await _kayitBilgisi()).toMap()), flush: true);
+    } catch (e) {
+      debugPrint('Kayıt bilgisi yazılamadı: $e');
+    }
   }
 
   void _showMessage(String text) {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
-  // 4. KAYIT BİTİRME VE PAYLAŞMA MOTORU
-  // Kayıt başındaki hava durumunu bir kez almayı dene; alınırsa bilgi dosyasına eklenir
+  // Kayıt başındaki hava durumunu bir kez almayı dene; alınırsa kayda eklenir
   Future<void> _havaDurumuAl() async {
     final baslangic = _recordStart;
     _havaBekleniyor = false;
@@ -648,53 +532,100 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     // Bu arada kayıt bittiyse veya yeni kayıt başladıysa yazma
     if (hava == null || !isRecording || _recordStart != baslangic) return;
     _hava = hava;
-    await _writeInfoFile(null);
+    await _bilgiDosyasiYaz();
   }
 
+  // Ham dosyayı o günün GeoPackage dosyalarına çevirir (arka planda), sonra ham dosyayı siler
+  Future<DonusumSonucu> _cevir(String hamYol) async {
+    final dir = (await recordingsDirectory()).path;
+    var bilgi = const KayitBilgisi();
+    try {
+      final f = _bilgiDosyasi(hamYol);
+      if (await f.exists()) bilgi = KayitBilgisi.fromMap(Map<String, Object?>.from(jsonDecode(await f.readAsString()) as Map));
+    } catch (e) {
+      debugPrint('Kayıt bilgisi okunamadı: $e');
+    }
+    final sonuc = await donusturArkaPlanda(hamYol, dir, bilgi, _stiller);
+    for (final f in [File(hamYol), _bilgiDosyasi(hamYol)]) {
+      if (await f.exists()) await f.delete();
+    }
+    return sonuc;
+  }
+
+  // Uygulama kayıt sürerken kapandıysa ham dosya çevrilmeden kalır: açılışta çevrilir
+  Future<void> _yarimKalanlariCevir({String? haric}) async {
+    final klasor = Directory('${(await recordingsDirectory()).path}/ham_gecici');
+    if (!await klasor.exists()) return;
+    var n = 0;
+    for (final f in klasor.listSync().whereType<File>().where((f) => f.path.endsWith('.kuham') && f.path != haric)) {
+      try {
+        final s = await _cevir(f.path);
+        await telefonaKopyala([File(s.hamYol), File(s.insanYol)]);
+        n++;
+      } catch (e) {
+        debugPrint('Yarım kalan kayıt çevrilemedi (${f.path}): $e');
+      }
+    }
+    if (n > 0) _showMessage('Yarım kalan $n kayıt kurtarıldı. Kayıtlar sayfasından puanlayabilirsiniz.');
+  }
+
+  // 4. KAYIT BİTİRME: ham dosya kapatılır, GeoPackage'a çevrilir, puan ekranı açılır
   Future<void> stopRecording() async {
     if (!isRecording || _busy) return;
     _busy = true;
-    _recordTimer?.cancel();
-    setState(() {
-      isRecording = false;
-    });
+    setState(() => isRecording = false);
     WakelockPlus.disable();
     _havaBekleniyor = false;
-    _kayitServisi.invokeMethod('durdur').catchError((Object e) => debugPrint('Kayıt hizmeti durdurulamadı: $e'));
-    aktifKayitYolu = null;
-
-    final file = _csvFile;
+    final hamYol = _hamYol;
+    _hamYol = null;
     try {
-      // Kalan satırları yaz ve tüm yazmaların bitmesini bekle
-      _flushPending();
-      await _writeChain;
-      if (file == null) return;
-      await _writeInfoFile(DateTime.now());
-      if (_writeError) _showMessage("Uyarı: bazı satırlar dosyaya yazılamadı.");
-
-      // Sürüş akılda tazeyken konfor puanlaması ("Sonra" ile geçilebilir; Kayıtlar sayfasından yapılabilir)
-      if (mounted) await Navigator.of(context).push(MaterialPageRoute(builder: (_) => PuanlamaSayfasi(csv: file)));
-
+      final sonuc = await _kayitServisi.invokeMapMethod<String, dynamic>('durdur');
+      if (sonuc?['hata'] != null) _showMessage('Uyarı: ham dosya düzgün kapanmadı (${sonuc!['hata']}).');
+      if (hamYol == null || !await File(hamYol).exists()) {
+        _showMessage('Kayıt dosyası bulunamadı.');
+        return;
+      }
+      await _bilgiDosyasiYaz();
+      if (!mounted) return;
+      // Çeviri birkaç saniye sürebilir
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const PopScope(
+          canPop: false,
+          child: AlertDialog(content: Row(children: [CircularProgressIndicator(), SizedBox(width: 20), Expanded(child: Text('Kayıt kaydediliyor...'))])),
+        ),
+      );
+      DonusumSonucu? s;
+      try {
+        s = await _cevir(hamYol);
+      } finally {
+        if (mounted) Navigator.of(context).pop();
+      }
+      if (!mounted) return;
+      // Sürüş akılda tazeyken konfor puanı (geçilemez: 1-5 veya Hatırlamıyorum)
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => PuanSayfasi(sonuc: s!)));
       // Telefonun Belgeler/Mikromobilite klasörüne kopyala
-      final sorun = await telefonaKopyala(await kayitDosyalari(file));
+      final sorun = await telefonaKopyala([File(s.hamYol), File(s.insanYol)]);
       if (sorun != null) _showMessage(sorun);
-
-      // Dosyayı paylaşım ekranına (WhatsApp, Mail, Drive vb.) gönder. Kapatılırsa Kayıtlar sayfasından tekrar paylaşılabilir.
-      await shareRecording(file);
     } catch (e) {
-      debugPrint("Dosya kaydedilirken hata oluştu: $e");
-      _showMessage("Dosya kaydedilemedi: $e");
+      debugPrint("Kayıt kaydedilemedi: $e");
+      _showMessage("Kayıt kaydedilemedi: $e. Ham dosya korunuyor; uygulama yeniden açılınca tekrar denenir.");
     } finally {
       _busy = false;
     }
   }
 
-  // Uygulama arka plana geçerse bekleyen satırları hemen dosyaya yaz
+  String _sureYazisi() {
+    final t = _recordStart;
+    if (t == null) return '';
+    final s = DateTime.now().difference(t).inSeconds;
+    return '${(s ~/ 60).toString().padLeft(2, '0')}:${(s % 60).toString().padLeft(2, '0')}';
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) {
-      _flushPending();
-    } else if (_gpsStatusAction != null && !isRecording) {
+    if (state == AppLifecycleState.resumed && _gpsStatusAction != null && !isRecording) {
       // Kullanıcı ayarlara yönlendirilmişti (izin / konum servisi): dönünce GPS'i yeniden başlat
       _initLocation();
     }
@@ -703,18 +634,14 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _flushPending();
     _clockTimer?.cancel();
     _uiTimer?.cancel();
-    _recordTimer?.cancel();
     _simTimer?.cancel();
     rawGpsSubscription?.cancel();
     geoSubscription?.cancel();
     accelSubscription?.cancel();
-    _uyariSesi.dispose();
     _isaretSesi.dispose();
     _isaretKanali.setMethodCallHandler(null);
-    if (isRecording) _kayitServisi.invokeMethod('durdur').catchError((Object e) => null);
     WakelockPlus.disable();
     super.dispose();
   }
@@ -722,7 +649,13 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   @override
   Widget build(BuildContext context) {
     // Bildirim çubuğu başlıkla aynı lacivert, simgeleri beyaz
-    return AnnotatedRegion<SystemUiOverlayStyle>(
+    // Kayıt sürerken geri tuşu uygulamayı kapatmasın
+    return PopScope(
+      canPop: !isRecording,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _showMessage('Kayıt sürüyor: önce DURDUR\'a basılı tutun.');
+      },
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.transparent),
       child: Scaffold(
       backgroundColor: const Color(0xFFE9ECEF),
@@ -767,7 +700,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                     children: [
                       // Kayıtlar, Ayarlar, Hakkında / Teknik Bilgi sayfaları (yan yana)
                       for (final (ikon, ipucu, sayfa) in <(IconData, String, Widget)>[
-                        (Icons.folder_outlined, 'Kayıtlar', const RecordingsPage()),
+                        (Icons.folder_outlined, 'Kayıtlar', const KayitlarSayfasi()),
                         (Icons.settings_outlined, 'Ayarlar', const AyarlarPage()),
                         (Icons.info_outline, 'Hakkında / Teknik Bilgi', const AboutPage()),
                       ])
@@ -816,25 +749,24 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                    // Sarsıntı Kartı: büyük sayı dikey sarsıntı, altında küçük toplam ve eğim.
-                    // Kayıt sırasında çukur uyarısı gelince 1,5 sn kırmızı yanar.
+                    // Sarsıntı Kartı: büyük sayı dikey sarsıntı, altında küçük toplam ve eğim (yalnızca gösterim)
                     Card(
                       elevation: 4,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                      color: _cukurIsigi ? const Color(0xFFDC3545) : Colors.white,
+                      color: Colors.white,
                       child: Padding(
                         padding: const EdgeInsets.all(20.0),
                         child: Column(
                           children: [
-                            Text(
-                              _cukurIsigi ? 'ÇUKUR!' : 'DİKEY SARSINTI (m/s²)',
-                              style: TextStyle(fontSize: 14, color: _cukurIsigi ? Colors.white : const Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1),
+                            const Text(
+                              'DİKEY SARSINTI (m/s²)',
+                              style: TextStyle(fontSize: 14, color: Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1),
                             ),
                             const SizedBox(height: 10),
                             // Yerçekimi çıkarılmış, gerçek düşey yöndeki titreşim: hareketsizken ≈ 0, telefonun açısından bağımsız
                             Text(
                               verticalNet.toStringAsFixed(3),
-                              style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: _cukurIsigi ? Colors.white : const Color(0xFF003366))
+                              style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Color(0xFF003366))
                             ),
                             const SizedBox(height: 8),
                             Row(
@@ -842,13 +774,12 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                                 for (final (label, value) in [
                                   ('TOPLAM', totalNet.toStringAsFixed(3)),
                                   ('EĞİM', '${tiltDeg.toStringAsFixed(0)}°'),
-                                  if (isRecording && _kayitModu == CukurModu.uyari) ('UYARI', '$_cukurCount'), // bu kayıttaki anlık çukur uyarısı sayısı
                                 ])
                                   Expanded(
                                     child: Column(
                                       children: [
-                                        Text(label, style: TextStyle(fontSize: 10, color: _cukurIsigi ? Colors.white70 : const Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
-                                        Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _cukurIsigi ? Colors.white : const Color(0xFF495057))),
+                                        Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
+                                        Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF495057))),
                                       ],
                                     ),
                                   ),
@@ -1010,7 +941,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                     // ÇUKUR İŞARET Butonu (yalnızca kayıt sırasında): büyük, bakmadan basılabilir.
                     // Dokunulduğu an (parmak kalkmadan) sayılır; sistem tık sesi / titreşimi kapalı.
                     // Ses tuşu, Bluetooth kumanda ve kulaklık tuşu da aynı işi görür (MainActivity.kt / KayitServisi.kt).
-                    if (isRecording && _kayitModu == CukurModu.isaret) ...[
+                    if (isRecording) ...[
                       Material(
                         color: _isaretParlama ? const Color(0xFFFFC107) : const Color(0xFFFD7E14),
                         borderRadius: BorderRadius.circular(15),
@@ -1018,7 +949,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                         child: InkWell(
                           borderRadius: BorderRadius.circular(15),
                           enableFeedback: false,
-                          onTapDown: (_) => _isaretle('ekran'),
+                          onTapDown: (_) => _ekrandanIsaretle(),
                           child: SizedBox(
                             height: 110,
                             child: Center(
@@ -1033,20 +964,18 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                       ),
                       const SizedBox(height: 6),
                       const Text(
-                        'Ses tuşu, Bluetooth kumanda veya kulaklık tuşu da çukur işaretler',
+                        'Kulaklık / Bluetooth kumanda tuşu önerilir (ekrana ve ses tuşuna basmak telefonu sarsar)',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 12, color: Color(0xFF6C757D)),
                       ),
                       const SizedBox(height: 15),
                     ],
 
-                    // BAŞLAT / DURDUR Butonu. İşaret modunda DURDUR basılı tutularak çalışır:
+                    // BAŞLAT / DURDUR Butonu. DURDUR basılı tutularak çalışır:
                     // hemen üstündeki ÇUKUR butonuna basarken kayıt yanlışlıkla durmasın.
                     ElevatedButton(
-                      onPressed: !isRecording
-                          ? startRecording
-                          : (_durdurBasiliTut ? () => _showMessage('Durdurmak için basılı tutun') : stopRecording),
-                      onLongPress: isRecording && _durdurBasiliTut ? stopRecording : null,
+                      onPressed: !isRecording ? startRecording : () => _showMessage('Durdurmak için basılı tutun'),
+                      onLongPress: isRecording ? stopRecording : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isRecording ? Colors.redAccent : const Color(0xFF198754),
                         enableFeedback: false, // basılı tutunca titreşmesin (son satıra karışmasın)
@@ -1055,7 +984,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                         elevation: 4,
                       ),
                       child: Text(
-                        isRecording ? (_durdurBasiliTut ? 'DURDUR - basılı tutun ($_rowCount satır)' : 'DURDUR ($_rowCount satır)') : 'BAŞLAT',
+                        isRecording ? 'DURDUR - basılı tutun (${_sureYazisi()})' : 'BAŞLAT',
                         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 2),
                       ),
                     ),
@@ -1068,6 +997,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
             ),
           ),
         ],
+      ),
       ),
       ),
     );

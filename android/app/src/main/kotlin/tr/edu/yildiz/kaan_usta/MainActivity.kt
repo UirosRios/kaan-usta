@@ -30,7 +30,6 @@ import java.io.File
 class MainActivity : FlutterActivity() {
     private var listener: LocationListener? = null
     private var gnssCallback: Any? = null // GnssStatus.Callback (Android 7+)
-    private var tuslarIsaret = false // kayıt "çukurları ben işaretlerim" modundayken tuşlar çukur işareti olur
     private var isaretKanali: MethodChannel? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -98,14 +97,25 @@ class MainActivity : FlutterActivity() {
         val anaIs = Handler(Looper.getMainLooper())
         KayitServisi.isaretDinleyici = { kaynak -> anaIs.post { isaretKanali?.invokeMethod("isaret", kaynak) } }
 
-        // Kayıt sırasında ön plan hizmeti (KayitServisi.kt): ekran kapalıyken de ölçüm sürer
+        // Ham veri kaydı (KayitMotoru.kt) ve kayıt sırasında ön plan hizmeti (KayitServisi.kt): ekran kapalıyken de sürer
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "kaan_usta/kayit_servisi")
             .setMethodCallHandler { call, result ->
                 val intent = Intent(this, KayitServisi::class.java)
                 when (call.method) {
                     "baslat" -> {
-                        tuslarIsaret = call.argument<Boolean>("tuslar") ?: false
-                        intent.putExtra(KayitServisi.TUSLAR, tuslarIsaret)
+                        val yol = call.argument<String>("yol")
+                        val sanal = call.argument<Boolean>("sanal") ?: false
+                        val basladi = try {
+                            yol != null && KayitMotoru.baslat(applicationContext, yol, sanal)
+                        } catch (e: Exception) {
+                            false
+                        }
+                        if (!basladi) {
+                            result.error("KAYIT", "Ham veri dosyası açılamadı", null)
+                            return@setMethodCallHandler
+                        }
+                        // Kayıt boyunca ses tuşu, Bluetooth kumanda ve kulaklık tuşu çukur işaretidir
+                        intent.putExtra(KayitServisi.TUSLAR, true)
                         // Android 13+: bildirim izni (verilmezse hizmet yine çalışır, yalnızca bildirim görünmez)
                         if (Build.VERSION.SDK_INT >= 33 &&
                             checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED
@@ -115,22 +125,37 @@ class MainActivity : FlutterActivity() {
                         // Konum izni yoksa konum türü ön plan hizmeti başlatılamaz (Android 14+); hizmetsiz devam edilir
                         val konumIzni = listOf("android.permission.ACCESS_FINE_LOCATION", "android.permission.ACCESS_COARSE_LOCATION")
                             .any { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
-                        if (!konumIzni) {
-                            result.success(false)
-                            return@setMethodCallHandler
+                        var servis = false
+                        if (konumIzni) {
+                            try {
+                                if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+                                servis = true
+                            } catch (e: Exception) {
+                                // Hizmet başlatılamadı: kayıt ekran açıkken sürer
+                            }
                         }
-                        try {
-                            if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
-                            result.success(true)
-                        } catch (e: Exception) {
-                            result.error("KAYIT_SERVISI", e.message, null)
-                        }
+                        result.success(mapOf("servis" to servis))
                     }
                     "durdur" -> {
-                        tuslarIsaret = false
+                        val sonuc = KayitMotoru.durdur()
                         stopService(intent)
-                        result.success(true)
+                        result.success(sonuc)
                     }
+                    // Ekrandaki ÇUKUR butonu: tuşlarla aynı yoldan (sayılırsa "isaret" kanalından geri bildirilir)
+                    "isaret" -> {
+                        KayitServisi.isaretBildir(call.arguments as? String ?: "ekran")
+                        result.success(null)
+                    }
+                    // Test sürüşü: sanal konum ham kayda yazılır
+                    "sanalKonum" -> {
+                        KayitMotoru.sanalKonum(
+                            call.argument<Double>("enlem") ?: 0.0, call.argument<Double>("boylam") ?: 0.0,
+                            call.argument<Double>("hiz") ?: 0.0, call.argument<Double>("dogruluk") ?: 5.0,
+                        )
+                        result.success(null)
+                    }
+                    // Ekran yeniden açıldıysa (Dart yeniden başladıysa) süren kaydı sorar
+                    "durum" -> result.success(mapOf("kayitta" to KayitMotoru.kayitta, "yol" to KayitMotoru.aktifYol))
                     else -> result.notImplemented()
                 }
             }
@@ -199,7 +224,11 @@ class MainActivity : FlutterActivity() {
                 if (mevcut != null && !uzerineYaz) continue
                 val uri = mevcut ?: cr.insert(koleksiyon, ContentValues().apply {
                     put(MediaStore.MediaColumns.DISPLAY_NAME, f.name)
-                    put(MediaStore.MediaColumns.MIME_TYPE, if (f.name.endsWith(".csv")) "text/csv" else "text/plain")
+                    put(MediaStore.MediaColumns.MIME_TYPE, when {
+                        f.name.endsWith(".csv") -> "text/csv"
+                        f.name.endsWith(".txt") -> "text/plain"
+                        else -> "application/octet-stream" // GeoPackage (.gpkg)
+                    })
                     put(MediaStore.MediaColumns.RELATIVE_PATH, DISA_KLASOR)
                 }) ?: continue
                 cr.openOutputStream(uri, "wt")?.use { cikis -> f.inputStream().use { it.copyTo(cikis) } } ?: continue
@@ -232,6 +261,7 @@ class MainActivity : FlutterActivity() {
             "appVersion" to pi.versionName,
             "appBuild" to (if (Build.VERSION.SDK_INT >= 28) pi.longVersionCode else pi.versionCode.toLong()),
             "accelerometer" to sensorInfo(sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)),
+            "gyroscope" to sensorInfo(sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE)),
         )
     }
 
@@ -246,9 +276,9 @@ class MainActivity : FlutterActivity() {
     }
 
     // Ekran açıkken: telefonun ses tuşları, Bluetooth kumanda (çoğu ses açma veya Enter gönderir) ve kulaklık tuşu.
-    // İşaret modunda kayıt sürerken bu tuşlar çukur işareti olur ve başka işe yaramaz; diğer zamanlarda normal çalışır.
+    // Kayıt sürerken bu tuşlar çukur işareti olur ve başka işe yaramaz; diğer zamanlarda normal çalışır.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (tuslarIsaret && event.keyCode in ISARET_TUSLARI) {
+        if (KayitMotoru.kayitta && event.keyCode in ISARET_TUSLARI) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) KayitServisi.isaretBildir(kaynak(event))
             return true
         }
@@ -277,8 +307,12 @@ class MainActivity : FlutterActivity() {
         stopRawGps()
         KayitServisi.isaretDinleyici = null
         isaretKanali = null
-        // Ekran yok edilince ölçüm (Dart tarafı) da biter; kayıt hizmeti ve bildirimi asılı kalmasın
-        stopService(Intent(this, KayitServisi::class.java))
+        // Uygulama kapatılıyorsa (geri tuşu, son uygulamalardan kaydırma) süren kayıt düzgünce kapatılır; Dart bir
+        // sonraki açılışta ham dosyayı GeoPackage'a çevirir. Sistem ekranı yeniden kuruyorsa kayıt sürer.
+        if (isFinishing) {
+            KayitMotoru.durdur()
+            stopService(Intent(this, KayitServisi::class.java))
+        }
         super.onDestroy()
     }
 }

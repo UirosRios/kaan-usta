@@ -66,18 +66,19 @@ Future<String?> telefonaKopyala(List<File> dosyalar, {bool uzerineYaz = true}) a
   }
 }
 
-// Bütün kayıtları (süren kayıt hariç) kopyala
+// Bütün kayıtları kopyala: 2.0 gün dosyaları (.gpkg) ve eski (v1) CSV kayıtları
 Future<String?> tumKayitlariKopyala({bool uzerineYaz = false}) async {
   final dir = await recordingsDirectory();
-  final csvler = dir.listSync().whereType<File>().where((f) => f.path.endsWith('.csv') && !f.path.endsWith('_puan.csv'));
-  final dosyalar = <File>[
+  final dosyalar = dir.listSync().whereType<File>().toList();
+  final csvler = dosyalar.where((f) => f.path.endsWith('.csv') && !f.path.endsWith('_puan.csv'));
+  return telefonaKopyala([
+    ...dosyalar.where((f) => f.path.endsWith('.gpkg')),
     for (final csv in csvler)
       if (csv.path != aktifKayitYolu) ...await kayitDosyalari(csv),
-  ];
-  return telefonaKopyala(dosyalar, uzerineYaz: uzerineYaz);
+  ], uzerineYaz: uzerineYaz);
 }
 
-// Geçmiş kayıtlar: listele, yeniden paylaş, sil
+// Eski (v1, 0,5 sn CSV) kayıtlar: listele, yeniden paylaş, puanla, sil
 class RecordingsPage extends StatefulWidget {
   const RecordingsPage({super.key});
 
@@ -166,7 +167,7 @@ class _RecordingsPageState extends State<RecordingsPage> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF003366),
         foregroundColor: Colors.white,
-        title: const Text('Kayıtlar'),
+        title: const Text('Eski kayıtlar (v1)'),
         actions: [
           IconButton(
             icon: const Icon(Icons.drive_folder_upload),
@@ -178,7 +179,7 @@ class _RecordingsPageState extends State<RecordingsPage> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _files.isEmpty
-              ? const Center(child: Text('Henüz kayıt yok', style: TextStyle(color: Color(0xFF6C757D))))
+              ? const Center(child: Text('Eski (v1) kayıt yok', style: TextStyle(color: Color(0xFF6C757D))))
               : ListView.builder(
                   padding: const EdgeInsets.all(12),
                   itemCount: _files.length + 1,

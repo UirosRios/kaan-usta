@@ -21,7 +21,7 @@ import android.view.KeyEvent
 
 // Kayıt sırasında çalışan ön plan hizmeti. Ekran kilitlenince veya başka uygulamaya geçilince Android
 // arka plandaki uygulamanın sensör ve konum güncellemelerini keser; bu hizmet uygulamayı "ön planda"
-// tutar (bildirim çubuğunda simge) ve işlemcinin uyumasını engeller. Ölçümün kendisi Dart tarafında sürer.
+// tutar (bildirim çubuğunda simge) ve işlemcinin uyumasını engeller. Ham veri kaydı KayitMotoru'ndadır.
 //
 // Çukur işareti, ekran kapalıyken: kulaklık / Bluetooth kumandanın medya tuşları ve ses tuşları bu hizmetteki
 // medya oturumuna gelir (ekran açıkken MainActivity.dispatchKeyEvent yakalar).
@@ -185,12 +185,13 @@ class KayitServisi : Service() {
         const val KAYNAK_KUMANDA = "kumanda"
         const val KAYNAK_KULAKLIK = "kulaklik"
 
-        // MainActivity bunu Dart'a ileten işlevle doldurur (aynı süreç)
+        // MainActivity bunu Dart'a ileten işlevle doldurur (aynı süreç): sayılan basış için çift bip ve sayaç
         @Volatile
         var isaretDinleyici: ((String) -> Unit)? = null
 
+        // Basış önce ham kayda yazılır (KayitMotoru; 1 sn içindeki ikinci basış sayılmaz), sayıldıysa Dart'a bildirilir
         fun isaretBildir(kaynak: String) {
-            isaretDinleyici?.invoke(kaynak)
+            if (KayitMotoru.isaret(kaynak)) isaretDinleyici?.invoke(kaynak)
         }
     }
 }

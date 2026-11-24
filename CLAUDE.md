@@ -49,21 +49,22 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   çakışan kayıtlar aynı kesit. Kodu (K01, K02 …) telefon verir (önerilen; örnek dosyada öyle), QGIS'te düzeltilebilir;
   sokak adı OSM'den analizde verilir (telefon çevrimdışı ad alamaz). Eşikler kesinleşmedi.
 
-### Uygulama 2.0 planı (henüz yapılmadı; örnek GeoPackage onaylandı, uygulama planı kullanıcı onayı bekliyor)
+### Uygulama 2.0 (yazıldı 25 Kasım 2026, sürüm 2.0.0+6; telefonda DENENMEDİ)
 
 - **Ham kayıt:** ivmeölçer 3 eksen ve **jiroskop** (kullanıcı istedi) ~200 Hz, her GPS_PROVIDER konumu (hız, yön, doğruluk,
   yükseklik, uydu sayısı), her basış; hepsi **aynı saatle** (sensör zaman damgası). Telefonda filtre yok (yalnızca nokta
-  katmanındaki sarsıntı özeti; kullanıcı onayladı). Kayıt büyük olasılıkla Kotlin `KayitServisi`'ne taşınır
-  (`sensors_plus` `event.timestamp`'ın donanım saati mi geliş saati mi olduğu kontrol edilmeli).
+  katmanındaki sarsıntı özeti; kullanıcı onayladı). Kayıt Kotlin `KayitMotoru`'nda (sensör olayının kendi zaman damgası;
+  başka saat tabanındaysa 'T' saat eşi kayıtlarından düzeltilir, `HamKayit.sensorSaatDuzeltmesi`).
 - **Çıktı:** her sürüş günü için GeoPackage, **yazarına göre ayrı dosyalar**: `*_ham.gpkg` (Claude'a gider) ve `*_insan.gpkg`
   (işaret + puan; sürücüde kalır). Claude `*_claude.gpkg` üretir. Ayrıntı: `qgis/README.md`.
-- Kalkacaklar: otomatik çukur uyarısı modu ve `Cukur` sütunu, 0,5 sn özet CSV, her DURDUR'dan sonra açılan paylaşım ekranı,
+- Kaldırıldı: çukur modları (otomatik uyarı / yalnızca ölçüm) ve `Cukur` sütunu, 0,5 sn özet CSV, her DURDUR'dan sonra açılan paylaşım ekranı,
   dönüşlere göre otomatik parçalama (`Parcalama`), puanlamadaki "Sonra", önizlemedeki sarsıntı renkleri. Yerine: gün sonunda
-  tek "Günün kayıtlarını gönder".
+  Kayıtlar'da gün başına "Ham dosyayı gönder" ve "İşaret/puan dosyası".
 - **Kayıt sırasında sarsıntı ve harita görünmeye devam eder** (kullanıcı istedi, 25 Kasım).
 - **Kesit adı:** Kayıtlar sayfasında kesite ad verilebilir (`kesit_adi`; aynı kesitin bütün kayıtlarına uygulanır, sonraki
   kayıtlar da alır). Alan `kayitlar`, `insan_puanlar`, `claude_puanlar` katmanlarında (kullanıcı istedi, 25 Kasım).
-- Kalacaklar: işaret yolları (kulaklık / kumanda / ses tuşu / ekran), test sürüşü (sanal GPS), Belgeler/Mikromobilite kopyası.
+- Kaldı: işaret yolları (kulaklık / kumanda / ses tuşu / ekran), test sürüşü (sanal GPS; `test_` dosyalarına), Belgeler/Mikromobilite
+  kopyası (DURDUR, puan, ad, silme sonrası), v1 kayıtları ("Eski kayıtlar").
 - **Uygulama 2.0 mühendislik kuralları** (kodlamadan önce karar verildi):
   - Test edilebilirlik mimariyi belirler: CI yalnızca Kotlin'in derlendiğini kanıtlar. GeoPackage yazımı, sarsıntı özeti ve kesit
     atama bu bulut oturumunda çalıştırılabilecek yerde (Dart, host'ta `flutter test`) olmalı; Kotlin yalnızca yakalama yapar
@@ -93,26 +94,37 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
 
 ## Bölümler
 
-- `lib/`, `android/`, `assets/`: Flutter Android uygulaması (şu an v1.4: kayıt, çukur işareti / uyarısı, puanlama, önizleme, CSV).
-  - `main.dart`: ana ekran, kayıt motoru (0,5 sn pencere, ~200 Hz ivme, yerçekimi giderme 0,4 Hz yüksek geçiren), GPS, test sürüşü.
-  - `ayarlar.dart`: scooter adı, çukur modu (`CukurModu`), test sürüşü anahtarı.
-  - `puanlama.dart`: sürüş sonrası konfor puanlaması (`Parcalama`, `PuanlamaSayfasi`), `sadeAltlik()` gri harita altlığı.
-  - `onizleme.dart`: Kayıtlar'da kayda dokununca açılan sade önizleme (harita / grafikler / puanlar / özet).
-  - `recordings_page.dart`: Kayıtlar listesi, paylaşma, Belgeler'e kopyalama, `kaydiAc` (CSV'yi Excel vb. ile açma).
-  - `test_surusu.dart`: `SanalTur` (test sürüşünün kampüs turu).
-  - `hava_durumu.dart` (Open-Meteo), `device_info.dart`, `about_page.dart` (Hakkında / Teknik Bilgi kartları).
-  - Kotlin: `MainActivity.kt` (ham GPS_PROVIDER kanalı, tuş yakalama `dispatchKeyEvent`, `kaan_usta/dosya` MediaStore dışa aktarma),
-    `KayitServisi.kt` (ön plan kayıt hizmeti; işaret modunda MediaSession + VolumeProvider + sessiz AudioTrack ile ekran kapalıyken
-    kulaklık / Bluetooth kumanda / ses tuşu yakalama).
+- `lib/`, `android/`, `assets/`: Flutter Android uygulaması, **sürüm 2.0** (ham veri toplayıcı, GeoPackage çıktısı).
+  - `main.dart`: ana ekran (canlı sarsıntı / hız / harita yalnızca gösterim), BAŞLAT / DURDUR (basılı tut), ÇUKUR butonu, test
+    sürüşü sanal konumu, açılışta yarım kalan ham dosyaları çevirme (`_yarimKalanlariCevir`).
+  - Kayıt hattı (Flutter'sız, host'ta test edilir): `ham_kayit.dart` (.kuham okuyucu, `dikeySarsinti`), `gpkg.dart`
+    (GeoPackage yazıcı, `package:sqlite3` 3.9.1 sabit), `katmanlar.dart` (katman şeması + veri sözlüğü; `qgis/ornek` ile aynı
+    olmalı), `kesitler.dart` (kesit defteri `kesitler.json`, 30 m kuralı), `donusturucu.dart` (`donustur`, `puanYaz`,
+    `kesitAdiVer`, `kayitSil`, `kayitlariListele`, `haritaVerisi`), `arka_plan.dart` (isolate sarmalayıcıları: **sayfa içinden
+    `Isolate.run` çağırma**, kapanış sayfayı yakalar ve "unsendable" hatası verir; ekran görüntüsü testi bunu yakaladı).
+  - `puan_sayfasi.dart` (DURDUR sonrası geçilemez puan ekranı), `kayitlar_sayfasi.dart` (günlere göre liste, gönder, kesit adı,
+    puan, sil, harita), `ayarlar.dart` (scooter, çukur işareti açıklaması, test sürüşü; çukur modları kaldırıldı).
+  - v1 için kalanlar: `recordings_page.dart` ("Eski kayıtlar (v1)" sayfası + `recordingsDirectory`, `telefonaKopyala`,
+    `tumKayitlariKopyala` artık .gpkg'leri de kopyalar), `onizleme.dart`, `puanlama.dart` (`sadeAltlik()` 2.0'da da kullanılır).
+  - `test_surusu.dart`, `hava_durumu.dart`, `device_info.dart` (jiroskop eklendi), `about_page.dart` (2.0 metinleri).
+  - Kotlin: `KayitMotoru.kt` (ham kayıt: ivme + jiroskop 5000 µs, GPS_PROVIDER 500 ms + GnssStatus uydu, basışlar; ikili
+    `.kuham`, saniyede bir flush, 'T' saat eşi kayıtları), `MainActivity.kt` (`kaan_usta/kayit_servisi`: baslat {yol, sanal},
+    durdur, isaret, sanalKonum, durum; ekran GPS kanalı; tuş yakalama `KayitMotoru.kayitta` iken; `isFinishing` ise kaydı kapatır),
+    `KayitServisi.kt` (ön plan hizmeti + MediaSession / VolumeProvider / sessiz AudioTrack; `isaretBildir` önce KayitMotoru'na yazar).
+  - Testler: `test/donusturucu_test.dart` (yapay .kuham → gpkg; okuma, saat düzeltmesi, yarım dosya, kesit, puan, ad, silme, test
+    dosyaları). `KAAN_TEST_CIKTI=<klasör> flutter test` çıktıları kopyalar; `python3 qgis/sema_karsilastir.py qgis/ornek/..._ham.gpkg
+    <çıktı>_ham.gpkg` biçimi denetler (25 Kasım: ham ve insan aynı).
 - `analiz/`: v1 Python analiz betikleri (0,5 sn CSV biçimini okur; yeni ham biçim için karşılaştırma aşamasında yeniden ele alınacak).
   `surus_analizi.py` (tek sürüş), `birlestir.py` (sürüşleri birleştirme), `haritaya_oturtma.py` (OSM yollarına oturtma),
   `simulasyon.py` (gerçeği bilinen yapay sürüşlerle doğrulama). Yalnızca standart kütüphane ve matplotlib.
   Yöntem ve parametreler: `analiz/README.md`.
-- `qgis/`: QGIS için GeoPackage biçimi (`README.md`), yazıcı ve örnek dosyalar.
+- `qgis/`: QGIS için GeoPackage biçimi (`README.md`), Python yazıcı (`gpkg.py`), örnek üretici (`ornek_uret.py`), stiller
+  (`stiller/*.qml`, `stil_cikar.py`; uygulamaya asset olarak gömülür, CI `qgis/stiller/**` değişince de APK derler), biçim
+  karşılaştırıcı (`sema_karsilastir.py`).
 - Masaüstü Windows uygulaması (`masaustu/`, `build-windows.yml`) kullanıcı isteğiyle **kaldırıldı** (24 Kasım 2026).
 - Belgeler: `README.md` (uygulama), `analiz/README.md` (yöntem, çıktılar, sütunlar).
 
-## v1.4 kayıt CSV biçimi (mevcut uygulama; 2.0'da GeoPackage'a geçecek)
+## v1.4 kayıt CSV biçimi (eski; telefondaki v1 kayıtları bu biçimde kalır)
 
 Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık:
 `Tarih_Saat;Enlem;Boylam;GPS_Doppler_Hiz_kmh;Duzeltilmis_GPS_Hiz_kmh;Dikey_RMS;Dikey_Min;Dikey_Max;Ivme_Ornek_Sayisi;GPS_Dogruluk_m;Cukur;Isaret;Isaret_Kaynak`
@@ -125,7 +137,7 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
 - Kayıt bitince dosyalar telefonun **Belgeler/Mikromobilite** klasörüne kopyalanır (Android 10+ izin yok; 9 ve öncesi
   WRITE_EXTERNAL_STORAGE). Uygulama açılışında eski kayıtlar da kopyalanır. Kullanıcı bunun çalıştığını doğruladı.
 
-## Uygulamanın özellikleri (v1.4.0+5, mevcut)
+## v1.4 uygulamasının özellikleri (eski; 2.0'da çoğu kaldırıldı, bkz. "Uygulama 2.0")
 
 - **Çukur modu (Ayarlar, 3 seçenek):** "Çukurları ben işaretlerim" (varsayılan; ÇUKUR butonu + ses tuşu + Bluetooth kumanda +
   kulaklık tuşu, çift bip `assets/sesler/isaret.mp3`; otomatik uyarı gösterilmez ki işaretler ölçümden bağımsız olsun),
@@ -197,7 +209,8 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   (Flutter 3.47.7 stable; önce `flutter analyze`). APK: Actions → "APK Derle" → Artifacts.
 - Bulut oturumunda `gh` yok; GitHub işlemleri MCP araçlarıyla. Depo herkese açık olduğundan derleme durumu
   `https://api.github.com/repos/UirosRios/kaan-usta/actions/runs` adresinden curl ile de okunabilir.
-- Sürüm `pubspec.yaml`'da (`1.4.0+5`); kullanıcıya görünür özellik eklenince küçük sürümü artır (ham veri sürümü 2.0.0 olacak).
+- Sürüm `pubspec.yaml`'da (`2.0.0+6`); kullanıcıya görünür özellik eklenince küçük sürümü artır. APK'nın yapı numarası CI
+  çalıştırma numarasıdır (`--build-number=run_number`).
 
 ## Git
 
@@ -219,6 +232,10 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   uygulanması denenmedi). Son hâli: Blues (`dikey_rms`, 5 sınıf, alt 0, üst açık), insan = kırmızı üçgen, Claude =
   gölgeli koyu kırmızı yıldız, proje KRS EPSG:5254, altlık Esri Light Gray Base. Proje dosyasında kullanıcının adı ve
   Windows yolu var: .qgz/.qgs **depoya konmaz**, yalnızca görünüm alınır. Uygulama 2.0 da aynı QML'leri gömmeli.
-- Telefonda dene (2.0 ile): ekran kapalıyken kulaklık / kumanda işareti, gerçek örnekleme hızı, dosya boyutu.
+- **Uygulama 2.0 telefonda denenecek** (hiçbiri denenmedi): evde test sürüşü provası (BAŞLAT → işaret → DURDUR → puan →
+  Kayıtlar → gönder → QGIS), sonra 2-3 kısa gerçek kesit: ekran kapalıyken kulaklık / kumanda, gerçek örnekleme hızı
+  (`kayitlar.ivme_hz`), dosya boyutu, sohbete yükleme, kesit otomatik atama, yarım kalan kayıt kurtarma.
+  Bilinen sınırlar: kesit ataması yalnızca uç noktalara bakar (%80 güzergâh çakışması denetimi yok); işaret sayacı ekran
+  yeniden kurulursa sıfırdan başlar (kayıttaki sayı doğrudur).
 - Kesit listesi (arkadaş + hoca, gözle, tüm zemin türleri) hazırlanacak; geliştirme ve test kesitleri ayrı sokaklar.
 - İstenirse: arkadaşın GPS'siz cihazlarda ağ konumuna düşme değişikliği.

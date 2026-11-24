@@ -547,7 +547,7 @@ ACIKLAMA_INSAN = [
     ("insan_cukurlar", "kaynak", "metin", "", "kulaklik / kumanda / ekran / tus. Ekran ve telefon tuşu telefonu sarsar."),
     ("insan_puanlar", "(geometri)", "çizgi", "", "Kaydın güzergâhı (kayitlar katmanıyla aynı)."),
     ("insan_puanlar", "puan", "tam sayı", "1-5", "Konfor puanı: 1 çok kötü ... 5 çok iyi. Hatırlamıyorum ise boş."),
-    ("insan_puanlar", "durum", "metin", "", "puanlandi / hatirlamiyorum."),
+    ("insan_puanlar", "durum", "metin", "", "puanlandi / hatirlamiyorum / puanlanmadi (henüz puan verilmedi)."),
     ("insan_puanlar", "puanlama_zamani", "tarih-saat", "UTC", "Puanın verildiği an (DURDUR'dan hemen sonra olmalı)."),
     ("insan_puanlar", "isaret_sayisi", "tam sayı", "", "Bu kayıttaki çukur işareti sayısı."),
 ]

@@ -1,7 +1,11 @@
 # Mikromobilite Veri Aracı (Kaan Usta – YTÜ Harita Mühendisliği Tezi)
 
-Telefonun GPS'i ve ivmeölçeri ile mikromobilite (e-scooter, bisiklet vb.) sürüşünde
-**hıza göre dikey sarsıntıyı** ölçüp CSV olarak dışa aktaran Android uygulaması.
+E-scooter / bisiklet sürüşünde telefonun **ham sensör ve GPS verisini** toplayan Android uygulaması (sürüm 2).
+Sürücü sürüş sırasında çukurları işaretler, her kesitin sonunda konfor puanı verir. Veriler QGIS'te katman katman
+incelenmek üzere **GeoPackage** (`.gpkg`) dosyalarına yazılır.
+
+Tez düzeni: Claude yalnızca ham veriden kendi algoritmasıyla çukur noktaları ve konfor puanları üretir; sürücünün
+işaret ve puanlarıyla QGIS'te karşılaştırılır. Dosya biçimi ve QGIS kullanımı: [qgis/README.md](qgis/README.md).
 
 ## APK'yı indirme
 
@@ -9,168 +13,69 @@ Telefonun GPS'i ve ivmeölçeri ile mikromobilite (e-scooter, bisiklet vb.) sür
 2. Sayfanın altındaki **Artifacts** bölümünden `mikromobilite-apk` dosyasını indirin (zip içinde `app-release.apk`).
 3. APK'yı telefona atıp açın ("Bilinmeyen kaynaklardan yükleme" izni istenir).
 
-## CSV sütunları (her 0,5 sn'de bir satır)
+## Sürüş: bir kayıt = bir kesit = bir puan
 
-Dosya Türkçe Excel biçimindedir: sütun ayırıcı **noktalı virgül (;)**, ondalık ayırıcı **virgül (,)**.
-Excel'de çift tıklayınca sütunlar doğrudan ayrılır. Python ile okumak için:
-`pd.read_csv("dosya.csv", sep=";", decimal=",")`.
+1. Kesitin başında durun, **BAŞLAT**'a basın, ~5 sn bekleyip sürün.
+2. Ani sarsıntı veren her şeyde (çukur, kasis, ray, rögar, kot farkı) **kulaklık veya Bluetooth kumanda tuşuna** basın
+   (kısa çift bip). Arnavut kaldırımı gibi sürekli pürüzlü zeminde yalnızca zeminden belirgin ayrılan sarsıntılara basın.
+   Ekrandaki ÇUKUR butonu ve telefonun ses tuşu yedektir: telefonu sarsarlar. 1 sn içindeki ikinci basış sayılmaz.
+3. Kesitin sonunda durun, ~5 sn bekleyip **DURDUR**'a basılı tutun.
+4. Açılan ekranda kesitin konforunu puanlayın: **1 çok sarsıntılı – 5 çok rahat** veya "Hatırlamıyorum" (geçilemez;
+   sonradan Kayıtlar'dan değiştirilebilir). Ölçülen sarsıntı gösterilmez.
 
-| Sütun | Açıklama |
+- Kesit boyunca zemin tek tip olmalı; değişiyorsa orada durup yeni kayıt başlatın. Her geçişte aynı noktalarda başlayıp bitirin.
+- **Kesit kodu** (K01, K02, ...) otomatik verilir: başlangıç ve bitiş noktası önceki bir kayıtla ~30 m içinde örtüşen kayıt
+  aynı kesittir (ters yönde örtüşürse "dönüş"). Kesite **Kayıtlar** sayfasında ad verilebilir; ad o kesitin bütün
+  kayıtlarına ve sonraki geçişlerine uygulanır.
+- Kayıt sırasında ekranda dikey sarsıntı, hız ve harita görünür (yalnızca gösterim). Ekran kapanırsa veya başka uygulamaya
+  geçilirse kayıt arka planda sürer. Kayıt sırasında geri tuşu uygulamayı kapatmaz.
+
+## Kaydedilen ham veri
+
+Bütün sensörler ve basışlar Android tarafında aynı saatle (`elapsedRealtimeNanos`) zaman damgalanır; telefonda süzgeç uygulanmaz.
+
+| Kaynak | Ne kaydedilir |
 |---|---|
-| `Tarih_Saat` | Kayıt zamanı (telefon saati) |
-| `Enlem`, `Boylam` | Son geçerli GPS konumu, doğrudan GPS donanımından (WGS84, derece) |
-| `GPS_Doppler_Hiz_kmh` | Doğrudan GPS donanımının hızı: uydu sinyalinin Doppler kaymasından, yumuşatma yok |
-| `Duzeltilmis_GPS_Hiz_kmh` | Fused (birleşik) konum servisinin hızı; uygulamada "Düzeltilmiş GPS" |
-| `Dikey_RMS` | Penceredeki dikey sarsıntının RMS'i (m/s²) → **ana sarsıntı şiddeti ölçüsü**. Dikey sarsıntı = titreşimin gerçek düşey yöndeki bileşeni, telefonun montaj açısından bağımsız |
-| `Dikey_Min`, `Dikey_Max` | Penceredeki en düşük / en yüksek dikey sarsıntı (m/s², darbe tepe değerleri) |
-| `Ivme_Ornek_Sayisi` | Penceredeki ivmeölçer örneği sayısı (~200 Hz istenir → ~100 beklenir; telefon daha yavaş veriyorsa daha az) |
-| `GPS_Dogruluk_m` | GPS yatay konum doğruluğu (m, %68 güven yarıçapı) |
-| `Cukur` | Anlık çukur uyarısı: o 0,5 sn içinde en büyük dikey ivme ≥ 35 m/s² ve GPS hızı ≥ 3 km/h ise `1` (ekrandaki sarsıntı kartı kırmızı yanar) |
-| `Isaret` | Sürücünün çukur işaretine o 0,5 sn içinde kaç kez bastığı (boş = basılmadı) |
-| `Isaret_Kaynak` | İşaretin nereden geldiği: `ekran` (ÇUKUR butonu), `tus` (telefonun ses tuşu), `kumanda` (Bluetooth kumanda), `kulaklik` (kulaklık / medya tuşu) |
+| İvmeölçer | Üç eksen, m/s², yerçekimi dahil, ~200 Hz |
+| Jiroskop | Üç eksen, rad/s, ~200 Hz |
+| GNSS (GPS_PROVIDER) | Her konum: enlem, boylam, yükseklik, Doppler hızı, yön, doğruluk, hız / yükseklik doğruluğu, kullanılan uydu sayısı |
+| Çukur basışları | An ve kaynak (`kulaklik` / `kumanda` / `ekran` / `tus`) |
+| Kayıt bilgisi | Telefon ve sensör adları, gerçek örnekleme hızı, scooter (Ayarlar), hava durumu (Open-Meteo), uygulama sürümü |
 
-**GPS kesintisi:** Son GPS konumu 3 saniyeden eskiyse (tünel, yüksek bina arası vb.) `Enlem`, `Boylam`,
-`GPS_Doppler_Hiz_kmh` ve `GPS_Dogruluk_m` hücreleri boş bırakılır; düzeltilmiş GPS 3 saniyeden eskiyse
-`Duzeltilmis_GPS_Hiz_kmh` boş kalır. Böylece eski konum/hız tekrar yazılmaz; sarsıntı sütunları yine doldurulur.
+Kayıt sırasında veri saniyede bir diske yazılır (uygulama çökerse en fazla son ~1 sn kaybolur; yarım kalan kayıt bir sonraki
+açılışta kurtarılır). DURDUR'dan sonra o günün GeoPackage dosyalarına eklenir.
 
-**Yerçekimi giderme ve dikey sarsıntı:** İvmenin üç ekseni de 0,4 Hz kesim frekanslı birinci
-dereceden yüksek geçiren filtreden (bilineer/Tustin dönüşümü) geçirilir; 0,4 Hz, ISO 2631-1'in alt
-bant sınırıdır. Filtre çıkışı titreşim, ham ivme − titreşim ise yerçekimi vektörüdür (telefonun o anki
-"aşağı" yönü). Dikey sarsıntı, titreşim vektörünün yerçekimi yönüne izdüşümüdür; bu sayede telefon
-hangi açıda takılırsa takılsın aynı sarsıntı aynı değeri verir. Filtre ilk ~2 saniyede oturur.
+## Dosyalar
 
-## Analiz
+Her sürüş günü iki dosya (uygulamanın klasöründe ve telefonun **Belgeler/Mikromobilite** klasöründe):
 
-Kayıtların analizi için `analiz/surus_analizi.py` betiği kullanılır: GPS gecikmesini düzeltir, duruşları
-ayıklar, hıza göre sarsıntı tablosu çıkarır, darbeleri bulur ve sarsıntıya göre renklendirilmiş bir harita üretir.
-Sokaklara göre sarsıntı sıralaması da çıkarır. Birden fazla sürüş `analiz/birlestir.py` ile birleştirilerek
-yol kalitesi haritası ve tekrar eden darbe noktaları elde edilir. Ayrıntılar: [analiz/README.md](analiz/README.md).
-
-## Kayıt sırasında çukur: üç mod (Ayarlar)
-
-| Mod | Sürücü ne görür / yapar | Ne zaman |
+| Dosya | İçerik | Kime |
 |---|---|---|
-| **Çukurları ben işaretlerim** (varsayılan) | ÇUKUR butonu, ses tuşu, kumanda veya kulaklıkla işaretler; otomatik uyarı **gösterilmez** | Doğrulama sürüşleri |
-| **Otomatik çukur uyarısı** | Sert darbede ekran kırmızı yanar, sesli uyarı; işaret butonu yok | Gösterim, uyarının denenmesi |
-| **Yalnızca ölçüm** | Hiçbiri | Ekrana dokunmadan ölçüm |
+| `mikromobilite_<gün>_ham.gpkg` | `kayitlar` (güzergâh çizgisi), `gps_noktalari` (+ dikey sarsıntı özeti), `ivme`, `jiroskop` | Claude'a gönderilir |
+| `mikromobilite_<gün>_insan.gpkg` | `insan_cukurlar` (basışlar), `insan_puanlar` (kesit puanları) | Sürücüde kalır |
 
-- **Neden işaret modunda uyarı yok:** Uyarıyı gören sürücü uyarı geldiği için basar; işaretler ölçümden bağımsız olmaz ve
-  doğrulama değerini yitirir. Uyarıyı görmeyen sürücünün işaretleri bağımsız bir referanstır.
-- Her modda uygulamanın otomatik tespiti CSV'nin `Cukur` sütununa **sessizce** yazılır; analiz betiği sürücünün işaretleriyle karşılaştırır.
-  Seçilen mod `_bilgi.txt`'ye yazılır.
+QGIS'e sürüklenince katmanlar hazır görünümle açılır; her dosyada alanları açıklayan `aciklamalar` tablosu vardır.
+Ayrıntı: [qgis/README.md](qgis/README.md).
 
-## Anlık çukur uyarısı
+**Kayıtlar** sayfası (başlıktaki klasör simgesi): günlere göre kayıtlar; "Ham dosyayı gönder", "İşaret/puan dosyası",
+kayda dokununca harita (güzergâh ve işaretler), üç nokta menüsünden kesit adı, puan, silme.
 
-Yalnızca **Otomatik çukur uyarısı** modunda: kayıt sırasında 0,5 saniyelik penceredeki en büyük dikey ivme (|Dikey_Min| veya Dikey_Max) **35 m/s²**'yi aşarsa
-ve GPS hızı 3 km/h'in üstündeyse ekrandaki sarsıntı kartı 1,5 saniye **kırmızı yanar** ve **sesli uyarı** verilir, CSV'de o satırın `Cukur`
-sütununa `1` yazılır. Kartın altında bu kayıttaki uyarı sayısı (UYARI) görünür.
+## Ayarlar
 
-- **Neden sabit eşik:** Kayıt sırasında yalnızca geçmiş bilinir. İki gerçek sürüşte, geçmişe göre ayarlanan (göreli)
-  eşikler sabit eşikten daha iyi sonuç vermedi; 35 m/s² en sert darbeleri az yanlış alarmla yakaladı.
-- **Hız şartı:** Duruşta scooter'ı elle çevirmek / itmek uyarı vermez. GPS hızı yoksa uyarı verilmez.
-- **Uyarı ile betiğin ilişkisi:** Uyarı yalnızca en sert darbeleri gösterir. Ayrıntılı tespiti analiz betiği yapar: her darbeyi
-  çevresindeki sarsıntıyla karşılaştırır ve GPS gecikmesini düzeltir. Betik, uygulamanın uyarılarını kendi bulduklarıyla karşılaştırıp
-  haritada ayrıca gösterir.
+- **Scooter**: bir kez yazılır, her kayda eklenir.
+- **Test sürüşü (sanal GPS)**: konum YTÜ Davutpaşa Yerleşkesi iç yollarında ~1,85 km'lik bir turda üretilir (başa dönünce
+  6 sn durup yeni tura başlar, hız 4-20 km/h); sarsıntı gerçek ivmeölçerden. Kayıt akışını evde prova etmek içindir.
+  Test kayıtları ayrı dosyalara (`test_mikromobilite_<gün>_...`) yazılır ve Kayıtlar'da TEST diye ayrı görünür.
+  Tez verisi için kapalı tutun.
 
-## Çukur işaretleme (doğrulama için)
+## Montaj
 
-**Çukurları ben işaretlerim** modunda kayıt sırasında ekranda büyük turuncu **ÇUKUR** butonu çıkar. Sürücü çukurdan geçince işaretler; kısa bir çift bip duyulur
-ve o an CSV'deki `Isaret` ve `Isaret_Kaynak` sütunlarına yazılır. Analiz betiği basıştan önceki 5 saniyedeki sarsıntı tepesini
-bularak çukurun anını ve konumunu çıkarır ve otomatik darbe tespitinin bu işaretlerin kaçını bulduğunu raporlar.
-İşaretler sistemin bağımsız bir referansla karşılaştırılması (doğrulama) içindir.
+Telefon araca sıkıca sabitlenmelidir; açısı önemli değildir. Gevşek tutucu veya cep / çanta ölçümü bozar.
+Samsung telefonlarda uygulamanın pil ayarı "Kısıtlanmamış" olmalıdır.
 
-- **İşaretleme yolları:** ekrandaki buton, telefonun ses tuşları, **Bluetooth kumanda** (selfie / deklanşör kumandası; çoğu
-  ses açma veya Enter tuşu gönderir) ve **kulaklık tuşu** (kablolu veya Bluetooth kulaklığın oynat/duraklat, ileri, geri tuşları).
-- **Ekran kapalıyken:** kumanda, kulaklık ve ses tuşları kayıt hizmetinin medya oturumuyla yine çalışır. Bunun için kayıt boyunca
-  sessiz bir ses çalınır. O sırada başka bir uygulama müzik çalıyorsa medya tuşları o uygulamaya gidebilir.
-- **Kayıt sırasında** ses tuşları ses düzeyini değiştirmez, kulaklık tuşu müziği durdurmaz; kayıt bitince normale döner.
-- **Buton etkisi:** Ekrana veya telefonun tuşuna basmak telefonu kısa bir an sarsar. Betik o satırı ve sonraki 0,5 sn'yi analize katmaz.
-  Kumanda ve kulaklık telefonu sarsmadığı için bu basışlarda dışlama yapılmaz; doğrulama için en temiz yöntemdir.
-- **Titreşim yok:** Geri bildirim yalnızca sesle verilir; titreşim motoru ivmeölçere karışırdı.
-- **Çift basma:** 1 saniye içindeki ikinci basış sayılmaz.
-- **Durdurma:** Kayıt sırasında **DURDUR** butonu, ÇUKUR butonuna basarken yanlışlıkla kaydı bitirmesin diye basılı tutularak çalışır.
-- Diğer modlarda buton çıkmaz, tuşlar normal çalışır.
+## Eski (v1) kayıtlar ve analiz betikleri
 
-## Sürüş sonrası konfor puanlaması (doğrulama için)
-
-DURDUR'dan sonra **Sürüşü puanla** ekranı açılır. Güzergâh dönüş noktalarından parçalara bölünür (kabaca her sokak bir parça;
-uzun düz yollar en fazla ~200 m, en kısa parça 50 m). Haritada sırayla her parça mavi gösterilir (yeşil nokta başı, kırmızı sonu);
-sürücü o parçadan geçişin ne kadar rahat olduğunu puanlar:
-
-| 1 | 2 | 3 | 4 | 5 |
-|---|---|---|---|---|
-| Çok sarsıntılı | Sarsıntılı | Orta | Rahat | Çok rahat |
-
-- **Kör puanlama:** Haritada ölçülen sarsıntı gösterilmez; puan ölçümden bağımsız olmalıdır.
-- **Hatırlamıyorum** seçilebilir, **Geri** ile önceki parça düzeltilebilir. **Sonra** ile geçilirse Kayıtlar sayfasındaki
-  **yıldız** simgesinden sonradan puanlanır (puanlar değiştirilebilir). Sürüş akılda tazeyken puanlamak önerilir.
-- Puanlar `mikromobilite_<tarih_saat>_puan.csv` dosyasına yazılır: parça no, başlangıç / bitiş zamanı ve konumu, uzunluk, puan,
-  durum (`puanlandi` / `hatirlamiyorum` / `puanlanmadi`), puanlama zamanı.
-- Analiz betiği her parçanın hız düzeltmeli sarsıntı indeksini puanla karşılaştırır (Spearman sıra korelasyonu); birleştirme bütün
-  sürüşlerin parçalarını birlikte değerlendirir. Ayrıntı: [analiz/README.md](analiz/README.md).
-
-## Kayıt önizlemesi (telefonda, gösterim için)
-
-Kayıtlar sayfasında bir kayda dokununca sade bir önizleme açılır (test sürüşleri dahil). Sekmelere dokunarak veya kaydırarak:
-
-- **Harita:** güzergâh 25 m'lik parçalara bölünür; her parça ortalama dikey sarsıntısına göre üç renkten birini alır
-  (yeşil düzgün < 5, turuncu orta 5-8, kırmızı sarsıntılı ≥ 8 m/s²). Çukur işaretleri lacivert kare. Altlık gri sokak haritası.
-- **Grafikler:** sarsıntının 5 sn'lik ortalaması (arka planda üç sınıf) ve hız; çukur işaretleri dikey çizgi.
-- **Puanlar:** parçalar puan rengiyle haritada; her parça için puanınız ve ölçülen sarsıntı sınıfı yan yana.
-- **Özet:** yolun düzgün / orta / sarsıntılı payı, süre, yol, hız, işaret ve puan sayıları, scooter, hava durumu.
-
-Uygulamanın anlık uyarıları ve tek tek sarsıntı tepeleri önizlemede gösterilmez. Haritaya oturtma, hız düzeltmeli indeks,
-darbe tespiti ve istatistik bilgisayardaki analizdedir. CSV'yi Excel vb. ile açma düğmesi önizlemenin üst çubuğundadır.
-
-## Ayarlar ve kayıt etiketleri
-
-Başlıktaki **dişli** simgesinden açılan Ayarlar sayfasında kullanılan scooter (marka / model) bir kez yazılır; her kaydın
-`_bilgi.txt` dosyasına otomatik eklenir. Şartlar değişince buradan güncellenir. Kayıt sırasında çukur modu da buradan seçilir (yukarıda).
-
-Kayıt başında internet ve GPS konumu varsa **hava durumu** (durum, sıcaklık, yağış, rüzgâr, nem) [Open-Meteo](https://open-meteo.com)
-servisinden alınır ve `_bilgi.txt`'ye yazılır. Konum ~1 km'ye yuvarlanarak gönderilir. Alınamazsa hava durumu satırı yazılmaz.
-
-## Test sürüşü (Ayarlar, sanal GPS)
-
-GPS'i olmayan bir cihazda (ör. yalnızca Wi-Fi tablet) veya kapalı alanda uygulamayı denemek için. Açılınca gerçek GPS
-kullanılmaz: konum YTÜ Davutpaşa Yerleşkesi'nin iç yollarını izleyerek orta bloğun çevresinde ~1,9 km'lik bir tur atar
-(OpenStreetMap yolları) ve başladığı yere döner; orada 6 sn durup yeni tura başlar. Hız 4-20 km/h arasında değişir. **Sarsıntı gerçek ivmeölçerden ölçülür**: telefonu sallayarak çukur işareti, uyarı ve puanlama denenebilir.
-
-- Kayıtlar `test_mikromobilite_<tarih_saat>.csv` adıyla oluşur, Kayıtlar listesinde **TEST** yazar; `_bilgi.txt`'ye
-  "TEST SÜRÜŞÜ" satırı eklenir, hava durumu alınmaz.
-- Puanlamada en kısa parça 50 m yerine **5 m**'dir (güzergâh 1 m aralıkla örneklenir): kısa denemeler de puanlanabilir.
-- Analiz betikleri klasör taramasında `test_` kayıtlarını atlar; dosya adıyla verilirse analiz eder ve özetin başına uyarı yazar.
-  Tez verisi için test sürüşünü kapalı tutun.
-
-## Kayıt dosyaları
-
-- Veriler kayıt sırasında **5 saniyede bir** dosyaya yazılır; uygulama kapanırsa en fazla son 5 saniye kaybolur.
-- Her kayıt `mikromobilite_<tarih_saat>.csv` (veri), `..._bilgi.txt` (telefon modeli, Android ve uygulama sürümü,
-  sensör adları/çözünürlük/ölçüm aralığı, ölçüm ayarları, çukur modu) ve puanlandıysa `..._puan.csv` dosyalarıdır.
-- **Telefonda erişilebilir kopya:** Kayıt bitince (ve puanlama sonrası) dosyalar telefonun **Belgeler/Mikromobilite**
-  (`Documents/Mikromobilite`) klasörüne kopyalanır: dosya yöneticisinden açılır, USB ile bilgisayara alınır. Android 10 ve sonrasında
-  izin gerekmez; Android 9 ve öncesinde ilk açılışta dosya izni istenir. Daha önceki kayıtlar da uygulama açılınca kopyalanır.
-  Kayıtlar sayfasının üstündeki klasör-ok simgesi hepsini yeniden kopyalar.
-- Uygulamada başlıktaki **klasör** simgesinden eski kayıtlar tekrar paylaşılabilir, puanlanabilir veya silinebilir
-  (uygulamadan silmek Belgeler'deki kopyayı silmez).
-- Uygulamanın kendi klasörü: `Android/data/tr.edu.yildiz.kaan_usta/files/kayitlar` (Android 11 ve sonrasında dosya yöneticileri göstermez).
-
-## Kullanılan sensörler
-
-Uygulamada sağ üstteki **ⓘ** simgesine dokununca açılan *Hakkında / Teknik Bilgi* sayfasında da listelenir.
-
-1. **İvmeölçer** – üç eksen ivme (m/s²), ~200 Hz; yerçekimi filtreyle çıkarılır, dikey sarsıntı hesaplanır
-2. **GNSS alıcısı** – doğrudan GPS_PROVIDER; konum, GPS Doppler hızı, doğruluk
-3. **Fused konum servisi (düzeltilmiş GPS)** – Google'ın birleşik konum servisi
-4. **Telefon saati** – zaman damgası
-
-## Ölçüm notları
-
-- Telefon araca **sıkıca** sabitlenmelidir; **açısı önemli değildir** (dikey sarsıntı açıdan bağımsız hesaplanır).
-  Gevşek tutucu veya cep/çanta ölçümü bozar. Montaj açısı ana ekranda (EĞİM) görülebilir.
-- Yaklaşık 1 sn'den uzun süren hızlanma, fren veya virajlarda yerçekimi yönü tahmini, yatay ivmenin
-  yerçekimine oranı kadar kayar (ör. 1 m/s² fren ≈ 6°, 3 m/s² sert fren ≈ 17°). Bu sürede dikey sarsıntı
-  %0,5–4 eksik ölçülür ve yatay titreşimin bir kısmı (açının sinüsü kadar, ≈ %10–30) dikeye karışır.
-- Kayıt sırasında ekran açık kalır; ekran kilitlenir veya başka uygulamaya geçilirse kayıt **arka planda sürer** (bildirim
-  çubuğunda "Sürüş kaydı sürüyor" görünür). Bazı telefonlar (özellikle Samsung) pil tasarrufu için arka plandaki uygulamaları
-  kapatabilir: Ayarlar → Uygulamalar → Mikromobilite Veri Aracı → Pil → **Kısıtlanmamış** seçilmesi önerilir.
+Sürüm 1.x, 0,5 sn'lik özet satırlar içeren CSV dosyaları (`mikromobilite_<tarih_saat>.csv`, `_bilgi.txt`, `_puan.csv`)
+üretiyordu. Bu kayıtlar telefonda olduğu gibi durur: Kayıtlar sayfasında sağ üstteki saat simgesi (**Eski kayıtlar**)
+ile açılır, paylaşılır, önizlenir. `analiz/` klasöründeki betikler bu v1 biçimini okur
+([analiz/README.md](analiz/README.md)); yeni ham biçim için karşılaştırma aşamasında yeniden ele alınacak.

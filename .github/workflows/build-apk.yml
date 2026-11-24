@@ -9,6 +9,7 @@ on:
       - "lib/**"
       - "android/**"
       - "assets/**"
+      - "qgis/stiller/**"
       - "pubspec.yaml"
       - "pubspec.lock"
       - "analysis_options.yaml"
