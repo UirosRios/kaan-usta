@@ -2,6 +2,8 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:sqlite3/sqlite3.dart';
+
 import 'gpkg.dart';
 import 'ham_kayit.dart';
 import 'katmanlar.dart';
@@ -168,33 +170,48 @@ typedef UcNoktasi = (double, double, double, double);
   final b = ByteData.sublistView(blob);
   final zarf = (b.getUint8(3) >> 1) & 7;
   final o = 8 + (zarf == 1 ? 32 : 0) + 5;
+  if (blob.length < o + 16) return null;
   return (b.getFloat64(o + 8, Endian.little), b.getFloat64(o, Endian.little));
 }
 
 // 2.1'den önceki kesit defterinde kayıtların kendi uçları yoktu: gün dosyasındaki GPS noktalarından, kaydın
-// çevrildiği kuralla (uclar) bulunur. Gün dosyası veya noktaları yoksa kayıt bilinmeyen kalır (referansa katılmaz).
+// çevrildiği kuralla (uclar) bulunur. Gün dosyası yalnızca okunur. Dosya yoksa, açılamıyorsa veya bozuksa kayıt
+// bilinmeyen kalır (referansa katılmaz): eski bir günün dosyası yeni kaydın çevrilmesini veya silmeyi engellememeli.
 void _ucBilgisiniTamamla(KesitDefteri defter, String klasor, {required bool test}) {
   final eksik = defter.ucuBilinmeyenler();
   if (eksik.isEmpty) return;
-  final acik = <String, GeoPackage?>{};
+  final acik = <String, Database?>{};
+  Database? oku(String yol) {
+    if (!File(yol).existsSync()) return null;
+    try {
+      return sqlite3.open(yol, mode: OpenMode.readOnly)..execute('PRAGMA busy_timeout = 5000');
+    } catch (_) {
+      return null;
+    }
+  }
+
   try {
     for (final (kesit, kayitNo) in eksik) {
       if (kayitNo.length < 8) continue;
       final yol = gunDosyasiYolu(klasor, kayitNo.substring(0, 8), 'ham', test: test);
-      final gp = acik.putIfAbsent(yol, () => File(yol).existsSync() ? GeoPackage.ac(yol) : null);
-      if (gp == null || !gp.katmanVar('gps_noktalari')) continue;
-      final noktalar = <UcNoktasi>[];
-      for (final r in gp.db.select('SELECT t_s, dogruluk_m, geom FROM gps_noktalari WHERE kayit_no = ? ORDER BY t_s', [kayitNo])) {
-        final p = _noktaOku(r['geom']);
-        if (p == null) continue;
-        noktalar.add(((r['t_s'] as num?)?.toDouble() ?? 0, p.$1, p.$2, (r['dogruluk_m'] as num?)?.toDouble() ?? double.nan));
+      final db = acik.putIfAbsent(yol, () => oku(yol));
+      if (db == null) continue;
+      try {
+        final noktalar = <UcNoktasi>[];
+        for (final r in db.select('SELECT t_s, dogruluk_m, geom FROM gps_noktalari WHERE kayit_no = ? ORDER BY t_s', [kayitNo])) {
+          final p = _noktaOku(r['geom']);
+          if (p == null) continue;
+          noktalar.add(((r['t_s'] as num?)?.toDouble() ?? 0, p.$1, p.$2, (r['dogruluk_m'] as num?)?.toDouble() ?? double.nan));
+        }
+        final (b0, b1) = uclarNoktalardan(noktalar);
+        if (b0 != null && b1 != null) kesit.ucEkle(kayitNo, b0, b1);
+      } catch (_) {
+        // bozuk dosya veya beklenmedik içerik: bilinmeyen kalır
       }
-      final (b0, b1) = uclarNoktalardan(noktalar);
-      if (b0 != null && b1 != null) kesit.ucEkle(kayitNo, b0, b1);
     }
   } finally {
-    for (final gp in acik.values) {
-      gp?.kapat();
+    for (final db in acik.values) {
+      db?.close();
     }
   }
 }

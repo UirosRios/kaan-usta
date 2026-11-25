@@ -267,6 +267,23 @@ void main() {
     expect(s3.kesit, 'K01');
   });
 
+  test('2.1 öncesi defterde eski günün dosyası bozuksa yeni kayıt yine çevrilir', () {
+    // Eski günün kaydı K01'de, uçları yok; o günün ham dosyası bozuk
+    KesitDefteri(KesitDefteri.dosyaFor(klasor.path, test: false), [
+      Kesit('K01', null, a.$1, a.$2, b.$1, b.$2, {'20261120_090000': 'gidis'}),
+    ]).kaydet();
+    final bozuk = File(gunDosyasiYolu(klasor.path, '20261120', 'ham', test: false))
+      ..writeAsBytesSync(List.filled(4096, 7));
+    final s = donustur(hamDosya: hamYaz('1', yapayKayit(baslangic: gun, a: a, b: b)), klasor: klasor.path,
+        bilgi: const KayitBilgisi());
+    expect((s.kesit, s.gecis), ('K01', 2));
+    final d = KesitDefteri.yukle(klasor.path, test: false);
+    expect([for (final (_, no) in d.ucuBilinmeyenler()) no], ['20261120_090000']);
+    expect(bozuk.readAsBytesSync(), List.filled(4096, 7)); // yalnızca okundu
+    kayitSil(s.hamYol, s.insanYol, s.kayitNo, klasor.path, test: false);
+    expect(KesitDefteri.yukle(klasor.path, test: false).kod('K01')!.kayitlar.keys, ['20261120_090000']);
+  });
+
   test('test sürüşü ayrı dosyalara', () {
     final y = hamYaz('t', yapayKayit(baslangic: gun, a: a, b: b, sanal: true));
     final s = donustur(hamDosya: y, klasor: klasor.path, bilgi: const KayitBilgisi(), stiller: stiller);

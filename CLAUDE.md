@@ -57,6 +57,16 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
 - **Kesit kimliği otomatik:** başlangıç ve bitiş noktaları ~30 m içinde (ters yön dahil) ve güzergâhı büyük ölçüde (%80+)
   çakışan kayıtlar aynı kesit. Kodu (K01, K02 …) telefon verir (önerilen; örnek dosyada öyle), QGIS'te düzeltilebilir;
   sokak adı OSM'den analizde verilir (telefon çevrimdışı ad alamaz). Eşikler kesinleşmedi.
+  **Kesit referansı (25 Kasım, derleme 40):** kesitin uçları, kayıtlarının uçlarının ortancası (`kesitler.json`'da kayıt
+  başına `uclar`, kesitin yönüne çevrilmiş; dönüşte baş/bit yer değiştirir). Silinen kayıt referanstan çıkar: yanlış
+  noktadan başlayan geçiş silinip yeniden sürülünce kesit kalan geçişlere göre eşleşir; 3+ geçişte tek sapan geçiş
+  referansı kaydırmaz. 2.1 öncesi defterde uçlar gün dosyasından (`gps_noktalari`, aynı `uclar` kuralı, salt okunur)
+  tamamlanır; dosya yoksa / bozuksa kayıt bilinmeyen kalır (referansa katılmaz, çeviriyi ve silmeyi engellemez).
+  Sınırlar: (1) bölünmüş kodlar birleştirilmez (ilk geçiş >30 m saptıysa yeni kod açılmış olabilir; QGIS'te düzeltilir);
+  (2) bütün kayıtları silinen adlı kesit, son silinenden önceki referansla kalır (silme sırasına bağlı); (3) iki geçişte
+  referans ortadır (her biri ±15 m sapmış olabilir); (4) son kesitin bütün kayıtları silinirse (adsızsa) kodu bir sonraki
+  yeni kesite yeniden verilebilir: o kod daha önce gönderilmiş bir dosyada başka sokak anlamına gelebilir. Kullanıcıya
+  çözüm önerildi (boşalan kesitin kaydı silinmeden saklanması), karar bekliyor.
 
 ### Uygulama 2.0 (yazıldı 25 Kasım 2026, sürüm 2.0.0+6; telefonda DENENMEDİ)
 
@@ -81,11 +91,13 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   (`<ham>.kuham.json`) üzerine yazılmıyor, `KayitBilgisi.eksikleriDoldur` ile birleşiyor (ekran yeniden kurulursa scooter /
   hava kaybolmasın); (2) dosya işlemleri `sirayla` kuyruğunda + `busy_timeout`; (3) `KayitMotoru` ilk yazma hatasından
   sonra hiçbir şey yazmaz, dosyayı `FileOutputStream`'den doğrudan kapatır, hatayı DURDUR'da `hata` olarak döner (Dart
-  "hafıza dolmuş olabilir" uyarısı gösterir; hatadan sonra basış sayılmaz, bip gelmez). Kalan 8 bulgu kullanıcıya açıklandı,
-  uygulanmadı: test sürüşü kayıtta değiştirilince eski mod kalması, yeniden kurulumdan sonra Belgeler'de "(1)" kopyaları
-  (denetlenecek), bozuk .kuham / sahipsiz .json temizlenmemesi, yeniden kurulan ekranda süre / sayaç sıfırlanması,
-  kesit adı penceresinde denetleyicinin erken kapatılması, Kayıtlar işlemlerinde hata mesajı olmaması, karışık 2.0/2.1
-  dosyada eski veri sözlüğü, silinen ilk kaydın kesit uç noktalarının kalması.
+  "hafıza dolmuş olabilir" uyarısı gösterir; hatadan sonra basış sayılmaz, bip gelmez). Kalan 8 bulgu kullanıcıya açıklandı;
+  kullanıcının seçtiği dördü düzeltildi (derleme 39-40, telefonda denenmedi): yeniden kurulan ekranda süre ve çukur sayacı
+  kayıttan devam eder (`KayitMotoru.durum`: `baslangicMs`, `isaret`; denemesi: Geliştirici seçenekleri → "Etkinlikleri
+  tutma"), kesit adı penceresi kendi denetleyicisini kapatır, Kayıtlar işlemlerinde hata mesajı (`_islem`), kesit
+  referansı (bkz. Sürüş protokolü). Uygulanmayan dördü: test sürüşü kayıtta değiştirilince eski mod kalması, yeniden
+  kurulumdan sonra Belgeler'de "(1)" kopyaları (denetlenecek), bozuk .kuham / sahipsiz .json temizlenmemesi, karışık
+  2.0/2.1 dosyada eski veri sözlüğü.
   2.0 ile yazılmış gün dosyasına 2.1 kayıt eklerse `GeoPackage.katman` eksik alanları `ALTER TABLE ADD COLUMN` ile ekler
   (eski alanlar boş kalır); `puanYaz` önce `alanlariTamamla` çağırır (testi var).
 - Kaldı: işaret yolları (kulaklık / kumanda / ses tuşu / ekran), test sürüşü (sanal GPS; `test_` dosyalarına), Belgeler/Mikromobilite
@@ -124,7 +136,7 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
     sürüşü sanal konumu, açılışta yarım kalan ham dosyaları çevirme (`_yarimKalanlariCevir`).
   - Kayıt hattı (Flutter'sız, host'ta test edilir): `ham_kayit.dart` (.kuham okuyucu, `dikeySarsinti`), `gpkg.dart`
     (GeoPackage yazıcı, `package:sqlite3` 3.9.1 sabit), `katmanlar.dart` (katman şeması + veri sözlüğü; `qgis/ornek` ile aynı
-    olmalı), `kesitler.dart` (kesit defteri `kesitler.json`, 30 m kuralı), `donusturucu.dart` (`donustur`, `puanYaz`,
+    olmalı), `kesitler.dart` (kesit defteri `kesitler.json`, 30 m kuralı, referans = kayıt uçlarının ortancası), `donusturucu.dart` (`donustur`, `puanYaz`,
     `kesitAdiVer`, `kayitSil`, `kayitlariListele`, `haritaVerisi`), `arka_plan.dart` (isolate sarmalayıcıları: **sayfa içinden
     `Isolate.run` çağırma**, kapanış sayfayı yakalar ve "unsendable" hatası verir; ekran görüntüsü testi bunu yakaladı;
     gün dosyalarına / `kesitler.json`'a dokunan her işlem ve Belgeler kopyası **`sirayla`** ile tek sırada çalışır,
@@ -139,7 +151,8 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
     durdur, isaret, sanalKonum, durum; ekran GPS kanalı; tuş yakalama `KayitMotoru.kayitta` iken; `isFinishing` ise kaydı kapatır),
     `KayitServisi.kt` (ön plan hizmeti + MediaSession / VolumeProvider / sessiz AudioTrack; `isaretBildir` önce KayitMotoru'na yazar).
   - Testler: `test/donusturucu_test.dart` (yapay .kuham → gpkg; okuma, saat düzeltmesi, yarım dosya, kesit, puan, ad, silme, test
-    dosyaları). `KAAN_TEST_CIKTI=<klasör> flutter test` çıktıları kopyalar; `python3 qgis/sema_karsilastir.py qgis/ornek/..._ham.gpkg
+    dosyaları, 2.0 gün dosyası, eski kesit defteri ve bozuk eski gün dosyası), `test/kesitler_test.dart` (kesit referansı:
+    silme, dönüş, sapan geçiş, adlı boş kesit, JSON), `test/arka_plan_test.dart` (`sirayla`, isolate, busy_timeout). `KAAN_TEST_CIKTI=<klasör> flutter test` çıktıları kopyalar; `python3 qgis/sema_karsilastir.py qgis/ornek/..._ham.gpkg
     <çıktı>_ham.gpkg` biçimi denetler (25 Kasım: gerçek ve test, ham ve insan dosyalarının dördü de örnekle aynı; testte gerçek
     `qgis/stiller` kullanılır).
 - `analiz/`: v1 Python analiz betikleri (0,5 sn CSV biçimini okur; yeni ham biçim için karşılaştırma aşamasında yeniden ele alınacak).
@@ -291,8 +304,7 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   Günler birleştirilmez: her gün ayrı dosya çifti; birleştirme analizde (Claude) veya QGIS'te ("Vektör katmanlarını birleştir").
   Kesit defteri (`kesitler.json`) telefona özeldir: iki telefonla sürülürse kodlar eşleşmez, analizde uç noktalardan yeniden eşlenir. Şimdilik sürüşleri yalnızca kullanıcı
   yapıyor (tek telefon); değişirse haber verecek.
-  Bilinen sınırlar: kesit ataması yalnızca uç noktalara bakar (%80 güzergâh çakışması denetimi yok); işaret sayacı ekran
-  yeniden kurulursa sıfırdan başlar (kayıttaki sayı doğrudur).
+  Bilinen sınırlar: kesit ataması yalnızca uç noktalara bakar (%80 güzergâh çakışması denetimi yok).
   Hiç çalışmamış olanlar: `KayitMotoru.kt` hiçbir yerde çalıştırılmadı (yalnızca CI'da derlenir); Kotlin'in yazdığı .kuham baytları
   ile Dart okuyucusu yalnızca okunarak eşleştirildi (test kendi baytlarını yazar).
 - **APK 34** (25 Kasım, 2.0.0+34): derlendi. İçinde `lib/<abi>/libsqlite3.so` (arm64-v8a, armeabi-v7a, x86_64) ve
