@@ -238,6 +238,8 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   (`kayitlar.ivme_hz`), dosya boyutu, sohbete yükleme, kesit otomatik atama, yarım kalan kayıt kurtarma.
   **Telefonda görüldü (25 Kasım, kullanıcının ekran görüntüsü):** gerçek GPS'le 4 kısa kayıt (22-32 sn, 31-68 m); Kayıtlar
   listesi, puanlar, işaret sayıları, kesit ataması ve gidiş/dönüş (K01 gidiş + K01 dönüş) çalışıyor. Gönder / QGIS henüz görülmedi.
+  Günler birleştirilmez: her gün ayrı dosya çifti; birleştirme analizde (Claude) veya QGIS'te ("Vektör katmanlarını birleştir").
+  Kesit defteri (`kesitler.json`) telefona özeldir: iki telefonla sürülürse kodlar eşleşmez, analizde uç noktalardan yeniden eşlenir.
   Bilinen sınırlar: kesit ataması yalnızca uç noktalara bakar (%80 güzergâh çakışması denetimi yok); işaret sayacı ekran
   yeniden kurulursa sıfırdan başlar (kayıttaki sayı doğrudur).
   Hiç çalışmamış olanlar: `KayitMotoru.kt` hiçbir yerde çalıştırılmadı (yalnızca CI'da derlenir); Kotlin'in yazdığı .kuham baytları
