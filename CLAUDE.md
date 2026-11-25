@@ -46,7 +46,9 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
 - **Çukur tanımı:** ani sarsıntı hissi veren her şey (çukur, kasis, ray, rögar, kot farkı vb.). Arnavut kaldırımı gibi sürekli
   pürüzlü zeminde her taşa değil, yalnızca zeminden belirgin ayrılan sarsıntılara basılır.
 - İşaret doğrulama sürüşlerinde **kulaklık / Bluetooth kumanda** ile verilir (ekran ve telefon tuşu telefonu sarsar;
-  ekran butonu yedek, kaynağı kaydedilir).
+  ekran butonu yedek, kaynağı kaydedilir). Kumandanın "iOS" (ses açma) tuşu kullanılır.
+- **Kayıt sırasında ekran açık kalır, kilitlenmez** (karar 25 Kasım 2026): ekran kapalıyken kumanda çalışmıyor; uygulama
+  kayıtta ekranı açık tutar. Ekran kapalı yöntemi (ses düzeyini izleme) denenmedi, kullanıcı istemedi.
 - Kesitler önceden, **gözle** seçilir (ölçülen sarsıntıya bakmadan) ve tüm zemin türlerini kapsar (çok iyi asfalt … Arnavut
   kaldırımı, ray, kasis); tercihen > 150 m. Her kesit ≥ 3 geçiş (farklı gün / hız / iki yönlüyse iki yön). Hedef 20-25+ kesit.
 - **Kesit kimliği otomatik:** başlangıç ve bitiş noktaları ~30 m içinde (ters yön dahil) ve güzergâhı büyük ölçüde (%80+)
@@ -190,7 +192,7 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   Mühürdar Karakolu (parke / Arnavut kaldırımı) puan 1, indeks ~12; diğerleri 3,7-5,3 (insan ince farkı ayırmıyor).
   Sabit 35 m/s² anlık uyarı Arnavut kaldırımında 36 kez tetiklendi → uyarının doğrulama sürüşlerinde kapalı olması gerekçesi.
 - Kullanıcının doğruladıkları: kulaklık tuşu **ekran açıkken** çalışıyor; Belgeler klasörü çalışıyor.
-- **Henüz telefonda denenmedi:** kulaklık / kumanda tuşu **ekran kapalıyken**; v1.4.0'daki test sürüşü kampüs turu,
+- Ekran kapalıyken kumanda 25 Kasım'da 2.0'da denendi, çalışmadı (bkz. Sürüş protokolü). **Henüz telefonda denenmedi:** v1.4.0'daki test sürüşü kampüs turu,
   sade önizleme ve gri altlık (APK derlemesi 32 başarılı).
 
 ## Doğrulama komutları
@@ -257,7 +259,7 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   `setPlaybackToRemote` oturumu, MediaRouter2 yönlendirme oturumu yoksa ses tuşlarını alamıyor (`canHandleVolumeKey` false);
   tuş müzik akışına düşüyor, ekran kapalıyken yalnızca müzik çalıyorsa işleniyor. Enter ekran kapalıyken hiçbir uygulamaya
   gitmez. Seçenekler kullanıcıya sunuldu: (1) ekran açık kalsın (önerilen, çalışıyor), (2) yerel oturum + sessiz ses + ses
-  düzeyi değişimini izleyip geri alma (emin değil, medya sesini kayıtta ortaya çeker). Geçici çözüm: kayıtta ekranı kilitlememek (uygulama kayıtta ekranı açık tutar,
+  düzeyi değişimini izleyip geri alma (emin değil, medya sesini kayıtta ortaya çeker). **Kullanıcı (1)'i seçti.** Çözüm: kayıtta ekranı kilitlememek (uygulama kayıtta ekranı açık tutar,
   `WakelockPlus`; ekran açıkken kumanda 9/9 çalıştı). Olası ek: Ayarlar'da tuş denemesi (tuş kodu ve aygıt adını gösterir).
   Önceki not: ekran **kapalıyken** Bluetooth kumandanın ses tuşu `VolumeProvider`'dan gelir ve `tus` (telefon tuşu) diye
   kaydedilir; kaynağı yanlış olur (analiz `tus` sonrası 0,5 sn'yi dışlar). Ekran kapalı deneme dosyasında bakılacak.
