@@ -484,13 +484,23 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     );
   }
 
+  // Var olan dosyadaki dolu alanlar korunur (eksikleriDoldur): ekran yeniden kurulduysa bellekteki scooter ve hava
+  // durumu boştur, BAŞLAT'ta yazılan bilgiyi silmemeli
   Future<void> _bilgiDosyasiYaz() async {
     final yol = _hamYol;
     if (yol == null) return;
     try {
       final f = _bilgiDosyasi(yol);
       await f.parent.create(recursive: true);
-      await f.writeAsString(jsonEncode((await _kayitBilgisi()).toMap()), flush: true);
+      var bilgi = await _kayitBilgisi();
+      if (await f.exists()) {
+        try {
+          bilgi = bilgi.eksikleriDoldur(KayitBilgisi.fromMap(Map<String, Object?>.from(jsonDecode(await f.readAsString()) as Map)));
+        } catch (e) {
+          debugPrint('Eski kayıt bilgisi okunamadı: $e');
+        }
+      }
+      await f.writeAsString(jsonEncode(bilgi.toMap()), flush: true);
     } catch (e) {
       debugPrint('Kayıt bilgisi yazılamadı: $e');
     }
@@ -557,7 +567,10 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     _hamYol = null;
     try {
       final sonuc = await _kayitServisi.invokeMapMethod<String, dynamic>('durdur');
-      if (sonuc?['hata'] != null) _showMessage('Uyarı: ham dosya düzgün kapanmadı (${sonuc!['hata']}).');
+      if (sonuc?['hata'] != null) {
+        _showMessage('Uyarı: kayıt dosyasına yazılamadı (${sonuc!['hata']}). Telefonun hafızası dolmuş olabilir; '
+            'kaydın sonu eksik olabilir.');
+      }
       if (hamYol == null || !await File(hamYol).exists()) {
         _showMessage('Kayıt dosyası bulunamadı.');
         return;

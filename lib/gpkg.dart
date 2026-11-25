@@ -92,6 +92,9 @@ class GeoPackage {
   // Dosyayı açar; yoksa temel GeoPackage tablolarıyla oluşturur.
   static GeoPackage ac(String yol) {
     final db = sqlite3.open(yol);
+    // Dosya başka bir bağlantıda kısa süre kilitliyse hemen hata vermek yerine 5 sn bekle (işlemler zaten sırayla
+    // çalışır: arka_plan.dart; bu ikinci güvence)
+    db.execute('PRAGMA busy_timeout = 5000');
     final gp = GeoPackage._(db, yol);
     // Temel tablolar yoksa (yeni dosya veya oluşturulurken yarıda kalmış dosya) tek işlemde oluşturulur
     if (db.select("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'gpkg_contents'").isEmpty) {

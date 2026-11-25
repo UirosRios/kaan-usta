@@ -28,6 +28,22 @@ class KayitBilgisi {
   final String? hava;
   final double? sicaklik, yagis;
 
+  // Boş (null / '') alanları eski bilgiden doldurur. Kayıt sürerken ekran yeniden kurulursa bellekteki scooter ve hava
+  // durumu kaybolur; DURDUR'da yazılan bilgi, BAŞLAT'ta yazılmış olanı boşaltmasın.
+  KayitBilgisi eksikleriDoldur(KayitBilgisi eski) {
+    String m(String yeni, String e) => yeni.isEmpty ? e : yeni;
+    return KayitBilgisi(
+      cihaz: m(cihaz, eski.cihaz),
+      ivmeSensoru: m(ivmeSensoru, eski.ivmeSensoru),
+      jiroSensoru: m(jiroSensoru, eski.jiroSensoru),
+      scooter: m(scooter, eski.scooter),
+      uygulamaSurumu: m(uygulamaSurumu, eski.uygulamaSurumu),
+      hava: (hava == null || hava!.isEmpty) ? eski.hava : hava,
+      sicaklik: sicaklik ?? eski.sicaklik,
+      yagis: yagis ?? eski.yagis,
+    );
+  }
+
   Map<String, Object?> toMap() => {
         'cihaz': cihaz,
         'ivmeSensoru': ivmeSensoru,

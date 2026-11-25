@@ -77,6 +77,15 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   `yukseklik_m`, `hiz_dogrulugu_kmh`, `dikey_dogruluk_m`. Saat yalnızca `t_s` + İstanbul saati (`yerel_saat`,
   `baslangic_yerel`). Jiroskop **kalıyor** (dosyanın %47'si; kullanıcı "kalsın"). Ekrandan "Düzeltilmiş GPS" (Fused konum
   servisi) kaldırıldı; TOPLAM ve EĞİM kaldı. `.kuham` ham biçimi değişmedi (Kotlin hâlâ yükseklik vb. yazar, çeviride atılır).
+  Kod incelemesi (25 Kasım, /code-review xhigh, 11 bulgu): önemli üçü düzeltildi (derleme 38): (1) DURDUR'da kayıt bilgisi
+  (`<ham>.kuham.json`) üzerine yazılmıyor, `KayitBilgisi.eksikleriDoldur` ile birleşiyor (ekran yeniden kurulursa scooter /
+  hava kaybolmasın); (2) dosya işlemleri `sirayla` kuyruğunda + `busy_timeout`; (3) `KayitMotoru` ilk yazma hatasından
+  sonra hiçbir şey yazmaz, dosyayı `FileOutputStream`'den doğrudan kapatır, hatayı DURDUR'da `hata` olarak döner (Dart
+  "hafıza dolmuş olabilir" uyarısı gösterir; hatadan sonra basış sayılmaz, bip gelmez). Kalan 8 bulgu kullanıcıya açıklandı,
+  uygulanmadı: test sürüşü kayıtta değiştirilince eski mod kalması, yeniden kurulumdan sonra Belgeler'de "(1)" kopyaları
+  (denetlenecek), bozuk .kuham / sahipsiz .json temizlenmemesi, yeniden kurulan ekranda süre / sayaç sıfırlanması,
+  kesit adı penceresinde denetleyicinin erken kapatılması, Kayıtlar işlemlerinde hata mesajı olmaması, karışık 2.0/2.1
+  dosyada eski veri sözlüğü, silinen ilk kaydın kesit uç noktalarının kalması.
   2.0 ile yazılmış gün dosyasına 2.1 kayıt eklerse `GeoPackage.katman` eksik alanları `ALTER TABLE ADD COLUMN` ile ekler
   (eski alanlar boş kalır); `puanYaz` önce `alanlariTamamla` çağırır (testi var).
 - Kaldı: işaret yolları (kulaklık / kumanda / ses tuşu / ekran), test sürüşü (sanal GPS; `test_` dosyalarına), Belgeler/Mikromobilite
@@ -117,7 +126,9 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
     (GeoPackage yazıcı, `package:sqlite3` 3.9.1 sabit), `katmanlar.dart` (katman şeması + veri sözlüğü; `qgis/ornek` ile aynı
     olmalı), `kesitler.dart` (kesit defteri `kesitler.json`, 30 m kuralı), `donusturucu.dart` (`donustur`, `puanYaz`,
     `kesitAdiVer`, `kayitSil`, `kayitlariListele`, `haritaVerisi`), `arka_plan.dart` (isolate sarmalayıcıları: **sayfa içinden
-    `Isolate.run` çağırma**, kapanış sayfayı yakalar ve "unsendable" hatası verir; ekran görüntüsü testi bunu yakaladı).
+    `Isolate.run` çağırma**, kapanış sayfayı yakalar ve "unsendable" hatası verir; ekran görüntüsü testi bunu yakaladı;
+    gün dosyalarına / `kesitler.json`'a dokunan her işlem ve Belgeler kopyası **`sirayla`** ile tek sırada çalışır,
+    sıradaki bir işlemin içinden `sirayla` çağrılmaz; `GeoPackage.ac` ayrıca `busy_timeout = 5000`).
   - `puan_sayfasi.dart` (DURDUR sonrası geçilemez puan ekranı), `kayitlar_sayfasi.dart` (günlere göre liste, gönder, kesit adı,
     puan, sil, harita), `ayarlar.dart` (scooter, çukur işareti açıklaması, test sürüşü; çukur modları kaldırıldı).
   - v1 için kalanlar: `recordings_page.dart` ("Eski kayıtlar (v1)" sayfası + `recordingsDirectory`, `telefonaKopyala`,

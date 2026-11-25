@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'arka_plan.dart';
 import 'onizleme.dart';
 import 'puanlama.dart';
 
@@ -55,8 +56,9 @@ const MethodChannel _dosyaKanali = MethodChannel('kaan_usta/dosya');
 Future<String?> telefonaKopyala(List<File> dosyalar, {bool uzerineYaz = true}) async {
   if (dosyalar.isEmpty) return null;
   try {
-    final yanit = await _dosyaKanali.invokeMapMethod<String, dynamic>(
-        'disaAktar', {'yollar': [for (final f in dosyalar) f.path], 'uzerineYaz': uzerineYaz});
+    // Gün dosyaları yazılırken kopyalanmasın: dosya işlemleriyle aynı sırada (arka_plan.dart)
+    final yanit = await sirayla(() => _dosyaKanali.invokeMapMethod<String, dynamic>(
+        'disaAktar', {'yollar': [for (final f in dosyalar) f.path], 'uzerineYaz': uzerineYaz}));
     if (yanit == null) return null;
     if (yanit['izin'] == false) return 'Kayıtları $telefonKlasoru klasörüne kopyalamak için dosya izni verin, sonra tekrar deneyin.';
     if (yanit['hata'] != null) return '$telefonKlasoru klasörüne kopyalanamadı: ${yanit['hata']}';

@@ -38,6 +38,9 @@ import java.io.FileOutputStream
 //                  (sensör zaman damgası başka bir saate göre verilirse Dart tarafı farkı buradan düzeltir)
 //   'E' bitiş:     t_ns (long)
 // Dosya saniyede bir diske yazılır: uygulama çökerse en fazla son ~1 sn kaybolur, önceki veri sağlam kalır.
+// Yazma hatasında (ör. telefonun hafızası doldu) o andan sonra hiçbir şey yazılmaz: yarım kalan bir kaydın ardına yeni
+// kayıt eklenirse dosyanın geri kalanı okunamaz hâle gelir. Hata DURDUR'da "hata" olarak döner, kullanıcı uyarılır;
+// hatadan sonra çukur basışı sayılmaz (bip gelmez).
 object KayitMotoru {
     private const val BASLIK = "KUHAM1"
     private const val ORNEKLEME_US = 5000 // ~200 Hz; Android 12+'da özel izinsiz en yüksek hız
@@ -46,6 +49,8 @@ object KayitMotoru {
 
     private val kilit = Any()
     private var cikis: DataOutputStream? = null
+    private var dosya: FileOutputStream? = null
+    private var yazmaHatasi: String? = null // kilit altında; ilk yazma hatası
     private var yol: String? = null
     private var is_: HandlerThread? = null
     private var isleyici: Handler? = null
@@ -82,14 +87,26 @@ object KayitMotoru {
             if (cikis != null) return false
             val f = File(dosyaYolu)
             f.parentFile?.mkdirs()
-            val c = DataOutputStream(BufferedOutputStream(FileOutputStream(f), 64 * 1024))
-            c.writeBytes(BASLIK)
-            c.writeByte('S'.code)
-            c.writeLong(SystemClock.elapsedRealtimeNanos())
-            c.writeLong(System.currentTimeMillis())
-            c.writeByte(if (sanal) 1 else 0)
-            c.flush()
+            val fos = FileOutputStream(f)
+            val c = DataOutputStream(BufferedOutputStream(fos, 64 * 1024))
+            try {
+                c.writeBytes(BASLIK)
+                c.writeByte('S'.code)
+                c.writeLong(SystemClock.elapsedRealtimeNanos())
+                c.writeLong(System.currentTimeMillis())
+                c.writeByte(if (sanal) 1 else 0)
+                c.flush()
+            } catch (e: Exception) {
+                try {
+                    fos.close()
+                } catch (kapatma: Exception) {
+                    // asıl hata (e) bildirilir
+                }
+                throw e
+            }
             cikis = c
+            dosya = fos
+            yazmaHatasi = null
             yol = dosyaYolu
             sonIsaretNs = 0L
             sonIvmeOlayNs = 0L
@@ -132,14 +149,16 @@ object KayitMotoru {
             override fun run() {
                 synchronized(kilit) {
                     val c = cikis ?: return
-                    try {
-                        c.writeByte('T'.code)
-                        c.writeLong(SystemClock.elapsedRealtimeNanos())
-                        c.writeLong(sonIvmeOlayNs)
-                        c.writeLong(sonIvmeGelisNs)
-                        c.flush()
-                    } catch (e: Exception) {
-                        // Disk dolu vb.: kayıt sürer, durdurulunca kullanıcı uyarılır (sayılar 0 kalır)
+                    if (yazmaHatasi == null) {
+                        try {
+                            c.writeByte('T'.code)
+                            c.writeLong(SystemClock.elapsedRealtimeNanos())
+                            c.writeLong(sonIvmeOlayNs)
+                            c.writeLong(sonIvmeGelisNs)
+                            c.flush()
+                        } catch (e: Exception) {
+                            hataOldu(e)
+                        }
                     }
                 }
                 h.postDelayed(this, 1000L)
@@ -185,9 +204,15 @@ object KayitMotoru {
         }
     }
 
+    // Kilit altında çağrılır: ilk hata saklanır, sonrası yazılmaz
+    private fun hataOldu(e: Exception) {
+        if (yazmaHatasi == null) yazmaHatasi = e.message ?: e.javaClass.simpleName
+    }
+
     private fun yaz3(tur: Char, tNs: Long, v: FloatArray) {
         synchronized(kilit) {
             val c = cikis ?: return
+            if (yazmaHatasi != null) return
             try {
                 c.writeByte(tur.code)
                 c.writeLong(tNs)
@@ -196,7 +221,7 @@ object KayitMotoru {
                 c.writeFloat(v[2])
                 if (tur == 'A') ivmeSayisi++ else jiroSayisi++
             } catch (e: Exception) {
-                // yazılamayan örnek atlanır
+                hataOldu(e)
             }
         }
     }
@@ -228,6 +253,7 @@ object KayitMotoru {
     ) {
         synchronized(kilit) {
             val c = cikis ?: return
+            if (yazmaHatasi != null) return
             try {
                 c.writeByte('L'.code)
                 c.writeLong(tNs)
@@ -244,7 +270,7 @@ object KayitMotoru {
                 c.writeByte(if (sanal) 1 else 0)
                 konumSayisi++
             } catch (e: Exception) {
-                // yazılamayan konum atlanır
+                hataOldu(e)
             }
         }
     }
@@ -254,6 +280,7 @@ object KayitMotoru {
         val simdi = SystemClock.elapsedRealtimeNanos()
         synchronized(kilit) {
             val c = cikis ?: return false
+            if (yazmaHatasi != null) return false
             if (sonIsaretNs != 0L && simdi - sonIsaretNs < ISARET_ARASI_NS) return false
             try {
                 c.writeByte('M'.code)
@@ -261,6 +288,7 @@ object KayitMotoru {
                 c.writeByte(kaynakKodu(kaynak))
                 c.flush() // işaret hemen diske
             } catch (e: Exception) {
+                hataOldu(e)
                 return false
             }
             sonIsaretNs = simdi
@@ -287,18 +315,21 @@ object KayitMotoru {
 
         synchronized(kilit) {
             val c = cikis ?: return null
-            var hata: String? = null
-            try {
-                c.writeByte('E'.code)
-                c.writeLong(SystemClock.elapsedRealtimeNanos())
-                c.flush()
-            } catch (e: Exception) {
-                hata = e.message
+            var hata: String? = yazmaHatasi?.let { "kayıt sırasında yazılamadı: $it" }
+            if (hata == null) {
+                try {
+                    c.writeByte('E'.code)
+                    c.writeLong(SystemClock.elapsedRealtimeNanos())
+                    c.flush()
+                } catch (e: Exception) {
+                    hata = "kapanırken yazılamadı: ${e.message ?: e.javaClass.simpleName}"
+                }
             }
+            // Dosya doğrudan kapatılır: yazma hatasından sonra tampondaki yarım kayıt yeniden yazılmasın
             try {
-                c.close()
+                dosya?.close()
             } catch (e: Exception) {
-                hata = hata ?: e.message
+                if (hata == null) hata = "kapanırken: ${e.message ?: e.javaClass.simpleName}"
             }
             val sonuc = mapOf(
                 "yol" to yol,
@@ -309,6 +340,8 @@ object KayitMotoru {
                 "hata" to hata,
             )
             cikis = null
+            dosya = null
+            yazmaHatasi = null
             yol = null
             return sonuc
         }
