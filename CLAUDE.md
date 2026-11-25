@@ -236,6 +236,8 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
 - **Uygulama 2.0 telefonda denenecek** (hiçbiri denenmedi): evde test sürüşü provası (BAŞLAT → işaret → DURDUR → puan →
   Kayıtlar → gönder → QGIS), sonra 2-3 kısa gerçek kesit: ekran kapalıyken kulaklık / kumanda, gerçek örnekleme hızı
   (`kayitlar.ivme_hz`), dosya boyutu, sohbete yükleme, kesit otomatik atama, yarım kalan kayıt kurtarma.
+  **Telefonda görüldü (25 Kasım, kullanıcının ekran görüntüsü):** gerçek GPS'le 4 kısa kayıt (22-32 sn, 31-68 m); Kayıtlar
+  listesi, puanlar, işaret sayıları, kesit ataması ve gidiş/dönüş (K01 gidiş + K01 dönüş) çalışıyor. Gönder / QGIS henüz görülmedi.
   Bilinen sınırlar: kesit ataması yalnızca uç noktalara bakar (%80 güzergâh çakışması denetimi yok); işaret sayacı ekran
   yeniden kurulursa sıfırdan başlar (kayıttaki sayı doğrudur).
   Hiç çalışmamış olanlar: `KayitMotoru.kt` hiçbir yerde çalıştırılmadı (yalnızca CI'da derlenir); Kotlin'in yazdığı .kuham baytları
