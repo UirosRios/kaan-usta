@@ -29,11 +29,22 @@ android {
         versionName = flutter.versionName
     }
 
+    // Sabit imza anahtarı (kaan_usta.jks): her derleme aynı anahtarla imzalanır, yeni APK eskisinin üstüne kurulur ve
+    // telefondaki kayıtlar silinmez. Anahtar ve parolası BİLEREK depoda ve herkese açık (kullanıcı kararı, 25 Kasım 2026):
+    // uygulama Play Store'da değil, tez için elden dağıtılıyor. Anahtar değiştirilirse telefondaki uygulama kaldırılmadan
+    // yeni APK kurulamaz (kaldırmak uygulama klasörünü siler).
+    signingConfigs {
+        create("release") {
+            storeFile = file("kaan_usta.jks")
+            storePassword = "kaanusta-acik"
+            keyAlias = "kaan_usta"
+            keyPassword = "kaanusta-acik"
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

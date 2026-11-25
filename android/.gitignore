@@ -12,3 +12,5 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+# İstisna: uygulamanın sabit imza anahtarı bilerek depodadır (app/build.gradle.kts'deki açıklama)
+!app/kaan_usta.jks
