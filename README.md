@@ -31,8 +31,10 @@ uygulamanın kendi klasöründeki kayıtları siler (Belgeler/Mikromobilite kopy
 - **Kesit kodu** (K01, K02, ...) otomatik verilir: başlangıç ve bitiş noktası önceki bir kayıtla ~30 m içinde örtüşen kayıt
   aynı kesittir (ters yönde örtüşürse "dönüş"). Kesite **Kayıtlar** sayfasında ad verilebilir; ad o kesitin bütün
   kayıtlarına ve sonraki geçişlerine uygulanır.
-- Kayıt sırasında ekranda dikey sarsıntı, hız ve harita görünür (yalnızca gösterim). Ekran kapanırsa veya başka uygulamaya
-  geçilirse kayıt arka planda sürer. Kayıt sırasında geri tuşu uygulamayı kapatmaz.
+- Kayıt sırasında ekranda dikey sarsıntı, hız ve harita görünür (yalnızca gösterim). Uygulama kayıt boyunca ekranı açık tutar.
+  Ekran kapanırsa veya başka uygulamaya geçilirse kayıt arka planda sürer. Kayıt sırasında geri tuşu uygulamayı kapatmaz.
+- **Kayıt sırasında ekranı kilitlemeyin:** Bluetooth kumandayla işaret ekran açıkken çalışıyor, ekran kapalıyken çalışmadığı
+  görüldü (25 Kasım 2026, nedeni araştırılıyor).
 
 ## Kaydedilen ham veri
 
