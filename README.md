@@ -44,7 +44,7 @@ Bütün sensörler ve basışlar Android tarafında aynı saatle (`elapsedRealti
 |---|---|
 | İvmeölçer | Üç eksen, m/s², yerçekimi dahil; 200 Hz istenir, telefon desteklediği hızı verir (Samsung M21: 125 Hz) |
 | Jiroskop | Üç eksen, rad/s, ivmeölçerle aynı hızda |
-| GNSS (GPS_PROVIDER) | Her konum: enlem, boylam, yükseklik, Doppler hızı, yön, doğruluk, hız / yükseklik doğruluğu, kullanılan uydu sayısı |
+| GNSS (GPS_PROVIDER) | Her konum: enlem, boylam, Doppler hızı, yön, doğruluk, kullanılan uydu sayısı |
 | Çukur basışları | An ve kaynak (`kulaklik` / `kumanda` / `ekran` / `tus`) |
 | Kayıt bilgisi | Telefon ve sensör adları, gerçek örnekleme hızı, scooter (Ayarlar), hava durumu (Open-Meteo), uygulama sürümü |
 

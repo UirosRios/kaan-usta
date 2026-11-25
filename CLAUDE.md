@@ -72,6 +72,13 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
 - **Kayıt sırasında sarsıntı ve harita görünmeye devam eder** (kullanıcı istedi, 25 Kasım).
 - **Kesit adı:** Kayıtlar sayfasında kesite ad verilebilir (`kesit_adi`; aynı kesitin bütün kayıtlarına uygulanır, sonraki
   kayıtlar da alır). Alan `kayitlar`, `insan_puanlar`, `claude_puanlar` katmanlarında (kullanıcı istedi, 25 Kasım).
+- **Sürüm 2.1 sadeleştirme (25 Kasım 2026, kullanıcı seçti):** GeoPackage'tan kaldırıldı: UTC saat alanları (`zaman`,
+  `kayitlar.baslangic/bitis`; `puanlama_zamani` yerine İstanbul saatiyle metin `puanlama_yerel`), `ruzgar_kmh`,
+  `yukseklik_m`, `hiz_dogrulugu_kmh`, `dikey_dogruluk_m`. Saat yalnızca `t_s` + İstanbul saati (`yerel_saat`,
+  `baslangic_yerel`). Jiroskop **kalıyor** (dosyanın %47'si; kullanıcı "kalsın"). Ekrandan "Düzeltilmiş GPS" (Fused konum
+  servisi) kaldırıldı; TOPLAM ve EĞİM kaldı. `.kuham` ham biçimi değişmedi (Kotlin hâlâ yükseklik vb. yazar, çeviride atılır).
+  2.0 ile yazılmış gün dosyasına 2.1 kayıt eklerse `GeoPackage.katman` eksik alanları `ALTER TABLE ADD COLUMN` ile ekler
+  (eski alanlar boş kalır); `puanYaz` önce `alanlariTamamla` çağırır (testi var).
 - Kaldı: işaret yolları (kulaklık / kumanda / ses tuşu / ekran), test sürüşü (sanal GPS; `test_` dosyalarına), Belgeler/Mikromobilite
   kopyası (DURDUR, puan, ad, silme sonrası), v1 kayıtları ("Eski kayıtlar").
 - **Uygulama 2.0 mühendislik kuralları** (kodlamadan önce karar verildi):
@@ -219,7 +226,7 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   (Flutter 3.47.7 stable; önce `flutter analyze`). APK: Actions → "APK Derle" → Artifacts.
 - Bulut oturumunda `gh` yok; GitHub işlemleri MCP araçlarıyla. Depo herkese açık olduğundan derleme durumu
   `https://api.github.com/repos/UirosRios/kaan-usta/actions/runs` adresinden curl ile de okunabilir.
-- Sürüm `pubspec.yaml`'da (`2.0.0+6`); kullanıcıya görünür özellik eklenince küçük sürümü artır. APK'nın yapı numarası CI
+- Sürüm `pubspec.yaml`'da (`2.1.0+6`); kullanıcıya görünür özellik eklenince küçük sürümü artır. APK'nın yapı numarası CI
   çalıştırma numarasıdır (`--build-number=run_number`).
 
 ## Git
@@ -268,9 +275,8 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   kaydedilir; kaynağı yanlış olur (analiz `tus` sonrası 0,5 sn'yi dışlar). Ekran kapalı deneme dosyasında bakılacak.
   **İvmeölçer doyması:** ICM42605M ±8 g; değer 78,45 m/s²'de takılıyor (denemede 13 432 örneğin 50'si, çoğu y ekseni,
   sert darbelerde) → darbe görülür ama tepe büyüklüğü kırpılır; algoritma bunu hesaba katmalı. Bu telefonda
-  `hiz_dogrulugu_kmh` hep 72 ve `dikey_dogruluk_m` hep 100 (telefon hesaplamıyor; yükseklik kullanılmamalı); `yon_derece`
-  dururken 0 (boş değil).
-  `about_page.dart` ve `katmanlar.dart` hâlâ "~200 Hz" diyor; bir sonraki uygulama değişikliğiyle düzeltilecek.
+  `hiz_dogrulugu_kmh` hep 72 ve `dikey_dogruluk_m` hep 100 (telefon hesaplamıyor; 2.1'de bu alanlar ve yükseklik kaldırıldı);
+  `yon_derece` dururken 0 (boş değil).
   Günler birleştirilmez: her gün ayrı dosya çifti; birleştirme analizde (Claude) veya QGIS'te ("Vektör katmanlarını birleştir").
   Kesit defteri (`kesitler.json`) telefona özeldir: iki telefonla sürülürse kodlar eşleşmez, analizde uç noktalardan yeniden eşlenir. Şimdilik sürüşleri yalnızca kullanıcı
   yapıyor (tek telefon); değişirse haber verecek.

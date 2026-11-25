@@ -127,9 +127,13 @@ class GeoPackage {
 
   bool katmanVar(String ad) => db.select('SELECT 1 FROM gpkg_contents WHERE table_name = ?', [ad]).isNotEmpty;
 
-  // Katman yoksa oluşturur (varsa dokunmaz). Yeni oluşturulduysa true.
+  // Katman yoksa oluşturur. Varsa yalnızca eksik alanları ekler (eski sürümün yazdığı gün dosyasına yeni sürüm kayıt
+  // eklediğinde; eski alanlar yerinde kalır, yeni satırlarda boş olur). Yeni oluşturulduysa true.
   bool katman(Katman k, DateTime simdi) {
-    if (katmanVar(k.ad)) return false;
+    if (katmanVar(k.ad)) {
+      alanlariTamamla(k);
+      return false;
+    }
     final sutunlar = ['"fid" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL', if (k.geometri != null) '"geom" ${k.geometri}',
       for (final (a, t) in k.alanlar) '"$a" $t'];
     db.execute('CREATE TABLE "${k.ad}" (${sutunlar.join(', ')})');
@@ -146,6 +150,14 @@ class GeoPackage {
           [k.ad, k.ad, k.aciklama, gpkgZamani(simdi)]);
     }
     return true;
+  }
+
+  // Katmanda olmayan alanları ekler (ALTER TABLE ... ADD COLUMN).
+  void alanlariTamamla(Katman k) {
+    final mevcut = {for (final r in db.select('PRAGMA table_info("${k.ad}")')) r['name'] as String};
+    for (final (a, t) in k.alanlar) {
+      if (!mevcut.contains(a)) db.execute('ALTER TABLE "${k.ad}" ADD COLUMN "$a" $t');
+    }
   }
 
   // Satır ekler. Geometrili katmanda her satırın ilk öğesi Geometri (veya null). Katmanın kapsamı genişletilir.

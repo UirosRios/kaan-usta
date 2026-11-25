@@ -53,10 +53,8 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   double currentLat = 0.0;
   double currentLon = 0.0;
   double currentRawSpeed = 0.0; // GPS Doppler Hızı - doğrudan GPS donanımı (yumuşatma yok)
-  double currentFusedSpeed = 0.0; // Düzeltilmiş GPS Hızı - Fused (birleşik) konum servisi
   double currentAccuracy = 0.0; // Ham GPS yatay konum doğruluğu (m)
   DateTime? lastFixTime; // Son geçerli ham GPS konumunun zamanı
-  DateTime? lastFusedFixTime; // Son geçerli düzeltilmiş GPS konumunun zamanı
   bool isRecording = false;
   String _gpsStatus = "GPS bekleniyor...";
   // GPS tanı bilgisi: uydu sayısı, 50 m filtresine takılan son doğruluk, durum yazısına dokununca açılacak ayar
@@ -120,7 +118,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   // Ham GPS, Android tarafında (MainActivity.kt) GPS_PROVIDER'dan okunur
   static const EventChannel _rawGpsChannel = EventChannel('kaan_usta/ham_gps');
   StreamSubscription<dynamic>? rawGpsSubscription;
-  StreamSubscription<Position>? geoSubscription;
   StreamSubscription<AccelerometerEvent>? accelSubscription;
 
   @override
@@ -273,9 +270,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
 
   Future<void> _startLocationStreams() async {
     await rawGpsSubscription?.cancel();
-    await geoSubscription?.cancel();
     rawGpsSubscription = null;
-    geoSubscription = null;
     _satVisible = null;
     _satUsed = null;
     _rejectedAccuracy = null;
@@ -283,12 +278,10 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     if (_simTimer != null) {
       // Sanal konumdan gerçek GPS'e geçiliyor: son sanal konum ve hız ekranda kalmasın
       lastFixTime = null;
-      lastFusedFixTime = null;
       currentLat = 0.0;
       currentLon = 0.0;
       currentAccuracy = 0.0;
       currentRawSpeed = 0.0;
-      currentFusedSpeed = 0.0;
     }
     _simTimer?.cancel();
     _simTimer = null;
@@ -375,24 +368,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
         if (mounted) setState(() => _gpsStatus = "Ham GPS başlatılamadı: $e");
       });
 
-      // DÜZELTİLMİŞ GPS: Fused (birleşik) konum servisi. GPS'i Wi-Fi/baz istasyonu/sensörlerle harmanlar ve yumuşatır.
-      geoSubscription = Geolocator.getPositionStream(
-        locationSettings: AndroidSettings(
-          accuracy: LocationAccuracy.bestForNavigation, // Tez için en yüksek hassasiyet
-          distanceFilter: 0,
-          intervalDuration: const Duration(milliseconds: 500),
-        ),
-      ).listen((Position position) {
-        if (mounted) {
-          // 50 metreden büyük çok ekstrem sapmaları yoksay (hassasiyet korunur)
-          if (position.accuracy > 50.0) return;
-
-          setState(() {
-            lastFusedFixTime = DateTime.now();
-            currentFusedSpeed = position.speed < 0 ? 0.0 : position.speed * 3.6;
-          });
-        }
-      });
     } else {
       if (mounted) {
         setState(() {
@@ -423,9 +398,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
         currentLon = tur.konum.longitude;
         currentAccuracy = 5.0;
         currentRawSpeed = tur.hizKmh;
-        currentFusedSpeed = tur.hizKmh * 0.97;
         lastFixTime = now;
-        lastFusedFixTime = now;
       });
       // Kayıt sürüyorsa sanal konum ham kayda yazılır (gerçek GPS'in yerine)
       if (isRecording) {
@@ -508,7 +481,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
       hava: hava?.durum,
       sicaklik: hava?.sicaklik,
       yagis: hava?.yagis,
-      ruzgar: hava?.ruzgar,
     );
   }
 
@@ -643,7 +615,6 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     _uiTimer?.cancel();
     _simTimer?.cancel();
     rawGpsSubscription?.cancel();
-    geoSubscription?.cancel();
     accelSubscription?.cancel();
     _isaretSesi.dispose();
     _isaretKanali.setMethodCallHandler(null);
@@ -805,34 +776,12 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
                         padding: const EdgeInsets.all(20.0),
                         child: Column(
                           children: [
-                            // GPS Doppler Hızı ve Düzeltilmiş (Fused) GPS Hızı yan yana
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    children: [
-                                      const Text('GPS DOPPLER\nHIZI (km/h)', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        currentRawSpeed.toStringAsFixed(1),
-                                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFFFD7E14))
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Column(
-                                    children: [
-                                      const Text('DÜZELTİLMİŞ GPS\n(km/h)', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        currentFusedSpeed.toStringAsFixed(1),
-                                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF0D6EFD))
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                            // GPS Doppler hızı (ham GPS donanımı, yumuşatma yok)
+                            const Text('GPS HIZI (km/h)', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Color(0xFF6C757D), fontWeight: FontWeight.bold, letterSpacing: 1)),
+                            const SizedBox(height: 4),
+                            Text(
+                              currentRawSpeed.toStringAsFixed(1),
+                              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFFFD7E14))
                             ),
 
                             const Padding(

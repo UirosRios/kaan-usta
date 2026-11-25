@@ -140,10 +140,6 @@ def ara(dizi, t, dt):
     return dizi[i] + f * (dizi[i + 1] - dizi[i])
 
 
-def zaman_utc(t):
-    return t.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-
-
 def zaman_yerel(t):
     return t.astimezone(YEREL).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
@@ -334,23 +330,21 @@ def main():
     # ------------------------------------------------------------------ ham
     ham = GeoPackage(os.path.join(CIKTI, f"ornek_{GUN}_ham.gpkg"), SON_DEGISIKLIK)
     ham.katman("kayitlar", "LINESTRING", [
-        ("kayit_no", "TEXT"), ("kesit", "TEXT"), ("kesit_adi", "TEXT"), ("yon", "TEXT"), ("baslangic", "DATETIME"),
-        ("bitis", "DATETIME"),
+        ("kayit_no", "TEXT"), ("kesit", "TEXT"), ("kesit_adi", "TEXT"), ("yon", "TEXT"),
         ("baslangic_yerel", "TEXT"), ("sure_s", "REAL"), ("uzunluk_m", "REAL"), ("ort_hiz_kmh", "REAL"),
         ("gps_nokta", "INTEGER"), ("ivme_hz", "REAL"), ("jiro_hz", "REAL"), ("cihaz", "TEXT"), ("ivme_sensoru", "TEXT"),
         ("jiro_sensoru", "TEXT"), ("scooter", "TEXT"), ("hava", "TEXT"), ("sicaklik_c", "REAL"), ("yagis_mm", "REAL"),
-        ("ruzgar_kmh", "REAL"), ("veri_kaynagi", "TEXT"), ("uygulama_surumu", "TEXT"),
+        ("veri_kaynagi", "TEXT"), ("uygulama_surumu", "TEXT"),
     ], NOT + "Her kayıt (bir kesitin bir geçişi) bir çizgi: ham GPS noktalarının birleşimi.")
     ham.katman("gps_noktalari", "POINT", [
-        ("kayit_no", "TEXT"), ("kesit", "TEXT"), ("t_s", "REAL"), ("zaman", "DATETIME"), ("yerel_saat", "TEXT"),
-        ("hiz_kmh", "REAL"), ("yon_derece", "REAL"), ("dogruluk_m", "REAL"), ("hiz_dogrulugu_kmh", "REAL"),
-        ("yukseklik_m", "REAL"), ("dikey_dogruluk_m", "REAL"), ("uydu", "INTEGER"),
+        ("kayit_no", "TEXT"), ("kesit", "TEXT"), ("t_s", "REAL"), ("yerel_saat", "TEXT"),
+        ("hiz_kmh", "REAL"), ("yon_derece", "REAL"), ("dogruluk_m", "REAL"), ("uydu", "INTEGER"),
         ("dikey_rms", "REAL"), ("dikey_tepe", "REAL"), ("ivme_ornek", "INTEGER"),
     ], NOT + "Telefonun GPS alıcısından gelen her konum (ham, düzeltilmemiş) ve iki konum arasındaki sarsıntı özeti.")
     ham.katman("ivme", None, [("kayit_no", "TEXT"), ("t_s", "REAL"), ("x", "REAL"), ("y", "REAL"), ("z", "REAL")],
-               NOT + "Ham ivmeölçer (m/s², yerçekimi dahil, telefon eksenleri), ~200 Hz.")
+               NOT + "Ham ivmeölçer (m/s², yerçekimi dahil, telefon eksenleri), telefonun örnekleme hızında.")
     ham.katman("jiroskop", None, [("kayit_no", "TEXT"), ("t_s", "REAL"), ("x", "REAL"), ("y", "REAL"), ("z", "REAL")],
-               NOT + "Ham jiroskop (rad/s, telefon eksenleri), ~200 Hz.")
+               NOT + "Ham jiroskop (rad/s, telefon eksenleri), ivmeölçerle aynı hızda.")
 
     for k in kayitlar:
         sp, fx = k["spec"], k["fixler"]
@@ -362,12 +356,12 @@ def main():
         hizlar = [f["hiz_kmh"] for f in fx if f["hiz_kmh"] >= 3]
         ham.ekle("kayitlar", [(
             cizgi([(f["boylam"], f["enlem"]) for f in fx]), k["kayit_no"], sp["kesit"], KESIT_ADI[sp["kesit"]], k["yon"],
-            zaman_utc(bas), zaman_utc(bas + timedelta(seconds=k["sure"])), zaman_yerel(bas)[:19], round(k["sure"], 1),
+            zaman_yerel(bas)[:19], round(k["sure"], 1),
             round(uz, 1), round(sum(hizlar) / len(hizlar), 1), len(fx),
             round((len(k["ivme"]) - 1) / (k["ivme"][-1][0] - k["ivme"][0][0]), 1),
             round((len(k["jiro"]) - 1) / (k["jiro"][-1][0] - k["jiro"][0][0]), 1),
             "Yapay örnek cihaz (Android 14)", "yapay ivmeölçer", "yapay jiroskop", "Örnek scooter",
-            "Parçalı bulutlu (yapay)", 14.2, 0.0, 11.0, "yapay_ornek", "2.0.0 (örnek)",
+            "Parçalı bulutlu (yapay)", 14.2, 0.0, "yapay_ornek", "2.1.0 (örnek)",
         )])
         # Sarsıntı özeti: önceki GPS konumundan bu konuma kadar olan ivme örnekleri
         satirlar, j, onceki_t = [], 0, -1e9
@@ -383,8 +377,8 @@ def main():
             tepe = max(abs(v) for v in parca) if parca else None
             an = bas + timedelta(seconds=f["t"])
             satirlar.append((
-                nokta(f["boylam"], f["enlem"]), k["kayit_no"], sp["kesit"], f["t"], zaman_utc(an), zaman_yerel(an),
-                f["hiz_kmh"], f["yon"], f["dogruluk"], f["hiz_dog"], f["yukseklik"], f["dikey_dog"], f["uydu"],
+                nokta(f["boylam"], f["enlem"]), k["kayit_no"], sp["kesit"], f["t"], zaman_yerel(an),
+                f["hiz_kmh"], f["yon"], f["dogruluk"], f["uydu"],
                 round(rms, 3) if rms is not None else None, round(tepe, 2) if tepe is not None else None, len(parca)))
         ham.ekle("gps_noktalari", satirlar)
         ham.ekle("ivme", [(k["kayit_no"], round(t, 4), x, y, z) for t, x, y, z in k["ivme"]])
@@ -396,12 +390,12 @@ def main():
     # ------------------------------------------------------------------ insan
     insan = GeoPackage(os.path.join(CIKTI, f"ornek_{GUN}_insan.gpkg"), SON_DEGISIKLIK)
     insan.katman("insan_cukurlar", "POINT", [
-        ("kayit_no", "TEXT"), ("kesit", "TEXT"), ("t_s", "REAL"), ("zaman", "DATETIME"), ("yerel_saat", "TEXT"),
+        ("kayit_no", "TEXT"), ("kesit", "TEXT"), ("t_s", "REAL"), ("yerel_saat", "TEXT"),
         ("hiz_kmh", "REAL"), ("kaynak", "TEXT"),
     ], NOT + "Sürücünün çukur basışları; konum basış anındaki ham GPS konumu (çukurun birkaç metre ilerisi).")
     insan.katman("insan_puanlar", "LINESTRING", [
         ("kayit_no", "TEXT"), ("kesit", "TEXT"), ("kesit_adi", "TEXT"), ("puan", "INTEGER"), ("durum", "TEXT"),
-        ("puanlama_zamani", "DATETIME"), ("isaret_sayisi", "INTEGER"),
+        ("puanlama_yerel", "TEXT"), ("isaret_sayisi", "INTEGER"),
     ], NOT + "Sürücünün kesite verdiği konfor puanı (1 çok kötü - 5 çok iyi); çizgi kaydın güzergâhı.")
     for k in kayitlar:
         sp, fx, bas = k["spec"], k["fixler"], k["baslangic"]
@@ -411,14 +405,14 @@ def main():
                 tb = round(t_e + rng.uniform(1.05, 1.6), 4)
                 an = bas + timedelta(seconds=tb)
                 isaretler.append((nokta(gps_ara(fx, tb, "boylam"), gps_ara(fx, tb, "enlem")), k["kayit_no"], sp["kesit"],
-                                  tb, zaman_utc(an), zaman_yerel(an), round(gps_ara(fx, tb, "hiz_kmh"), 2), "kulaklik"))
+                                  tb, zaman_yerel(an), round(gps_ara(fx, tb, "hiz_kmh"), 2), "kulaklik"))
         if isaretler:
             insan.ekle("insan_cukurlar", isaretler)
         bitis = bas + timedelta(seconds=k["sure"])
         insan.ekle("insan_puanlar", [(
             cizgi([(f["boylam"], f["enlem"]) for f in fx]), k["kayit_no"], sp["kesit"], KESIT_ADI[sp["kesit"]], sp["puan"],
             "puanlandi" if sp["puan"] is not None else "hatirlamiyorum",
-            zaman_utc(bitis + timedelta(seconds=rng.uniform(6, 12))), len(isaretler))])
+            zaman_yerel(bitis + timedelta(seconds=rng.uniform(6, 12)))[:19], len(isaretler))])
     aciklamalar_ekle(insan, ACIKLAMA_INSAN)
     insan.stiller(stilleri_oku(), STIL_NOTU)
     insan.kapat()
@@ -426,7 +420,7 @@ def main():
     # ------------------------------------------------------------------ claude (yer tutucu)
     cl = GeoPackage(os.path.join(CIKTI, f"ornek_{GUN}_claude.gpkg"), SON_DEGISIKLIK)
     cl.katman("claude_cukurlar", "POINT", [
-        ("kayit_no", "TEXT"), ("kesit", "TEXT"), ("t_s", "REAL"), ("zaman", "DATETIME"), ("yerel_saat", "TEXT"),
+        ("kayit_no", "TEXT"), ("kesit", "TEXT"), ("t_s", "REAL"), ("yerel_saat", "TEXT"),
         ("hiz_kmh", "REAL"), ("guven", "REAL"), ("tepe_ms2", "REAL"), ("algoritma", "TEXT"),
     ], NOT + CLAUDE_NOT + "Claude'un bulduğu çukur / ani sarsıntı noktaları (darbe anı ve GPS gecikmesi düzeltilmiş konum).")
     cl.katman("claude_puanlar", "LINESTRING", [
@@ -464,7 +458,7 @@ def main():
             tk = tt + 1.0  # GPS 1 sn geride: darbe anının konumu 1 sn sonraki GPS konumunda
             an = bas + timedelta(seconds=tt)
             satir.append((nokta(gps_ara(fx, tk, "boylam"), gps_ara(fx, tk, "enlem")), k["kayit_no"], sp["kesit"],
-                          round(tt, 4), zaman_utc(an), zaman_yerel(an), round(gps_ara(fx, tk, "hiz_kmh"), 2),
+                          round(tt, 4), zaman_yerel(an), round(gps_ara(fx, tk, "hiz_kmh"), 2),
                           round(min(1.0, 0.5 + (oran - 4) / 8), 2), round(tepe, 2), ALG))
         if satir:
             cl.ekle("claude_cukurlar", satir)
@@ -504,8 +498,7 @@ ORTAK = [
     ("(tümü)", "kesit", "metin", "", "Kesit kodu (K01, K02...). Telefon otomatik verir: başlangıç ve bitiş noktası önceki bir kayıtla ~30 m içinde örtüşen (ters yön dahil) kayıt aynı kesittir. Yanlışsa QGIS'te düzeltilebilir."),
     ("(tümü)", "kesit_adi", "metin", "", "Kesitin adı: kullanıcı Kayıtlar sayfasında verir (ör. sokak adı); aynı kesitin bütün kayıtlarına uygulanır. Verilmediyse boş."),
     ("(tümü)", "t_s", "ondalık", "s", "Kayıt başından (BAŞLAT) bu yana geçen süre. Bütün sensörler ve basışlar aynı saatle ölçülür; katmanları zamanla eşleştirmek için bu alan kullanılır."),
-    ("(tümü)", "zaman", "tarih-saat", "UTC", "Mutlak zaman (GeoPackage kuralı gereği UTC; İstanbul = UTC+3)."),
-    ("(tümü)", "yerel_saat", "metin", "UTC+3", "Aynı an, İstanbul saatiyle okunabilir yazım."),
+    ("(tümü)", "yerel_saat", "metin", "UTC+3", "Aynı an, İstanbul saatiyle (milisaniyeli)."),
 ]
 
 ACIKLAMA_HAM = [
@@ -514,27 +507,25 @@ ACIKLAMA_HAM = [
 ] + ORTAK + [
     ("kayitlar", "(geometri)", "çizgi", "", "Kaydın güzergâhı: ham GPS noktalarının birleşimi. Bir kayıt = bir kesitin bir geçişi."),
     ("kayitlar", "yon", "metin", "", "gidis / donus: kesitin ilk kaydedildiği yöne göre."),
-    ("kayitlar", "baslangic, bitis", "tarih-saat", "UTC", "BAŞLAT ve DURDUR anları."),
+    ("kayitlar", "baslangic_yerel", "metin", "UTC+3", "BAŞLAT anı, İstanbul saatiyle."),
     ("kayitlar", "sure_s", "ondalık", "s", "Kayıt süresi (baştaki ve sondaki ~5 sn duruş dahil)."),
     ("kayitlar", "uzunluk_m", "ondalık", "m", "GPS noktaları arasındaki mesafelerin toplamı (yalnızca hız >= 3 km/h olan kısımlar)."),
     ("kayitlar", "ort_hiz_kmh", "ondalık", "km/h", "Hareket halindeki (>= 3 km/h) GPS hızlarının ortalaması."),
     ("kayitlar", "gps_nokta", "tam sayı", "", "Kayıttaki GPS konumu sayısı."),
-    ("kayitlar", "ivme_hz, jiro_hz", "ondalık", "Hz", "Telefonun gerçekte verdiği örnekleme hızı (istenen ~200 Hz)."),
+    ("kayitlar", "ivme_hz, jiro_hz", "ondalık", "Hz", "Telefonun gerçekte verdiği örnekleme hızı (200 Hz istenir; Samsung M21 125 Hz verir)."),
     ("kayitlar", "cihaz, ivme_sensoru, jiro_sensoru", "metin", "", "Telefon modeli, Android sürümü, sensör adları."),
     ("kayitlar", "scooter", "metin", "", "Ayarlar'daki scooter adı."),
-    ("kayitlar", "hava, sicaklik_c, yagis_mm, ruzgar_kmh", "metin / ondalık", "°C, mm, km/h", "Kayıt başındaki hava durumu (Open-Meteo)."),
+    ("kayitlar", "hava, sicaklik_c, yagis_mm", "metin / ondalık", "°C, mm", "Kayıt başındaki hava durumu (Open-Meteo)."),
     ("kayitlar", "veri_kaynagi", "metin", "", "telefon / test_surusu (sanal GPS) / yapay_ornek."),
     ("kayitlar", "uygulama_surumu", "metin", "", "Kaydı yapan uygulama sürümü."),
     ("gps_noktalari", "(geometri)", "nokta", "", "Telefonun GPS alıcısından gelen her konum (yaklaşık saniyede bir), ham."),
     ("gps_noktalari", "hiz_kmh", "ondalık", "km/h", "GPS Doppler hızı."),
     ("gps_noktalari", "yon_derece", "ondalık", "°", "Hareket yönü (kuzeyden saat yönünde). Dururken boş."),
     ("gps_noktalari", "dogruluk_m", "ondalık", "m", "Yatay doğruluk (%68 güven yarıçapı)."),
-    ("gps_noktalari", "hiz_dogrulugu_kmh", "ondalık", "km/h", "Hız doğruluğu."),
-    ("gps_noktalari", "yukseklik_m, dikey_dogruluk_m", "ondalık", "m", "GPS yüksekliği (elipsoit) ve doğruluğu."),
     ("gps_noktalari", "uydu", "tam sayı", "", "Konumda kullanılan uydu sayısı."),
     ("gps_noktalari", "dikey_rms", "ondalık", "m/s²", "Önceki GPS konumundan bu konuma kadarki dikey sarsıntının RMS'i. Yöntem: ivmenin üç eksenine 0,4 Hz yüksek geçiren süzgeç, yerçekimi yönüne izdüşüm (telefonun açısından bağımsız). Renklendirme için."),
     ("gps_noktalari", "dikey_tepe", "ondalık", "m/s²", "Aynı aralıktaki en büyük mutlak dikey sarsıntı (darbe tepesi)."),
-    ("gps_noktalari", "ivme_ornek", "tam sayı", "", "Aynı aralıktaki ivme örneği sayısı (~200 beklenir)."),
+    ("gps_noktalari", "ivme_ornek", "tam sayı", "", "Aynı aralıktaki ivme örneği sayısı (telefonun hızı kadar; Samsung M21 ~125)."),
     ("ivme", "x, y, z", "ondalık", "m/s²", "Ham ivmeölçer, yerçekimi dahil, telefonun kendi eksenleri (x sağa, y ekranın üstüne, z ekrandan dışarı). Geometrisi yoktur; kayit_no ve t_s ile eşleştirilir."),
     ("jiroskop", "x, y, z", "ondalık", "rad/s", "Ham jiroskop (açısal hız), telefonun kendi eksenleri. Geometrisi yoktur."),
 ]
@@ -548,7 +539,7 @@ ACIKLAMA_INSAN = [
     ("insan_puanlar", "(geometri)", "çizgi", "", "Kaydın güzergâhı (kayitlar katmanıyla aynı)."),
     ("insan_puanlar", "puan", "tam sayı", "1-5", "Konfor puanı: 1 çok kötü ... 5 çok iyi. Hatırlamıyorum ise boş."),
     ("insan_puanlar", "durum", "metin", "", "puanlandi / hatirlamiyorum / puanlanmadi (henüz puan verilmedi)."),
-    ("insan_puanlar", "puanlama_zamani", "tarih-saat", "UTC", "Puanın verildiği an (DURDUR'dan hemen sonra olmalı)."),
+    ("insan_puanlar", "puanlama_yerel", "metin", "UTC+3", "Puanın verildiği an, İstanbul saatiyle (DURDUR'dan hemen sonra olmalı)."),
     ("insan_puanlar", "isaret_sayisi", "tam sayı", "", "Bu kayıttaki çukur işareti sayısı."),
 ]
 

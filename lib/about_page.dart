@@ -37,7 +37,7 @@ class AboutPage extends StatelessWidget {
           const _InfoCard(
             title: '1. İvmeölçer',
             lines: [
-              'Üç eksendeki ivme (X, Y, Z), m/s², yerçekimi dahil; ~200 Hz. Telefonda süzgeç uygulanmadan, her örnek kaydedilir.',
+              'Üç eksendeki ivme (X, Y, Z), m/s², yerçekimi dahil. 200 Hz istenir, telefon desteklediği hızı verir (Samsung M21: 125 Hz). Telefonda süzgeç uygulanmadan, her örnek kaydedilir.',
               'Ekrandaki DİKEY SARSINTI yalnızca gösterim içindir: ivmenin üç eksenine 0,4 Hz yüksek geçiren süzgeç, titreşimin yerçekimi yönüne izdüşümü (telefonun açısından bağımsız). TOPLAM: titreşimin büyüklüğü; EĞİM: telefonun yataydan eğimi.',
               'GeoPackage: ivme tablosu (ham), gps_noktalari katmanında iki GPS konumu arasındaki dikey sarsıntı özeti (dikey_rms, dikey_tepe).',
             ],
@@ -45,22 +45,21 @@ class AboutPage extends StatelessWidget {
           const _InfoCard(
             title: '2. Jiroskop',
             lines: [
-              'Üç eksendeki açısal hız (rad/s), ~200 Hz, ham. Telefonun dönmesini (viraj, darbede gidonun öne-arkaya oynaması) ölçer.',
+              'Üç eksendeki açısal hız (rad/s), ivmeölçerle aynı hızda, ham. Telefonun dönmesini (viraj, darbede gidonun öne-arkaya oynaması) ölçer.',
               'GeoPackage: jiroskop tablosu.',
             ],
           ),
           const _InfoCard(
             title: '3. GNSS alıcısı (GPS)',
             lines: [
-              'Doğrudan GPS donanımı okunur (Android GPS_PROVIDER); yumuşatma yapılmaz. Her konum kaydedilir: enlem, boylam, yükseklik, Doppler hızı, yön, doğruluk, hız ve yükseklik doğruluğu, kullanılan uydu sayısı.',
+              'Doğrudan GPS donanımı okunur (Android GPS_PROVIDER); yumuşatma yapılmaz. Her konum kaydedilir: enlem, boylam, Doppler hızı, yön, doğruluk, kullanılan uydu sayısı.',
               'GPS konumu gerçek konumun yaklaşık 1 sn gerisindedir; düzeltme yapılmaz (analizde yapılır).',
-              'Ekrandaki DÜZELTİLMİŞ GPS (Google birleşik konum servisi) yalnızca gösterim içindir, kaydedilmez.',
             ],
           ),
           const _InfoCard(
             title: 'Ortak saat',
             lines: [
-              'İvmeölçer, jiroskop, GPS ve çukur basışları aynı saatle (Android elapsedRealtimeNanos) zaman damgalanır. GeoPackage\'ta t_s = kayıt başından (BAŞLAT) itibaren saniye; zaman alanları UTC.',
+              'İvmeölçer, jiroskop, GPS ve çukur basışları aynı saatle (Android elapsedRealtimeNanos) zaman damgalanır. GeoPackage\'ta t_s = kayıt başından (BAŞLAT) itibaren saniye; saatler İstanbul saatiyle yazılır.',
             ],
           ),
           const _InfoCard(

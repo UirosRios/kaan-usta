@@ -23,11 +23,10 @@ class KayitBilgisi {
     this.hava,
     this.sicaklik,
     this.yagis,
-    this.ruzgar,
   });
   final String cihaz, ivmeSensoru, jiroSensoru, scooter, uygulamaSurumu;
   final String? hava;
-  final double? sicaklik, yagis, ruzgar;
+  final double? sicaklik, yagis;
 
   Map<String, Object?> toMap() => {
         'cihaz': cihaz,
@@ -38,7 +37,6 @@ class KayitBilgisi {
         'hava': hava,
         'sicaklik': sicaklik,
         'yagis': yagis,
-        'ruzgar': ruzgar,
       };
 
   static KayitBilgisi fromMap(Map<String, Object?> m) => KayitBilgisi(
@@ -50,7 +48,6 @@ class KayitBilgisi {
         hava: m['hava'] as String?,
         sicaklik: (m['sicaklik'] as num?)?.toDouble(),
         yagis: (m['yagis'] as num?)?.toDouble(),
-        ruzgar: (m['ruzgar'] as num?)?.toDouble(),
       );
 }
 
@@ -223,10 +220,10 @@ DonusumSonucu donustur({
         _aciklamalar(ham, hamAciklamalari(test: test), now);
         ham.ekle(kayitlarKatmani, [
           [
-            cizgiGeo, kayitNo, kesit, kesitAdi, yon, gpkgZamani(bas), gpkgZamani(an(k.sure)), yerelYazim(bas, ms: false),
+            cizgiGeo, kayitNo, kesit, kesitAdi, yon, yerelYazim(bas, ms: false),
             _r(k.sure, 1), _r(uzunluk, 1), _r(ortHiz, 1), konumlar.length, _r(k.ivme.hiz, 1), _r(k.jiro.hiz, 1),
             bilgi.cihaz, bilgi.ivmeSensoru, bilgi.jiroSensoru, bilgi.scooter, bilgi.hava, bilgi.sicaklik, bilgi.yagis,
-            bilgi.ruzgar, test ? 'test_surusu' : 'telefon', bilgi.uygulamaSurumu,
+            test ? 'test_surusu' : 'telefon', bilgi.uygulamaSurumu,
           ]
         ], now);
 
@@ -248,9 +245,8 @@ DonusumSonucu donustur({
           }
           onceki = g.t;
           satirlar.add([
-            nokta(g.boylam, g.enlem), kayitNo, kesit, _r(g.t, 4), gpkgZamani(an(g.t)), yerelYazim(an(g.t)), _r(g.hizKmh, 2),
-            _r(g.yon, 1), _r(g.dogruluk, 1), _r(g.hizDogrulugu.isNaN ? null : g.hizDogrulugu * 3.6, 2), _r(g.yukseklik, 1),
-            _r(g.dikeyDogruluk, 1), g.uydu < 0 ? null : g.uydu, n > 0 ? _r(sqrt(kare / n), 3) : null,
+            nokta(g.boylam, g.enlem), kayitNo, kesit, _r(g.t, 4), yerelYazim(an(g.t)), _r(g.hizKmh, 2),
+            _r(g.yon, 1), _r(g.dogruluk, 1), g.uydu < 0 ? null : g.uydu, n > 0 ? _r(sqrt(kare / n), 3) : null,
             n > 0 ? _r(tepe, 2) : null, n,
           ]);
         }
@@ -278,7 +274,7 @@ DonusumSonucu donustur({
           for (final m in k.isaretler)
             [
               switch (konumAt(konumlar, m.t)) { final p? => nokta(p.$2, p.$1), null => null },
-              kayitNo, kesit, _r(m.t, 4), gpkgZamani(an(m.t)), yerelYazim(an(m.t)), _r(konumAt(konumlar, m.t)?.$3, 2), m.kaynak,
+              kayitNo, kesit, _r(m.t, 4), yerelYazim(an(m.t)), _r(konumAt(konumlar, m.t)?.$3, 2), m.kaynak,
             ]
         ], now);
         insan.ekle(insanPuanKatmani, [
@@ -299,8 +295,9 @@ DonusumSonucu donustur({
 void puanYaz(String insanYol, String kayitNo, int? puan, {DateTime? simdi}) {
   final gp = GeoPackage.ac(insanYol);
   try {
-    gp.db.execute('UPDATE insan_puanlar SET puan = ?, durum = ?, puanlama_zamani = ? WHERE kayit_no = ?',
-        [puan, puan == null ? 'hatirlamiyorum' : 'puanlandi', gpkgZamani(simdi ?? DateTime.now()), kayitNo]);
+    gp.alanlariTamamla(insanPuanKatmani); // 2.0'ın yazdığı dosyada puanlama_yerel alanı yoktur
+    gp.db.execute('UPDATE insan_puanlar SET puan = ?, durum = ?, puanlama_yerel = ? WHERE kayit_no = ?',
+        [puan, puan == null ? 'hatirlamiyorum' : 'puanlandi', yerelYazim(simdi ?? DateTime.now(), ms: false), kayitNo]);
   } finally {
     gp.kapat();
   }

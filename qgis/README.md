@@ -30,15 +30,15 @@ birimini verir.
 
 | Katman | Geometri | Öznitelikler |
 |---|---|---|
-| `kayitlar` | Çizgi (her kayıt = bir kesitin bir geçişi) | kayit_no, kesit, kesit_adi, yon, baslangic, bitis, sure_s, uzunluk_m, ort_hiz_kmh, gps_nokta, ivme_hz, jiro_hz, cihaz, sensörler, scooter, hava, veri_kaynagi, uygulama_surumu |
-| `gps_noktalari` | Nokta (her GPS konumu, ~1 sn) | kayit_no, kesit, t_s, zaman, hiz_kmh, yon_derece, dogruluk_m, yukseklik_m, uydu, **dikey_rms**, **dikey_tepe**, ivme_ornek |
+| `kayitlar` | Çizgi (her kayıt = bir kesitin bir geçişi) | kayit_no, kesit, kesit_adi, yon, baslangic_yerel, sure_s, uzunluk_m, ort_hiz_kmh, gps_nokta, ivme_hz, jiro_hz, cihaz, sensörler, scooter, hava, veri_kaynagi, uygulama_surumu |
+| `gps_noktalari` | Nokta (her GPS konumu, ~1 sn) | kayit_no, kesit, t_s, yerel_saat, hiz_kmh, yon_derece, dogruluk_m, uydu, **dikey_rms**, **dikey_tepe**, ivme_ornek |
 | `ivme` | Yok (tablo, telefonun hızında; ~125-200 Hz) | kayit_no, t_s, x, y, z (m/s², yerçekimi dahil) |
 | `jiroskop` | Yok (tablo, ivmeyle aynı hızda) | kayit_no, t_s, x, y, z (rad/s) |
 
-**`_insan.gpkg`**: `insan_cukurlar` (nokta: kayit_no, kesit, t_s, zaman, hiz_kmh, kaynak) ve `insan_puanlar`
-(çizgi: kayit_no, kesit, kesit_adi, puan, durum, puanlama_zamani, isaret_sayisi).
+**`_insan.gpkg`**: `insan_cukurlar` (nokta: kayit_no, kesit, t_s, yerel_saat, hiz_kmh, kaynak) ve `insan_puanlar`
+(çizgi: kayit_no, kesit, kesit_adi, puan, durum, puanlama_yerel, isaret_sayisi).
 
-**`_claude.gpkg`**: `claude_cukurlar` (nokta: kayit_no, kesit, t_s, zaman, hiz_kmh, guven, tepe_ms2, algoritma) ve
+**`_claude.gpkg`**: `claude_cukurlar` (nokta: kayit_no, kesit, t_s, yerel_saat, hiz_kmh, guven, tepe_ms2, algoritma) ve
 `claude_puanlar` (çizgi: kayit_no, kesit, kesit_adi, puan, puan_ondalik, indeks_ms2, algoritma).
 
 İnsan ve Claude katmanları aynı alan adlarını ve anahtarları kullanır, böylece yan yana konabilir.
@@ -73,8 +73,10 @@ açık bırakılır; böylece örnek verideki aralığın dışında kalan gerç
     çukurun birkaç metre ilerisine düşebilir.
 - **Konumlar ham GPS'tir** ve WGS84 (EPSG:4326) koordinat sistemindedir. GPS konumu gerçek konumun yaklaşık 1 sn
   gerisindedir. QGIS, katmanları proje koordinat sistemine (ör. TUREF/TM30, EPSG:5254) kendisi dönüştürür.
-- **Zaman alanları** GeoPackage kuralı gereği UTC'dir. QGIS'te İstanbul saatinden 3 saat geri görünürler. Okunabilir
-  yerel saat `yerel_saat` alanındadır.
+- **Saatler** İstanbul saatiyle metin olarak yazılır (`yerel_saat`, `baslangic_yerel`, `puanlama_yerel`). Eşleştirme
+  için `t_s` (BAŞLAT'tan beri saniye) kullanılır. Sürüm 2.1'de sadeleştirildi: UTC saat alanları (`zaman`, `baslangic`,
+  `bitis`, `puanlama_zamani`), `ruzgar_kmh`, `yukseklik_m`, `hiz_dogrulugu_kmh`, `dikey_dogruluk_m` kaldırıldı
+  (Samsung M21 son ikisini hep 72 ve 100 veriyordu). 2.0 ile alınmış dosyalarda bu alanlar durur.
 - **`dikey_rms`** ve **`dikey_tepe`**, önceki GPS konumundan bu konuma kadarki ivme örneklerinden hesaplanır.
   - Yöntem: 0,4 Hz yüksek geçiren süzgeç uygulanır, sonra titreşimin yerçekimi yönündeki bileşeni alınır. Böylece değer
     telefonun takılma açısına bağlı olmaz.
@@ -94,8 +96,8 @@ adımların hepsi henüz denenmedi.
    Değer: `dikey_rms`.
 6. **Puanları yan yana koyma:** `claude_puanlar` → Özellikler → Birleştirmeler (Joins) → + → katman `insan_puanlar`,
    alan `kayit_no` ↔ `kayit_no`.
-7. **Sürüşü zamanla oynatma:** `gps_noktalari` → Özellikler → Zamansal (Temporal) → tarih-saat içeren tek alan:
-   `zaman`. Ardından Görünüm → Paneller → Zaman Denetleyicisi (Temporal Controller).
+7. **Sürüşü zamanla oynatma (denenmedi):** `gps_noktalari` → Özellikler → Zamansal (Temporal) → başlangıç ve bitişi
+   ifadeden alma; ifade `to_datetime("yerel_saat")`. Ardından Görünüm → Paneller → Zaman Denetleyicisi.
 8. **Çukur eşleştirme örneği:** Katman → Katman Ekle → Sanal Katman (Virtual Layer). Aşağıdaki sorgu, Claude'un
    darbesinden sonraki 0-5 sn içinde gelen basışları eşleştirir:
    ```sql

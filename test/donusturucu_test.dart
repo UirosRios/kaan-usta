@@ -207,6 +207,36 @@ void main() {
     expect(KesitDefteri.yukle(klasor.path, test: false).kod('K01')!.kayitlar.containsKey(s2.kayitNo), isFalse);
   });
 
+  test('2.0 biçimindeki gün dosyasına yeni kayıt eklenir, puan yazılır', () {
+    // 2.0 insan dosyası: puanlama_zamani (UTC) vardı, puanlama_yerel yoktu
+    const eskiPuan = Katman('insan_puanlar', 'LINESTRING', [
+      ('kayit_no', 'TEXT'), ('kesit', 'TEXT'), ('kesit_adi', 'TEXT'), ('puan', 'INTEGER'), ('durum', 'TEXT'),
+      ('puanlama_zamani', 'DATETIME'), ('isaret_sayisi', 'INTEGER'),
+    ], '');
+    const eskiCukur = Katman('insan_cukurlar', 'POINT', [
+      ('kayit_no', 'TEXT'), ('kesit', 'TEXT'), ('t_s', 'REAL'), ('zaman', 'DATETIME'), ('yerel_saat', 'TEXT'),
+      ('hiz_kmh', 'REAL'), ('kaynak', 'TEXT'),
+    ], '');
+    final yol = gunDosyasi(klasor.path, gun, 'insan', test: false);
+    final eski = GeoPackage.ac(yol);
+    eski.katman(eskiPuan, gun);
+    eski.katman(eskiCukur, gun);
+    eski.ekle(eskiPuan, [[null, '20261125_080000', 'K09', null, null, 'puanlanmadi', null, 0]], gun);
+    eski.kapat();
+
+    final s = donustur(hamDosya: hamYaz('y', yapayKayit(baslangic: gun, a: a, b: b)), klasor: klasor.path,
+        bilgi: const KayitBilgisi(), stiller: stiller);
+    expect(s.insanYol, yol);
+    puanYaz(yol, s.kayitNo, 4, simdi: DateTime(2026, 11, 25, 10, 16, 0));
+    puanYaz(yol, '20261125_080000', 2);
+    final gp = GeoPackage.ac(yol);
+    final r = gp.db.select('SELECT puan, puanlama_yerel FROM insan_puanlar WHERE kayit_no = ?', [s.kayitNo]).single;
+    expect((r['puan'], r['puanlama_yerel']), (4, '2026-11-25 10:16:00'));
+    expect(gp.db.select("SELECT puan FROM insan_puanlar WHERE kayit_no = '20261125_080000'").single['puan'], 2);
+    expect(gp.db.select('SELECT count(*) AS n FROM insan_cukurlar').single['n'], 1);
+    gp.kapat();
+  });
+
   test('test sürüşü ayrı dosyalara', () {
     final y = hamYaz('t', yapayKayit(baslangic: gun, a: a, b: b, sanal: true));
     final s = donustur(hamDosya: y, klasor: klasor.path, bilgi: const KayitBilgisi(), stiller: stiller);

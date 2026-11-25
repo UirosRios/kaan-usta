@@ -157,7 +157,7 @@ class _AyarlarPageState extends State<AyarlarPage> {
                   Text('HAVA DURUMU', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF003366))),
                   SizedBox(height: 8),
                   Text(
-                    'Kayıt başında internet ve GPS konumu varsa hava durumu (durum, sıcaklık, yağış, rüzgâr, nem) '
+                    'Kayıt başında internet ve GPS konumu varsa hava durumu (durum, sıcaklık, yağış) '
                     'Open-Meteo servisinden otomatik alınır ve kayda eklenir. Alınamazsa kayda hava durumu yazılmaz.',
                     style: TextStyle(fontSize: 13, color: Color(0xFF212529), height: 1.35),
                   ),
