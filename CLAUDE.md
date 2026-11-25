@@ -252,9 +252,12 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   anda (sürücü çukuru görüp önceden basıyor) → algoritma eşleştirme penceresi basıştan biraz sonrasını da kapsamalı
   (geliştirme bulgusu). İşaretsiz büyük darbeler de var (ör. 030314'te 9,8 ve 10,7 sn).
   **Ekran kapalıyken kumanda ÇALIŞMADI** (25 Kasım, yapı 36, kullanıcı: çukur sayısı artmadı, başka uygulama açılmadı).
-  Neden bilinmiyor: kumanda Enter gibi bir tuş gönderiyorsa ekran kapalıyken hiçbir uygulama alamaz; ses tuşu gönderiyorsa
-  `VolumeProvider` yolundan gelmesi gerekirdi. Kullanıcıya soruldu: ekran yandı mı, kumanda modeli / tuş sayısı, Kayıtlar'daki
-  sayı (ekran sayacı değil), deneme dosyaları. Geçici çözüm: kayıtta ekranı kilitlememek (uygulama kayıtta ekranı açık tutar,
+  Kumanda iki tuşlu selfie kumandası: "iOS" tuşu = ses açma (kullanılan, ekran açıkken çalışıyor), "Android" tuşu = Enter.
+  Ekran kapalıyken basınca ekran yanmadı, telefonun ses düzeyi de değişmedi. Olası neden (doğrulanmadı): Android 12+'da
+  `setPlaybackToRemote` oturumu, MediaRouter2 yönlendirme oturumu yoksa ses tuşlarını alamıyor (`canHandleVolumeKey` false);
+  tuş müzik akışına düşüyor, ekran kapalıyken yalnızca müzik çalıyorsa işleniyor. Enter ekran kapalıyken hiçbir uygulamaya
+  gitmez. Seçenekler kullanıcıya sunuldu: (1) ekran açık kalsın (önerilen, çalışıyor), (2) yerel oturum + sessiz ses + ses
+  düzeyi değişimini izleyip geri alma (emin değil, medya sesini kayıtta ortaya çeker). Geçici çözüm: kayıtta ekranı kilitlememek (uygulama kayıtta ekranı açık tutar,
   `WakelockPlus`; ekran açıkken kumanda 9/9 çalıştı). Olası ek: Ayarlar'da tuş denemesi (tuş kodu ve aygıt adını gösterir).
   Önceki not: ekran **kapalıyken** Bluetooth kumandanın ses tuşu `VolumeProvider`'dan gelir ve `tus` (telefon tuşu) diye
   kaydedilir; kaynağı yanlış olur (analiz `tus` sonrası 0,5 sn'yi dışlar). Ekran kapalı deneme dosyasında bakılacak.
