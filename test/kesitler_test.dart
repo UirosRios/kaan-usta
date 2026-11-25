@@ -55,17 +55,24 @@ void main() {
     expect(uzaklik(a, k.basEnlem, k.basBoylam), lessThan(0.01));
   });
 
-  test('adı verilmiş kesit boşalınca kalır; yeniden sürülünce kodunu ve adını korur', () {
+  test('boşalan kesit saklanır: yeniden sürülünce kodu ve adı geri gelir, kodu başka sokağa verilmez', () {
     final d = yeni();
     d.ata('k1', a, b);
-    d.ata('u1', (41.0245, 28.8877), (41.0225, 28.8911)); // K02, adsız
     d.kod('K01')!.ad = 'Kuzey yolu';
+    final u = ((41.0245, 28.8877), (41.0225, 28.8911));
+    expect(d.ata('u1', u.$1, u.$2)!.kesit.kod, 'K02'); // adsız, en son kesit
     d.kayitSil('k1');
     d.kayitSil('u1');
-    expect(d.kesitler.map((k) => k.kod), ['K01']); // adsız boş kesit silinir
-    expect(d.kod('K01')!.uclar, isEmpty);
-    final s = d.ata('k2', kaydir(a, kuzey: 20), b)!;
+    d.kaydet();
+    final y = yeni();
+    expect(y.kesitler.map((k) => k.kod), ['K01', 'K02']); // ikisi de boş ama defterde
+    expect(y.kod('K02')!.uclar, isEmpty);
+    // Başka bir sokak yeni kod alır (K02 yeniden verilmez)
+    expect(y.ata('v1', (41.0300, 28.8950), (41.0290, 28.8990))!.kesit.kod, 'K03');
+    // Aynı yerler yeniden sürülünce kodlar ve ad geri gelir
+    final s = y.ata('k2', kaydir(a, kuzey: 20), b)!;
     expect((s.kesit.kod, s.kesit.ad, s.gecis), ('K01', 'Kuzey yolu', 1));
+    expect(y.ata('u2', u.$2, u.$1)!.kesit.kod, 'K02');
   });
 
   test('defter kaydedilip yüklenince uçlar ve referans aynı kalır', () {

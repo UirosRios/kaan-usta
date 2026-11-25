@@ -10,8 +10,9 @@ import 'dart:math';
 // Kesitin referans uçları, kayıtlarının uçlarının ortancasıdır (her kaydın uçları kesitin kendi yönüne çevrilerek
 // saklanır; sürüm 2.1'den önce yalnızca ilk kaydın uçları kullanılıyordu). Böylece ilk geçiş yanlış noktadan
 // başlayıp silinse de kesit doğru geçişlere göre eşleşir ve tek bir geçişin GPS sapması referansı kaydırmaz.
-// Uçları bilinen kayıt yoksa (bütün kayıtları silinmiş adlı kesit) saklı referans kalır. Kesitin yönü ilk kaydınkidir,
-// sonradan değişmez.
+// Bütün kayıtları silinen kesit defterde kalır (görünmez; son referansıyla): aynı yer yeniden sürülünce kodu ve adı geri
+// gelir, başka bir sokak yeni kod alır (silinen kodun başka sokağa verilmesi, daha önce gönderilmiş dosyalarla karışırdı).
+// Kesitin yönü ilk kaydınkidir, sonradan değişmez.
 
 const double kesitEsigiM = 30;
 
@@ -163,11 +164,11 @@ class KesitDefteri {
     return KesitAtamasi(enIyi, yon, enIyi.kayitlar.length);
   }
 
+  // Kaydı kesitinden çıkarır; kesit boşalsa da silinmez (kodu bir daha başka kesite verilmez)
   void kayitSil(String kayitNo) {
     for (final k in kesitler) {
       k.kayitlar.remove(kayitNo);
       if (k.uclar.remove(kayitNo) != null) k.referansiYenile();
     }
-    kesitler.removeWhere((k) => k.kayitlar.isEmpty && (k.ad == null || k.ad!.isEmpty));
   }
 }

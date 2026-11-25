@@ -62,11 +62,12 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   noktadan başlayan geçiş silinip yeniden sürülünce kesit kalan geçişlere göre eşleşir; 3+ geçişte tek sapan geçiş
   referansı kaydırmaz. 2.1 öncesi defterde uçlar gün dosyasından (`gps_noktalari`, aynı `uclar` kuralı, salt okunur)
   tamamlanır; dosya yoksa / bozuksa kayıt bilinmeyen kalır (referansa katılmaz, çeviriyi ve silmeyi engellemez).
+  **Boşalan kesit saklanır** (kullanıcı onayladı, 25 Kasım): bütün kayıtları silinen kesit (adlı / adsız) defterde son
+  referansıyla kalır; aynı yer yeniden sürülünce kodu ve adı geri gelir, başka sokak yeni kod alır (kod hiç yeniden
+  verilmez; önceden gönderilmiş dosyalarla karışmasın).
   Sınırlar: (1) bölünmüş kodlar birleştirilmez (ilk geçiş >30 m saptıysa yeni kod açılmış olabilir; QGIS'te düzeltilir);
-  (2) bütün kayıtları silinen adlı kesit, son silinenden önceki referansla kalır (silme sırasına bağlı); (3) iki geçişte
-  referans ortadır (her biri ±15 m sapmış olabilir); (4) son kesitin bütün kayıtları silinirse (adsızsa) kodu bir sonraki
-  yeni kesite yeniden verilebilir: o kod daha önce gönderilmiş bir dosyada başka sokak anlamına gelebilir. Kullanıcıya
-  çözüm önerildi (boşalan kesitin kaydı silinmeden saklanması), karar bekliyor.
+  (2) boşalan kesitin referansı son silinen kaydınkidir (silme sırasına bağlı; tek kötü geçiş silindiyse onun uçları);
+  (3) iki geçişte referans ortadır (her biri ±15 m sapmış olabilir).
 
 ### Uygulama 2.0 (yazıldı 25 Kasım 2026, sürüm 2.0.0+6; telefonda DENENMEDİ)
 
