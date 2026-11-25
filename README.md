@@ -13,6 +13,10 @@ işaret ve puanlarıyla QGIS'te karşılaştırılır. Dosya biçimi ve QGIS kul
 2. Sayfanın altındaki **Artifacts** bölümünden `mikromobilite-apk` dosyasını indirin (zip içinde `app-release.apk`).
 3. APK'yı telefona atıp açın ("Bilinmeyen kaynaklardan yükleme" izni istenir).
 
+Bütün derlemeler depodaki sabit anahtarla (`android/app/kaan_usta.jks`) imzalanır: yeni sürüm eskisinin üstüne kurulur,
+kayıtlar silinmez. Bu anahtardan önceki bir derleme (35 ve öncesi) kuruluysa bir kez kaldırıp kurmak gerekir; kaldırmak
+uygulamanın kendi klasöründeki kayıtları siler (Belgeler/Mikromobilite kopyaları kalır).
+
 ## Sürüş: bir kayıt = bir kesit = bir puan
 
 1. Kesitin başında durun, **BAŞLAT**'a basın, ~5 sn bekleyip sürün.

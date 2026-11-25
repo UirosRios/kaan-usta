@@ -248,9 +248,10 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   konum buldu), sonra kendiliğinden düzeldi. Ekran GPS kodu (`kaan_usta/ham_gps`) v1.4 ile aynı; neden bulunamadı (büyük
   olasılıkla yavaş ilk konum). Tekrarlarsa: uygulamayı kapatıp açma, yeniden başlatma, güç tasarrufu, "GPS Test" ile karşılaştırma.
   Aynı sırada bulunan ekran hatası düzeltildi (derleme 35): test sürüşü kapatılınca eski sanal koordinat ve hız ekranda kalıyordu.
-- **İmza anahtarı sorusu (açık):** release APK debug anahtarıyla imzalanıyor ve CI'da sabit keystore yok. ÖLÇÜLDÜ: APK 32 ve 34'ün
-  v2 imza sertifikaları farklı (sha256 d4028e13… / 7059a16f…) → üstüne kurulamaz, kaldırıp kurmak gerekir. Kaldırma uygulama klasörünü (v1 kayıtları, 2.0 gün dosyaları,
-  `kesitler.json`) siler: kesit kodları K01'den yeniden başlar. Gerçek sürüşlerden önce karar: sabit keystore (GitHub sırrı) veya
-  kesit defterini Belgeler'e yedekleme. Kullanıcıya soruldu (25 Kasım).
+- **İmza anahtarı (karar verildi, 25 Kasım 2026):** sabit anahtar `android/app/kaan_usta.jks` (PKCS12, takma ad `kaan_usta`,
+  parola `kaanusta-acik`, sertifika SHA-256 `e45f6375…`) **bilerek depoda ve herkese açık** (kullanıcı onayı; uygulama Play'de
+  değil). `build.gradle.kts` release imzası bununla; `android/.gitignore`'da istisna. Önceki derlemeler (≤ 35) her seferinde başka
+  debug anahtarıyla imzalanıyordu (32 ve 34 ölçüldü, farklı): kullanıcı ilk sabit anahtarlı derlemeye geçerken **son kez**
+  kaldırıp kurar (uygulama klasörü, gün dosyaları, `kesitler.json` silinir), sonrakiler üstüne kurulur. Anahtar değiştirilmez.
 - Kesit listesi (arkadaş + hoca, gözle, tüm zemin türleri) hazırlanacak; geliştirme ve test kesitleri ayrı sokaklar.
 - İstenirse: arkadaşın GPS'siz cihazlarda ağ konumuna düşme değişikliği.
