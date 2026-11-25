@@ -27,6 +27,10 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   katmanları (`*_claude.gpkg`) GitHub'a gönderilmeden **açmaz, okumaz, analiz etmez**. Yanlışlıkla gelirse açmadan kenara
   koy ve kullanıcıya söyle. Algoritma bir test gününe bakılarak sonradan değiştirilmez (değişirse yeni sürüm, yeni test verisi).
   İstisna: **geliştirme seti** (kullanıcı izin verdi): ilk sürüşlerde her şey görülür, algoritma ve 1-5 çevirisi bunlarla kurulur.
+  **25 Kasım: BEKLEMEDE.** Arkadaş hocaya danışacak; hoca insan puan ve işaretlerinin referans / ayar için kullanılmasını
+  istemeyebilir. Karar gelene kadar algoritmaya **başlanmaz** (kullanıcı "şimdilik hayır" dedi). İnsan verisi kullanılmazsa
+  seçenek: konfor için ISO 2631-1 eşikleri (ağırlıklı RMS; telefon gidonda olduğu için değerler yüksek, doğrudan uymayabilir),
+  çukur için yalnızca sinyale dayalı eşikler. Şimdiye kadar görülen insan verisi: 3 Kasım Kadıköy (v1) ve 25 Kasım deneme işaretleri.
   3 Kasım Kadıköy sürüşü geliştirme verisidir (eşikler onunla ayarlandı). **Test kesitleri geliştirme kesitlerinden ayrı sokaklar.**
 - Algoritma sohbette verilen yorum değil, depodaki koddur: aynı girdiden hep aynı sonucu üretir.
 - Gerçek sürüş güzergâhları ve verileri depoya konabilir (kullanıcı izni; depo herkese açık).
