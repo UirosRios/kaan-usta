@@ -127,7 +127,9 @@ String yerelYazim(DateTime t, {bool ms = true}) {
 
 // Sürüş gününün dosyaları: (mikromobilite | test_mikromobilite)_YYYYMMDD_(ham | insan).gpkg
 String gunDosyasi(String klasor, DateTime yerel, String tur, {required bool test}) =>
-    '$klasor/${test ? 'test_' : ''}mikromobilite_${_gun(yerel)}_$tur.gpkg';
+    gunDosyasiYolu(klasor, _gun(yerel), tur, test: test);
+String gunDosyasiYolu(String klasor, String gun, String tur, {required bool test}) =>
+    '$klasor/${test ? 'test_' : ''}mikromobilite_${gun}_$tur.gpkg';
 
 double? _r(double? v, int basamak) {
   if (v == null || v.isNaN || v.isInfinite) return null;
@@ -138,20 +140,63 @@ double? _r(double? v, int basamak) {
 // Doğrulukları 50 m'den kötü olmayan konumlar (kesit ve uzunluk hesabında)
 bool _iyi(GpsKonumu k) => k.dogruluk.isNaN || k.dogruluk <= 50;
 
-(double, double)? _ortanca(List<GpsKonumu> l) {
+// GPS noktası, uç hesabı için: (t_s, enlem, boylam, doğruluk m; bilinmiyorsa NaN)
+typedef UcNoktasi = (double, double, double, double);
+
+(double, double)? _ortanca(List<UcNoktasi> l) {
   if (l.isEmpty) return null;
-  final e = [for (final k in l) k.enlem]..sort();
-  final b = [for (final k in l) k.boylam]..sort();
+  final e = [for (final k in l) k.$2]..sort();
+  final b = [for (final k in l) k.$3]..sort();
   return (e[e.length ~/ 2], b[b.length ~/ 2]);
 }
 
 // Kaydın başlangıç ve bitiş noktası: ilk / son GPS konumundan sonraki / önceki 5 sn'deki konumların ortancası
-// (sürücü kesitin başında ve sonunda ~5 sn bekler)
-((double, double)?, (double, double)?) uclar(List<GpsKonumu> konumlar) {
-  final iyi = konumlar.where(_iyi).toList();
+// (sürücü kesitin başında ve sonunda ~5 sn bekler). noktalar zamana göre sıralı.
+((double, double)?, (double, double)?) uclarNoktalardan(List<UcNoktasi> noktalar) {
+  final iyi = noktalar.where((k) => k.$4.isNaN || k.$4 <= 50).toList();
   if (iyi.isEmpty) return (null, null);
-  final t0 = iyi.first.t, t1 = iyi.last.t;
-  return (_ortanca(iyi.where((k) => k.t <= t0 + 5).toList()), _ortanca(iyi.where((k) => k.t >= t1 - 5).toList()));
+  final t0 = iyi.first.$1, t1 = iyi.last.$1;
+  return (_ortanca(iyi.where((k) => k.$1 <= t0 + 5).toList()), _ortanca(iyi.where((k) => k.$1 >= t1 - 5).toList()));
+}
+
+((double, double)?, (double, double)?) uclar(List<GpsKonumu> konumlar) =>
+    uclarNoktalardan([for (final g in konumlar) (g.t, g.enlem, g.boylam, g.dogruluk)]);
+
+// GeoPackage nokta geometrisinden (enlem, boylam)
+(double, double)? _noktaOku(Object? blob) {
+  if (blob is! Uint8List || blob.length < 29) return null;
+  final b = ByteData.sublistView(blob);
+  final zarf = (b.getUint8(3) >> 1) & 7;
+  final o = 8 + (zarf == 1 ? 32 : 0) + 5;
+  return (b.getFloat64(o + 8, Endian.little), b.getFloat64(o, Endian.little));
+}
+
+// 2.1'den önceki kesit defterinde kayıtların kendi uçları yoktu: gün dosyasındaki GPS noktalarından, kaydın
+// çevrildiği kuralla (uclar) bulunur. Gün dosyası veya noktaları yoksa kayıt bilinmeyen kalır (referansa katılmaz).
+void _ucBilgisiniTamamla(KesitDefteri defter, String klasor, {required bool test}) {
+  final eksik = defter.ucuBilinmeyenler();
+  if (eksik.isEmpty) return;
+  final acik = <String, GeoPackage?>{};
+  try {
+    for (final (kesit, kayitNo) in eksik) {
+      if (kayitNo.length < 8) continue;
+      final yol = gunDosyasiYolu(klasor, kayitNo.substring(0, 8), 'ham', test: test);
+      final gp = acik.putIfAbsent(yol, () => File(yol).existsSync() ? GeoPackage.ac(yol) : null);
+      if (gp == null || !gp.katmanVar('gps_noktalari')) continue;
+      final noktalar = <UcNoktasi>[];
+      for (final r in gp.db.select('SELECT t_s, dogruluk_m, geom FROM gps_noktalari WHERE kayit_no = ? ORDER BY t_s', [kayitNo])) {
+        final p = _noktaOku(r['geom']);
+        if (p == null) continue;
+        noktalar.add(((r['t_s'] as num?)?.toDouble() ?? 0, p.$1, p.$2, (r['dogruluk_m'] as num?)?.toDouble() ?? double.nan));
+      }
+      final (b0, b1) = uclarNoktalardan(noktalar);
+      if (b0 != null && b1 != null) kesit.ucEkle(kayitNo, b0, b1);
+    }
+  } finally {
+    for (final gp in acik.values) {
+      gp?.kapat();
+    }
+  }
 }
 
 // GPS konumunu t anına doğrusal ara değerle bulur (enlem, boylam, hız km/h)
@@ -199,6 +244,7 @@ DonusumSonucu donustur({
 
   // 1) Kesit ataması (defter önce kaydedilir; tekrar çevirmede aynı atama döner)
   final defter = KesitDefteri.yukle(klasor, test: test);
+  _ucBilgisiniTamamla(defter, klasor, test: test);
   final (b0, b1) = uclar(k.konumlar);
   final atama = defter.ata(kayitNo, b0, b1);
   defter.kaydet();
@@ -341,6 +387,9 @@ void kesitAdiVer(String klasor, String kod, String? ad, {required bool test}) {
 
 // Kaydı gün dosyalarından ve kesit defterinden siler. Gün dosyasında kayıt kalmazsa dosyalar silinir.
 void kayitSil(String hamYol, String insanYol, String kayitNo, String klasor, {required bool test}) {
+  // Kesitin referansı kalan kayıtlardan yeniden hesaplanacak: eski defterdeki uçlar, satırlar silinmeden tamamlanır
+  final defter = KesitDefteri.yukle(klasor, test: test);
+  _ucBilgisiniTamamla(defter, klasor, test: test);
   for (final (yol, katmanlar) in [
     (hamYol, ['kayitlar', 'gps_noktalari', 'ivme', 'jiroskop']),
     (insanYol, ['insan_cukurlar', 'insan_puanlar']),
@@ -357,7 +406,6 @@ void kayitSil(String hamYol, String insanYol, String kayitNo, String klasor, {re
       gp.kapat();
     }
   }
-  final defter = KesitDefteri.yukle(klasor, test: test);
   defter.kayitSil(kayitNo);
   defter.kaydet();
   // Gün boşaldıysa dosyaları sil
@@ -440,14 +488,7 @@ List<KayitOzeti> kayitlariListele(String klasor) {
 
 // Bir kaydın güzergâhı ve işaretleri (harita için): ham dosyadaki GPS noktaları, insan dosyasındaki işaretler
 (List<(double, double)>, List<(double, double)>) haritaVerisi(String hamYol, String insanYol, String kayitNo) {
-  (double, double)? noktaOku(Object? blob) {
-    if (blob is! Uint8List || blob.length < 29) return null;
-    final b = ByteData.sublistView(blob);
-    final zarf = (b.getUint8(3) >> 1) & 7;
-    final o = 8 + (zarf == 1 ? 32 : 0) + 5;
-    return (b.getFloat64(o + 8, Endian.little), b.getFloat64(o, Endian.little));
-  }
-
+  const noktaOku = _noktaOku;
   final rota = <(double, double)>[];
   final isaretler = <(double, double)>[];
   final gh = GeoPackage.ac(hamYol);

@@ -139,17 +139,26 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
   Future<void> _acilistaDenetle() async {
     await _stilleriYukle();
     String? aktif;
+    DateTime? aktifBaslangic;
+    var aktifIsaret = 0;
     try {
       final d = await _kayitServisi.invokeMapMethod<String, dynamic>('durum');
-      if (d?['kayitta'] == true) aktif = d?['yol'] as String?;
+      if (d?['kayitta'] == true) {
+        aktif = d?['yol'] as String?;
+        final ms = (d?['baslangicMs'] as num?)?.toInt();
+        if (ms != null && ms > 0) aktifBaslangic = DateTime.fromMillisecondsSinceEpoch(ms);
+        aktifIsaret = (d?['isaret'] as num?)?.toInt() ?? 0;
+      }
     } catch (e) {
       debugPrint('Kayıt durumu okunamadı: $e');
     }
+    // Ekran yeniden kurulduysa: kayıt sürüyor; süre gerçek başlangıçtan, sayaç kayıttaki basış sayısından devam eder
     if (aktif != null && mounted) {
       setState(() {
         isRecording = true;
         _hamYol = aktif;
-        _recordStart = DateTime.now();
+        _recordStart = aktifBaslangic ?? DateTime.now();
+        _isaretSayisi = aktifIsaret;
       });
       WakelockPlus.enable();
     }

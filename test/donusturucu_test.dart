@@ -237,6 +237,36 @@ void main() {
     gp.kapat();
   });
 
+  test('2.1 öncesi kesit defteri: uçlar gün dosyasından tamamlanır, silinen ilk kayıt referanstan çıkar', () {
+    final kuzey = (a.$1 + 25 / 111195, a.$2); // ilk geçiş 25 m erken başlamış
+    final s1 = donustur(hamDosya: hamYaz('1', yapayKayit(baslangic: gun, a: kuzey, b: b)), klasor: klasor.path,
+        bilgi: const KayitBilgisi());
+    final s2 = donustur(hamDosya: hamYaz('2', yapayKayit(baslangic: gun.add(const Duration(minutes: 3)), a: a, b: b)),
+        klasor: klasor.path, bilgi: const KayitBilgisi());
+    expect((s1.kesit, s2.kesit), ('K01', 'K01'));
+
+    // 2.0 defteri: uç listesi yok, referans ilk kaydın uçları; gün dosyası olmayan bir kayıt da var
+    final defter = KesitDefteri.yukle(klasor.path, test: false);
+    final k = defter.kod('K01')!;
+    final ilk = k.uclar[s1.kayitNo]!;
+    final eski = KesitDefteri(defter.dosya, [
+      Kesit('K01', null, ilk[0], ilk[1], ilk[2], ilk[3], {...k.kayitlar, '20261120_090000': 'gidis'}),
+    ])..kaydet();
+    expect(eski.ucuBilinmeyenler().length, 3);
+
+    kayitSil(s1.hamYol, s1.insanYol, s1.kayitNo, klasor.path, test: false);
+    final sonra = KesitDefteri.yukle(klasor.path, test: false).kod('K01')!;
+    expect(sonra.uclar.keys, [s2.kayitNo]); // gün dosyası olmayan kayıt bilinmeyen kalır
+    expect(sonra.kayitlar.keys, [s2.kayitNo, '20261120_090000']);
+    expect(mesafeM(a.$1, a.$2, sonra.basEnlem, sonra.basBoylam), lessThan(1));
+
+    // Eski referanstan 53 m, kalan geçişten 28 m uzakta başlayan geçiş aynı kesit
+    final guney = (a.$1 - 28 / 111195, a.$2);
+    final s3 = donustur(hamDosya: hamYaz('3', yapayKayit(baslangic: gun.add(const Duration(minutes: 6)), a: guney, b: b)),
+        klasor: klasor.path, bilgi: const KayitBilgisi());
+    expect(s3.kesit, 'K01');
+  });
+
   test('test sürüşü ayrı dosyalara', () {
     final y = hamYaz('t', yapayKayit(baslangic: gun, a: a, b: b, sanal: true));
     final s = donustur(hamDosya: y, klasor: klasor.path, bilgi: const KayitBilgisi(), stiller: stiller);

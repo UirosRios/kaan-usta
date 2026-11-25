@@ -82,37 +82,24 @@ class _KayitlarSayfasiState extends State<KayitlarSayfasi> {
     await SharePlus.instance.share(ShareParams(files: [XFile(yol, mimeType: 'application/geopackage+sqlite3')], text: metin));
   }
 
+  // Ad verme, puanlama, silme: hata olursa söylenir; liste her durumda dosyadan yeniden okunur
+  Future<void> _islem(String hataMetni, Future<void> Function() islem) async {
+    try {
+      await islem();
+    } catch (e) {
+      _mesaj('$hataMetni: $e');
+    } finally {
+      if (mounted) _yukle();
+    }
+  }
+
   Future<void> _adVer(KayitOzeti o) async {
-    final denetleyici = TextEditingController(text: o.kesitAdi ?? '');
-    final ad = await showDialog<String>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: Text('${o.kesit} kesitinin adı'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: denetleyici,
-              autofocus: true,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(hintText: 'Örnek: Mühürdar Caddesi', border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 8),
-            Text('Ad, ${o.kesit} kesitinin bütün kayıtlarına ve sonraki geçişlerine uygulanır. Boş bırakılırsa ad silinir.',
-                style: const TextStyle(fontSize: 12.5, color: Color(0xFF6C757D))),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Vazgeç')),
-          TextButton(onPressed: () => Navigator.pop(c, denetleyici.text), child: const Text('Kaydet')),
-        ],
-      ),
-    );
-    denetleyici.dispose();
+    final ad = await showDialog<String>(context: context, builder: (_) => _KesitAdiPenceresi(kesit: o.kesit!, ad: o.kesitAdi));
     if (ad == null) return;
-    await kesitAdiVerArkaPlanda(_klasor, o.kesit!, ad, o.test);
-    await _kopyala([for (final f in gunDosyalari(_klasor, test: o.test)) f.path]);
-    _yukle();
+    await _islem('Kesit adı kaydedilemedi', () async {
+      await kesitAdiVerArkaPlanda(_klasor, o.kesit!, ad, o.test);
+      await _kopyala([for (final f in gunDosyalari(_klasor, test: o.test)) f.path]);
+    });
   }
 
   Future<void> _puanVer(KayitOzeti o) async {
@@ -128,9 +115,10 @@ class _KayitlarSayfasiState extends State<KayitlarSayfasi> {
       ),
     );
     if (secim == null) return;
-    await puanYazArkaPlanda(o.insanYol, o.kayitNo, secim == 0 ? null : secim);
-    await _kopyala([o.insanYol]);
-    _yukle();
+    await _islem('Puan kaydedilemedi', () async {
+      await puanYazArkaPlanda(o.insanYol, o.kayitNo, secim == 0 ? null : secim);
+      await _kopyala([o.insanYol]);
+    });
   }
 
   Future<void> _sil(KayitOzeti o) async {
@@ -147,9 +135,10 @@ class _KayitlarSayfasiState extends State<KayitlarSayfasi> {
       ),
     );
     if (ok != true) return;
-    await kayitSilArkaPlanda(o.hamYol, o.insanYol, o.kayitNo, _klasor, o.test);
-    await _kopyala([o.hamYol, o.insanYol]);
-    _yukle();
+    await _islem('Kayıt silinemedi', () async {
+      await kayitSilArkaPlanda(o.hamYol, o.insanYol, o.kayitNo, _klasor, o.test);
+      await _kopyala([o.hamYol, o.insanYol]);
+    });
   }
 
   Future<void> _hepsiniKopyala() async {
@@ -295,6 +284,10 @@ class KayitHaritasi extends StatelessWidget {
       body: FutureBuilder<(List<(double, double)>, List<(double, double)>)>(
         future: haritaVerisiArkaPlanda(o.hamYol, o.insanYol, o.kayitNo),
         builder: (context, snap) {
+          if (snap.hasError) {
+            return Center(
+                child: Padding(padding: const EdgeInsets.all(24), child: Text('Harita verisi okunamadı: ${snap.error}', textAlign: TextAlign.center)));
+          }
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
           final rota = [for (final (a, b) in snap.data!.$1) LatLng(a, b)];
           final isaretler = [for (final (a, b) in snap.data!.$2) LatLng(a, b)];
@@ -329,6 +322,52 @@ class KayitHaritasi extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+// Kesit adı penceresi: yazı alanının denetleyicisini pencere kendisi tutar ve pencere tamamen kapanınca bırakır
+// (pencere kapanma animasyonu sürerken bırakılırsa Flutter "used after being disposed" hatası verir)
+class _KesitAdiPenceresi extends StatefulWidget {
+  const _KesitAdiPenceresi({required this.kesit, required this.ad});
+  final String kesit;
+  final String? ad;
+
+  @override
+  State<_KesitAdiPenceresi> createState() => _KesitAdiPenceresiState();
+}
+
+class _KesitAdiPenceresiState extends State<_KesitAdiPenceresi> {
+  late final TextEditingController _denetleyici = TextEditingController(text: widget.ad ?? '');
+
+  @override
+  void dispose() {
+    _denetleyici.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('${widget.kesit} kesitinin adı'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _denetleyici,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(hintText: 'Örnek: Mühürdar Caddesi', border: OutlineInputBorder()),
+          ),
+          const SizedBox(height: 8),
+          Text('Ad, ${widget.kesit} kesitinin bütün kayıtlarına ve sonraki geçişlerine uygulanır. Boş bırakılırsa ad silinir.',
+              style: const TextStyle(fontSize: 12.5, color: Color(0xFF6C757D))),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Vazgeç')),
+        TextButton(onPressed: () => Navigator.pop(context, _denetleyici.text), child: const Text('Kaydet')),
+      ],
     );
   }
 }

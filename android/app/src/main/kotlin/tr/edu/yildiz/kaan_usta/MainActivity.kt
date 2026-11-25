@@ -155,7 +155,7 @@ class MainActivity : FlutterActivity() {
                         result.success(null)
                     }
                     // Ekran yeniden açıldıysa (Dart yeniden başladıysa) süren kaydı sorar
-                    "durum" -> result.success(mapOf("kayitta" to KayitMotoru.kayitta, "yol" to KayitMotoru.aktifYol))
+                    "durum" -> result.success(KayitMotoru.durum)
                     else -> result.notImplemented()
                 }
             }

@@ -51,6 +51,7 @@ object KayitMotoru {
     private var cikis: DataOutputStream? = null
     private var dosya: FileOutputStream? = null
     private var yazmaHatasi: String? = null // kilit altında; ilk yazma hatası
+    private var baslangicMs = 0L // BAŞLAT anı (duvar saati, 'S' kaydındakiyle aynı)
     private var yol: String? = null
     private var is_: HandlerThread? = null
     private var isleyici: Handler? = null
@@ -72,6 +73,17 @@ object KayitMotoru {
     val kayitta: Boolean get() = synchronized(kilit) { cikis != null }
     val aktifYol: String? get() = synchronized(kilit) { yol }
 
+    // Ekran yeniden kurulunca Dart süren kaydı buradan öğrenir: başlangıç anı (süre göstergesi) ve sayılan basışlar
+    val durum: Map<String, Any?>
+        get() = synchronized(kilit) {
+            mapOf(
+                "kayitta" to (cikis != null),
+                "yol" to yol,
+                "baslangicMs" to (if (cikis != null) baslangicMs else null),
+                "isaret" to isaretSayisi,
+            )
+        }
+
     fun kaynakKodu(kaynak: String): Int = when (kaynak) {
         "ekran" -> 1
         "tus" -> 2
@@ -89,11 +101,12 @@ object KayitMotoru {
             f.parentFile?.mkdirs()
             val fos = FileOutputStream(f)
             val c = DataOutputStream(BufferedOutputStream(fos, 64 * 1024))
+            val duvarMs = System.currentTimeMillis()
             try {
                 c.writeBytes(BASLIK)
                 c.writeByte('S'.code)
                 c.writeLong(SystemClock.elapsedRealtimeNanos())
-                c.writeLong(System.currentTimeMillis())
+                c.writeLong(duvarMs)
                 c.writeByte(if (sanal) 1 else 0)
                 c.flush()
             } catch (e: Exception) {
@@ -107,6 +120,7 @@ object KayitMotoru {
             cikis = c
             dosya = fos
             yazmaHatasi = null
+            baslangicMs = duvarMs
             yol = dosyaYolu
             sonIsaretNs = 0L
             sonIvmeOlayNs = 0L

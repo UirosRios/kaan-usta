@@ -6,6 +6,12 @@ import 'dart:math';
 // noktası daha önceki bir kesitle ~30 m içinde örtüşen kayıt aynı kesittir; ters yönde örtüşüyorsa aynı kesitin
 // dönüşüdür. Kesit adını kullanıcı Kayıtlar sayfasında verir. Defter, kayıt klasöründe JSON dosyasıdır
 // (kesitler.json; test sürüşleri için test_kesitler.json).
+//
+// Kesitin referans uçları, kayıtlarının uçlarının ortancasıdır (her kaydın uçları kesitin kendi yönüne çevrilerek
+// saklanır; sürüm 2.1'den önce yalnızca ilk kaydın uçları kullanılıyordu). Böylece ilk geçiş yanlış noktadan
+// başlayıp silinse de kesit doğru geçişlere göre eşleşir ve tek bir geçişin GPS sapması referansı kaydırmaz.
+// Uçları bilinen kayıt yoksa (bütün kayıtları silinmiş adlı kesit) saklı referans kalır. Kesitin yönü ilk kaydınkidir,
+// sonradan değişmez.
 
 const double kesitEsigiM = 30;
 
@@ -18,11 +24,35 @@ double mesafeM(double enlem1, double boylam1, double enlem2, double boylam2) {
 }
 
 class Kesit {
-  Kesit(this.kod, this.ad, this.basEnlem, this.basBoylam, this.bitEnlem, this.bitBoylam, this.kayitlar);
+  Kesit(this.kod, this.ad, this.basEnlem, this.basBoylam, this.bitEnlem, this.bitBoylam, this.kayitlar,
+      [Map<String, List<double>>? uclar])
+      : uclar = uclar ?? {};
   final String kod;
   String? ad;
-  final double basEnlem, basBoylam, bitEnlem, bitBoylam; // ilk kaydın yönünde
+  double basEnlem, basBoylam, bitEnlem, bitBoylam; // referans uçlar, kesitin (ilk kaydının) yönünde
   final Map<String, String> kayitlar; // kayit_no -> yon (gidis / donus)
+  final Map<String, List<double>> uclar; // kayit_no -> [baş enlem, baş boylam, bitiş enlem, bitiş boylam], kesitin yönünde
+
+  // Kaydın uçlarını kesitin yönüne çevirip saklar (dönüş kaydının başı kesitin bitişidir) ve referansı yeniler
+  void ucEkle(String kayitNo, (double, double) bas, (double, double) bit) {
+    uclar[kayitNo] = kayitlar[kayitNo] == 'donus' ? [bit.$1, bit.$2, bas.$1, bas.$2] : [bas.$1, bas.$2, bit.$1, bit.$2];
+    referansiYenile();
+  }
+
+  // Referans = uçların ortancası (enlem ve boylam ayrı ayrı; çift sayıda kayıtta ortadaki ikisinin ortalaması)
+  void referansiYenile() {
+    if (uclar.isEmpty) return;
+    double ortanca(int i) {
+      final d = [for (final u in uclar.values) u[i]]..sort();
+      final n = d.length;
+      return n.isOdd ? d[n ~/ 2] : (d[n ~/ 2 - 1] + d[n ~/ 2]) / 2;
+    }
+
+    basEnlem = ortanca(0);
+    basBoylam = ortanca(1);
+    bitEnlem = ortanca(2);
+    bitBoylam = ortanca(3);
+  }
 
   Map<String, Object?> toJson() => {
         'kod': kod,
@@ -30,6 +60,7 @@ class Kesit {
         'bas': [basEnlem, basBoylam],
         'bit': [bitEnlem, bitBoylam],
         'kayitlar': kayitlar,
+        'uclar': uclar,
       };
 
   static Kesit fromJson(Map<String, dynamic> j) => Kesit(
@@ -40,6 +71,10 @@ class Kesit {
         (j['bit'][0] as num).toDouble(),
         (j['bit'][1] as num).toDouble(),
         Map<String, String>.from(j['kayitlar'] as Map),
+        {
+          for (final e in ((j['uclar'] as Map?) ?? const {}).entries)
+            e.key as String: [for (final v in e.value as List) (v as num).toDouble()],
+        },
       );
 }
 
@@ -79,11 +114,21 @@ class KesitDefteri {
     return null;
   }
 
+  // Uçları bilinmeyen kayıtlar (2.1'den önceki defter): çağıran gün dosyasından bulup ucEkle ile ekler
+  List<(Kesit, String)> ucuBilinmeyenler() => [
+        for (final k in kesitler)
+          for (final no in k.kayitlar.keys)
+            if (!k.uclar.containsKey(no)) (k, no),
+      ];
+
   // Kaydı bir kesite atar (zaten atanmışsa aynısını döner). Başlangıç / bitiş noktası yoksa (GPS yok) null.
   KesitAtamasi? ata(String kayitNo, (double, double)? bas, (double, double)? bit) {
     for (final k in kesitler) {
       final y = k.kayitlar[kayitNo];
-      if (y != null) return KesitAtamasi(k, y, k.kayitlar.keys.toList().indexOf(kayitNo) + 1);
+      if (y != null) {
+        if (!k.uclar.containsKey(kayitNo) && bas != null && bit != null) k.ucEkle(kayitNo, bas, bit);
+        return KesitAtamasi(k, y, k.kayitlar.keys.toList().indexOf(kayitNo) + 1);
+      }
     }
     if (bas == null || bit == null) return null;
     Kesit? enIyi;
@@ -114,12 +159,14 @@ class KesitDefteri {
       yon = 'gidis';
     }
     enIyi.kayitlar[kayitNo] = yon;
+    enIyi.ucEkle(kayitNo, bas, bit);
     return KesitAtamasi(enIyi, yon, enIyi.kayitlar.length);
   }
 
   void kayitSil(String kayitNo) {
     for (final k in kesitler) {
       k.kayitlar.remove(kayitNo);
+      if (k.uclar.remove(kayitNo) != null) k.referansiYenile();
     }
     kesitler.removeWhere((k) => k.kayitlar.isEmpty && (k.ad == null || k.ad!.isEmpty));
   }
