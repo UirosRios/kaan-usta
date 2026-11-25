@@ -7,7 +7,7 @@ Bu dosya oturumlar arası kalıcı hafızadır: bulut oturumu her seferinde sıf
 
 ## Kullanıcı ve çalışma tercihleri
 
-- Kullanıcıyla **Türkçe** konuşulur (unutulunca kullanıcı uyardı); kod, yorumlar, commit mesajları ve belgeler Türkçedir.
+- Kullanıcıyla **Türkçe** konuşulur, uzun raporlar dahil her mesaj (iki kez unutuldu, kullanıcı uyardı); kod, yorumlar, commit mesajları ve belgeler Türkçedir.
 - Kullanıcı hekimdir (yazılımcı değil): açıklamalar sade, teknik ayrıntı gerektiği kadar.
 - **"Bir sorun varsa önce sor, sonra yap."** Belirsiz / riskli / kapsam dışı değişikliklerde önce sor; açık istekleri doğrudan yap.
   Büyük işlerde önce plan sunulur, kullanıcı onaylayınca ("başla") uygulanır.
