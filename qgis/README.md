@@ -32,8 +32,8 @@ birimini verir.
 |---|---|---|
 | `kayitlar` | Çizgi (her kayıt = bir kesitin bir geçişi) | kayit_no, kesit, kesit_adi, yon, baslangic, bitis, sure_s, uzunluk_m, ort_hiz_kmh, gps_nokta, ivme_hz, jiro_hz, cihaz, sensörler, scooter, hava, veri_kaynagi, uygulama_surumu |
 | `gps_noktalari` | Nokta (her GPS konumu, ~1 sn) | kayit_no, kesit, t_s, zaman, hiz_kmh, yon_derece, dogruluk_m, yukseklik_m, uydu, **dikey_rms**, **dikey_tepe**, ivme_ornek |
-| `ivme` | Yok (tablo, ~200 Hz) | kayit_no, t_s, x, y, z (m/s², yerçekimi dahil) |
-| `jiroskop` | Yok (tablo, ~200 Hz) | kayit_no, t_s, x, y, z (rad/s) |
+| `ivme` | Yok (tablo, telefonun hızında; ~125-200 Hz) | kayit_no, t_s, x, y, z (m/s², yerçekimi dahil) |
+| `jiroskop` | Yok (tablo, ivmeyle aynı hızda) | kayit_no, t_s, x, y, z (rad/s) |
 
 **`_insan.gpkg`**: `insan_cukurlar` (nokta: kayit_no, kesit, t_s, zaman, hiz_kmh, kaynak) ve `insan_puanlar`
 (çizgi: kayit_no, kesit, kesit_adi, puan, durum, puanlama_zamani, isaret_sayisi).
@@ -106,8 +106,9 @@ adımların hepsi henüz denenmedi.
 
 ## Dosya boyutu
 
-`_ham.gpkg`, kayıt süresinin dakikası başına yaklaşık **1,5 MB** tutar; bunun neredeyse tamamı 200 Hz'lik ivme ve
-jiroskop tablolarıdır. 40 dakikalık bir sürüş günü yaklaşık 60 MB eder. `_insan` ve `_claude` dosyaları birkaç on KB'dir.
+`_ham.gpkg`, kayıt süresinin dakikası başına yaklaşık **1 MB** tutar (ölçüldü: Samsung M21, 125 Hz, 25 Kasım 2026);
+bunun neredeyse tamamı ivme ve jiroskop tablolarıdır. 200 Hz veren bir telefonda ~1,5 MB olur. 40 dakikalık bir sürüş günü
+yaklaşık 40 MB eder. `_insan` ve `_claude` dosyaları birkaç on KB'dir.
 
 ## Örnek dosyalar (`ornek/`)
 

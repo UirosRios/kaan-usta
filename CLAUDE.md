@@ -223,7 +223,7 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
 
 - **Örnek GeoPackage biçimi ONAYLANDI** (25 Kasım 2026; `qgis/ornek/`, `qgis/ornek_uret.py`; GDAL ile okundu, kullanıcı
   QGIS'te (Windows, Türkçe arayüz) açtı; resmî `validate_gpkg.py` çalıştırılamadı). Sıradaki iş: uygulama 2.0.
-- Veri aktarımı: `_ham.gpkg` (dakikada ~1,5 MB, günde ~60 MB) sohbete yüklenir; sığmazsa Google Drive (oturumda Drive
+- Veri aktarımı: `_ham.gpkg` (ölçüldü: dakikada ~1 MB, günde ~40 MB) sohbete yüklenir; sığmazsa Google Drive (oturumda Drive
   bağlantısı var).
   Kullanıcının QGIS stil tercihi (katmanlar renkle değil biçimle ayrılsın): `gps_noktalari` Blues
   (ters çevirmeden; koyu = sarsıntılı), `insan_cukurlar` kırmızı üçgen, `claude_cukurlar` gölge efektli (drop shadow) daire.
@@ -238,6 +238,18 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   (`kayitlar.ivme_hz`), dosya boyutu, sohbete yükleme, kesit otomatik atama, yarım kalan kayıt kurtarma.
   **Telefonda görüldü (25 Kasım, kullanıcının ekran görüntüsü):** gerçek GPS'le 4 kısa kayıt (22-32 sn, 31-68 m); Kayıtlar
   listesi, puanlar, işaret sayıları, kesit ataması ve gidiş/dönüş (K01 gidiş + K01 dönüş) çalışıyor. Gönder / QGIS henüz görülmedi.
+  **İlk gerçek dosyalar incelendi (25 Kasım, Söğütlüçeşme, yapı 34, SM-M215F, 4 kayıt / 108 sn, gece ~03:00):**
+  biçim örnekle aynı (`sema_karsilastir.py`, ham + insan), SQLite bütünlük temiz; **QGIS'te gömülü stiller kendiliğinden uygulandı**
+  (kullanıcının ekran görüntüsü). İvme ve jiroskop **125,2 Hz** (8,00 ms ± 0,1, boşluk yok, sıra bozulması yok; v1 de bu
+  telefonda 125 Hz idi, `analiz/README.md` simülasyonu da 125 Hz; 5000 µs isteğine telefon 125 Hz veriyor, değiştirilmedi).
+  GPS saniyede 1 konum (500 ms istendi, yonga 1 Hz veriyor), doğruluk 3,5-7 m, 15-24 uydu. Saat düzeltmesi gerekmedi.
+  Boyut ~0,95 MB/dk. 9 işaretin hepsi `kumanda` (Bluetooth kumanda, ekran açık: `dispatchKeyEvent` + harici aygıt);
+  her biri net bir darbeden (çevre RMS'in 7-14 katı, 33-65 m/s²) **0,1-0,9 sn** sonra; ikisinde basış darbeyle neredeyse aynı
+  anda (sürücü çukuru görüp önceden basıyor) → algoritma eşleştirme penceresi basıştan biraz sonrasını da kapsamalı
+  (geliştirme bulgusu). İşaretsiz büyük darbeler de var (ör. 030314'te 9,8 ve 10,7 sn).
+  Açık soru: ekran **kapalıyken** Bluetooth kumandanın ses tuşu `VolumeProvider`'dan gelir ve `tus` (telefon tuşu) diye
+  kaydedilir; kaynağı yanlış olur (analiz `tus` sonrası 0,5 sn'yi dışlar). Ekran kapalı deneme dosyasında bakılacak.
+  `about_page.dart` ve `katmanlar.dart` hâlâ "~200 Hz" diyor; bir sonraki uygulama değişikliğiyle düzeltilecek.
   Günler birleştirilmez: her gün ayrı dosya çifti; birleştirme analizde (Claude) veya QGIS'te ("Vektör katmanlarını birleştir").
   Kesit defteri (`kesitler.json`) telefona özeldir: iki telefonla sürülürse kodlar eşleşmez, analizde uç noktalardan yeniden eşlenir. Şimdilik sürüşleri yalnızca kullanıcı
   yapıyor (tek telefon); değişirse haber verecek.
