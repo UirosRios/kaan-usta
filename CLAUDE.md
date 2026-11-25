@@ -13,6 +13,9 @@ Bu dosya oturumlar arası kalıcı hafızadır: bulut oturumu her seferinde sıf
   Büyük işlerde önce plan sunulur, kullanıcı onaylayınca ("başla") uygulanır.
 - Sonuçları dürüst raporla: telefonda denenmemiş özellikleri "denenmedi" diye belirt.
 - Hocaya gösterilecek açıklamalar istendiğinde Artifact sayfası olarak hazırlandı (uygulama mantığı, oturtma, çıktılar).
+  25 Kasım 2026 (2.0 için): "Kaan Usta Sistem Özeti" https://claude.ai/artifact/HR6424k6VUmaTi8ud21ghG ve "Kaan Usta Veri
+  Sözlüğü" https://claude.ai/artifact/RCaCWqkL2HCKi2QdT3CK5r (QGIS sütunları, deneme sürüşünden örnekler). Kaynak HTML'ler
+  oturumun geçici klasöründeydi; güncellemek için sayfayı `Artifact read` ile okuyup aynı URL'ye yayımla.
 - Örnek dosyaları / biçimleri **kullanıcı ve arkadaşı** onaylar (hoca değil).
 
 ## Tez tasarımı (24 Kasım 2026'da değişti)
@@ -263,6 +266,10 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   `WakelockPlus`; ekran açıkken kumanda 9/9 çalıştı). Olası ek: Ayarlar'da tuş denemesi (tuş kodu ve aygıt adını gösterir).
   Önceki not: ekran **kapalıyken** Bluetooth kumandanın ses tuşu `VolumeProvider`'dan gelir ve `tus` (telefon tuşu) diye
   kaydedilir; kaynağı yanlış olur (analiz `tus` sonrası 0,5 sn'yi dışlar). Ekran kapalı deneme dosyasında bakılacak.
+  **İvmeölçer doyması:** ICM42605M ±8 g; değer 78,45 m/s²'de takılıyor (denemede 13 432 örneğin 50'si, çoğu y ekseni,
+  sert darbelerde) → darbe görülür ama tepe büyüklüğü kırpılır; algoritma bunu hesaba katmalı. Bu telefonda
+  `hiz_dogrulugu_kmh` hep 72 ve `dikey_dogruluk_m` hep 100 (telefon hesaplamıyor; yükseklik kullanılmamalı); `yon_derece`
+  dururken 0 (boş değil).
   `about_page.dart` ve `katmanlar.dart` hâlâ "~200 Hz" diyor; bir sonraki uygulama değişikliğiyle düzeltilecek.
   Günler birleştirilmez: her gün ayrı dosya çifti; birleştirme analizde (Claude) veya QGIS'te ("Vektör katmanlarını birleştir").
   Kesit defteri (`kesitler.json`) telefona özeldir: iki telefonla sürülürse kodlar eşleşmez, analizde uç noktalardan yeniden eşlenir. Şimdilik sürüşleri yalnızca kullanıcı
