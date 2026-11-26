@@ -302,6 +302,13 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   sert darbelerde) → darbe görülür ama tepe büyüklüğü kırpılır; algoritma bunu hesaba katmalı. Bu telefonda
   `hiz_dogrulugu_kmh` hep 72 ve `dikey_dogruluk_m` hep 100 (telefon hesaplamıyor; 2.1'de bu alanlar ve yükseklik kaldırıldı);
   `yon_derece` dururken 0 (boş değil).
+  **"Kaymış görünüyor" (26 Kasım, arkadaşın QGIS ekranı, aynı deneme dosyası):** ölçüldü, sistematik kayma yok. GPS
+  noktalarının OSM sokak orta çizgisine uzaklığı kayıt başına ortanca 1,1 / 1,8 / 2,7 / 5,3 m (en çok 6,3 m); Esri World Street
+  Map ve Esri Light Gray'de de sokakların üstünde. Sokaklar tek şeritli (~5-6 m), ekran ~250 m genişliğe yakınlaştırılmış:
+  3-7 m GPS hatası (kayıttaki `dogruluk_m` de 3-7) noktaları kaldırıma / bina köşesine düşürüyor; gidiş ve dönüş iki paralel
+  çizgi (sağdan sürüş + GPS). Batıdaki sokak yolda, doğudaki 2-4 m doğuda, Mahmut Baba'daki bacak ~5 m kuzeyde: düzensiz,
+  yani KRS / projeksiyon sorunu değil (öyle olsa hepsi aynı yöne, çoğunlukla çok daha fazla kayardı). Çözüm analizde
+  haritaya oturtma (v1 HMM yöntemi), algoritma aşamasında. Karşılaştırma betiği oturumun geçici klasöründeydi.
   Günler birleştirilmez: her gün ayrı dosya çifti; birleştirme analizde (Claude) veya QGIS'te ("Vektör katmanlarını birleştir").
   Kesit defteri (`kesitler.json`) telefona özeldir: iki telefonla sürülürse kodlar eşleşmez, analizde uç noktalardan yeniden eşlenir. Şimdilik sürüşleri yalnızca kullanıcı
   yapıyor (tek telefon); değişirse haber verecek.
