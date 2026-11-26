@@ -309,6 +309,9 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   çizgi (sağdan sürüş + GPS). Batıdaki sokak yolda, doğudaki 2-4 m doğuda, Mahmut Baba'daki bacak ~5 m kuzeyde: düzensiz,
   yani KRS / projeksiyon sorunu değil (öyle olsa hepsi aynı yöne, çoğunlukla çok daha fazla kayardı). Çözüm analizde
   haritaya oturtma (v1 HMM yöntemi), algoritma aşamasında. Karşılaştırma betiği oturumun geçici klasöründeydi.
+  Kullanıcının ekranında (Esri Light Gray Base) aynı veri yollara oturmuş görünüyor; arkadaşın altlığı başka bir şirketin
+  haritası (yazılar "Mahmutbaba Sokak": OSM'de "Mahmut Baba Sokağı", Esri'de "Mahmut Baba Sokak"). Fark büyük ölçüde altlıkta.
+  Öneri: ikisi aynı altlığı kullansın; yakın bakışta OSM (keskin, oturtmada kullanılacak veri).
   Günler birleştirilmez: her gün ayrı dosya çifti; birleştirme analizde (Claude) veya QGIS'te ("Vektör katmanlarını birleştir").
   Kesit defteri (`kesitler.json`) telefona özeldir: iki telefonla sürülürse kodlar eşleşmez, analizde uç noktalardan yeniden eşlenir. Şimdilik sürüşleri yalnızca kullanıcı
   yapıyor (tek telefon); değişirse haber verecek.
