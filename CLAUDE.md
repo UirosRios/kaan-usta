@@ -395,9 +395,9 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   kaldırıp kurar (uygulama klasörü, gün dosyaları, `kesitler.json` silinir), sonrakiler üstüne kurulur. Anahtar değiştirilmez.
 - **İlk geliştirme günü geldi (28 Kasım 2026, `veri/gelistirme/20261128/`):** Moda, gece; 5 sokak (K01 Hüseyinbey Sk. puan 2,
   K02 Moda Cad. son kısım 4, K05 Moda Bostanı Sk. 1, K07 Ressam Şeref Akdik Sk. 1-2, K10 Mühürdar Cad. Moda tarafı 5) × 3
-  geçiş (gidiş, dönüş, yavaş gidiş); 42 işaret hepsi kumanda; biçim örnekle aynı, bütünlük temiz, işaret konumları
+  geçiş (gidiş, dönüş, yavaş gidiş); zemin: K01 parke, K02 yamalı asfalt, K05 parke, K07 Arnavut, K10 düz asfalt; 42 işaret hepsi kumanda; biçim örnekle aynı, bütünlük temiz, işaret konumları
   `konum_at` kuralına uyuyor; ivme 125 Hz, boşluk yok; `dogruluk_m` ortanca 4,0, %95 6,0, en çok 9,0 m; doyma (78,4)
-  sık (geçiş başına 0-95 örnek, Arnavut kaldırımında çok). K02 (~85 m) ve K07 (~119 m) 150 m'den kısa. Aynı gece test
+  sık (geçiş başına 0-95 örnek; en çok K05 parke ve K07 Arnavut, düz asfaltta 0-5). K02 (~85 m) ve K07 (~119 m) 150 m'den kısa. Aynı gece test
   sokakları sürülecek (bkz. Sürüş protokolü, aynı gün test sürüşü); test sokakları bu beşinden ve 3 Kasım güzergâhından
   (Mühürdar, Damga, Rıza Paşa) ayrı olmalı. Sırada: kullanıcı "başla" deyince gerçek algoritma.
 - Kesit listesi (arkadaş + hoca, gözle, tüm zemin türleri) hazırlanacak; geliştirme ve test kesitleri ayrı sokaklar.

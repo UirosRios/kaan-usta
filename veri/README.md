@@ -8,6 +8,10 @@ konmasına izin verdi.
   - `20261128`: ilk geliştirme günü, Moda (gece 00:45-01:51; 5 sokak × 3 geçiş = 15 kayıt, ~2,1 km; 42 işaret, hepsi
     kumanda; puanlar 1-5; derleme 43, Hop Scooter). Telefonda dosya adları `gelistirme_` ile başlıyordu (aynı gün test
     sürüşü yapıldığı için); burada önek kaldırıldı.
+    Zemin (kullanıcının kontrol listesinden, gözle): K01 Hüseyinbey Sk. parke (puan 2), K02 Moda Cad. son kısım yamalı
+    asfalt (4), K05 Moda Bostanı Sk. parke (1), K07 Ressam Şeref Akdik Sk. Arnavut kaldırımı (1-2), K10 Mühürdar Cad.
+    Moda tarafı düz asfalt (5). Zemin bilgisi yalnız geliştirme ve yorum içindir; algoritmaya girdi olmaz (testte
+    yalnız ham dosya verilir).
 - `test/<YYYYMMDD>/`: **test seti** (geliştirmeden farklı sokaklar). Sıra şöyledir:
   1. Önce yalnızca `*_ham.gpkg` konur.
   2. `python3 algoritma/uret.py veri/test/<gün>` ile Claude dosyası üretilir, commit edilir ve GitHub'a gönderilir (mühür).
