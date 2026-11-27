@@ -64,7 +64,7 @@ python3 -m unittest discover -s algoritma/testler    # sınamalar
   - Test ve geliştirme günlerini aynı raporda karıştırmaz.
 - Onaylı örnek klasörüne (`qgis/`) yazılmaz; örnekler `qgis/ornek_uret.py` ile üretilir.
 
-## Karşılaştırma dosyası (`*_karsilastirma.gpkg`, yeni biçim; onay bekliyor)
+## Karşılaştırma dosyası (`*_karsilastirma.gpkg`; biçim onaylandı, 27 Kasım)
 
 Örnek: `qgis/ornek/ornek_20261120_karsilastirma.gpkg`.
 

@@ -53,7 +53,7 @@ class AboutPage extends StatelessWidget {
             title: '3. GNSS alıcısı (GPS)',
             lines: [
               'Doğrudan GPS donanımı okunur (Android GPS_PROVIDER); yumuşatma yapılmaz. Her konum kaydedilir: enlem, boylam, Doppler hızı, yön, doğruluk, kullanılan uydu sayısı.',
-              'GPS konumu gerçek konumun yaklaşık 1 sn gerisindedir; düzeltme yapılmaz (analizde yapılır).',
+              'GPS konumu gerçek konumun biraz gerisinde olabilir; düzeltme yapılmaz. Karşılaştırmada sürücünün işareti de Claude\'un noktası da aynı ham GPS konumuyla yerleştirilir.',
             ],
           ),
           const _InfoCard(

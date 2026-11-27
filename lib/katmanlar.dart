@@ -42,14 +42,14 @@ const List<List<String>> _ortak = [
   ['(tümü)', 'kayit_no', 'metin', '', 'Kaydın kimliği: başlangıcın yerel tarih ve saati (YYYYMMDD_SSddss). Bütün dosyalarda aynı; katmanları bununla birleştirin.'],
   ['(tümü)', 'kesit', 'metin', '', "Kesit kodu (K01, K02...). Telefon otomatik verir: başlangıç ve bitiş noktası önceki bir kayıtla ~30 m içinde örtüşen (ters yön dahil) kayıt aynı kesittir. Yanlışsa QGIS'te düzeltilebilir."],
   ['(tümü)', 'kesit_adi', 'metin', '', "Kesitin adı: kullanıcı Kayıtlar sayfasında verir (ör. sokak adı); aynı kesitin bütün kayıtlarına uygulanır. Verilmediyse boş."],
-  ['(tümü)', 't_s', 'ondalık', 's', "Kayıt başından (BAŞLAT) bu yana geçen süre. Bütün sensörler ve basışlar aynı saatle ölçülür; katmanları zamanla eşleştirmek için bu alan kullanılır."],
+  ['(tümü)', 't_s', 'ondalık', 's', "Kayıt başından (BAŞLAT) bu yana geçen süre. Bütün sensörler ve basışlar aynı saatle ölçülür. Çukur noktalarının konumu bu andaki ham GPS konumudur (iki GPS noktası arasında doğrusal ara değer)."],
   ['(tümü)', 'yerel_saat', 'metin', 'UTC+3', 'Aynı an, İstanbul saatiyle (milisaniyeli).'],
 ];
 
 List<List<String>> hamAciklamalari({required bool test}) => [
       if (test) ['(dosya)', '', '', '', 'TEST SÜRÜŞÜ: konum ve GPS hızı sanaldır (üretilmiş), sarsıntı gerçek ivmeölçerden. Tez verisi değildir.'],
       ['(dosya)', '', '', '', "Telefonun ürettiği ham veri dosyası (*_ham.gpkg). Claude'a bu dosya verilir; sürücünün işaret ve puanları bu dosyada YOKTUR."],
-      ['(dosya)', '', '', '', "Koordinat sistemi WGS84 (EPSG:4326). Konumlar ham GPS'tir: düzeltme yapılmamıştır; GPS konumu gerçek konumun yaklaşık 1 sn gerisindedir."],
+      ['(dosya)', '', '', '', "Koordinat sistemi WGS84 (EPSG:4326). Konumlar ham GPS'tir: düzeltme yapılmamıştır (GPS konumu gerçek konumun biraz gerisinde olabilir; eski sürümde ~1 sn ölçülmüştü)."],
       ..._ortak,
       ['kayitlar', '(geometri)', 'çizgi', '', 'Kaydın güzergâhı: ham GPS noktalarının birleşimi. Bir kayıt = bir kesitin bir geçişi.'],
       ['kayitlar', 'yon', 'metin', '', 'gidis / donus: kesitin ilk kaydedildiği yöne göre.'],
@@ -80,7 +80,7 @@ List<List<String>> insanAciklamalari({required bool test}) => [
       if (test) ['(dosya)', '', '', '', 'TEST SÜRÜŞÜ: konum sanaldır (üretilmiş). Tez verisi değildir.'],
       ['(dosya)', '', '', '', "Sürücünün işaret ve puanları (*_insan.gpkg). Claude bu dosyayı o günün Claude katmanları GitHub'a gönderilmeden açmaz."],
       ..._ortak,
-      ['insan_cukurlar', '(geometri)', 'nokta', '', "Basış anındaki ham GPS konumu. Sürücü çukurdan ~1,3 sn sonra bastığı ve GPS ~1 sn geride olduğu için nokta çukurdan birkaç metre sapabilir; Claude ile eşleştirmede t_s kullanın."],
+      ['insan_cukurlar', '(geometri)', 'nokta', '', "Basış anındaki ham GPS konumu (t_s anına doğrusal ara değer; Claude noktalarıyla aynı kural). Sürücü çukurdan biraz sonra bastığı için nokta çukurun birkaç metre ilerisine düşebilir. Karşılaştırmada iki nokta arasındaki mesafe kullanılır."],
       ['insan_cukurlar', 'hiz_kmh', 'ondalık', 'km/h', 'Basış anındaki GPS hızı.'],
       ['insan_cukurlar', 'kaynak', 'metin', '', 'kulaklik / kumanda / ekran / tus. Ekran ve telefon tuşu telefonu sarsar.'],
       ['insan_puanlar', '(geometri)', 'çizgi', '', 'Kaydın güzergâhı (kayitlar katmanıyla aynı).'],

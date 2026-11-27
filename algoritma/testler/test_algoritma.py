@@ -282,6 +282,18 @@ class TestGunuMuhru(unittest.TestCase):
             K.bekciler(self.yollar + [("/tmp/x/y", "", "", "")], None)
 
 
+class Sozluk(unittest.TestCase):
+    def test_uygulama_sozlugu_python_ile_ayni(self):
+        """lib/katmanlar.dart'ın yazdığı veri sözlüğü qgis/sozluk.py ile aynı olmalı (dart21 dosyaları uygulama
+        değişince yeniden üretilir: KAAN_TEST_CIKTI=<klasör> flutter test ... --plain-name "çeviri: katmanlar")."""
+        import sozluk
+        for ad, beklenen in (("ham", sozluk.ACIKLAMA_HAM), ("insan", sozluk.ACIKLAMA_INSAN)):
+            db = sqlite3.connect(f"{DART}_{ad}.gpkg")
+            satirlar = [tuple(r) for r in db.execute("SELECT katman, alan, tur, birim, aciklama FROM aciklamalar ORDER BY fid")]
+            db.close()
+            self.assertEqual(satirlar, [tuple(r) for r in beklenen], ad)
+
+
 class Bekciler(unittest.TestCase):
     def test_insan_dosyasi_tahminde_okunmaz(self):
         with self.assertRaisesRegex(VeriHatasi, "bağımsızlık"):

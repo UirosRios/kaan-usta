@@ -63,11 +63,9 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   26 sınama (test günü mühür yolu geçici git deposunda); yeni dosyalar GDAL (pyogrio) ile okundu, boş katmanlar dahil;
   QGIS'te denenmedi; Windows'ta çalıştırılmadı (git yolu `/` ile). Sözlük tek kaynak: `qgis/sozluk.py` (örnek üretici ve `uret.py` ortak); örnek Claude noktaları artık gecikmesiz
   (yeniden üretildi; ham ve insan örneklerinde yalnız açıklama metinleri değişti).
-  **Kullanıcıya sorulacak / onay bekleyen (27 Kasım):** (1) yeni `*_karsilastirma.gpkg` biçimi (örnek:
-  `qgis/ornek/ornek_20261120_karsilastirma.gpkg`); (2) uygulamadaki eski metinler ("katmanları zamanla eşleştirmek
-  için", "Claude ile eşleştirmede t_s kullanın", "GPS ~1 sn geride": `lib/katmanlar.dart`, `lib/about_page.dart`)
-  yeni APK ister; (3) Veri Sözlüğü sayfasında (artifact) aynı eski cümleler var (zamanla eşleştirme, "GPS'in 1 sn
-  gecikmesi düzeltilmiş").
+  **27 Kasım, kullanıcı:** `*_karsilastirma.gpkg` biçimi **onaylandı** (örnek `qgis/ornek/ornek_20261120_karsilastirma.gpkg`);
+  uygulamadaki eski metinler (`lib/katmanlar.dart` veri sözlüğü, `lib/about_page.dart`) `qgis/sozluk.py` ile aynı yapıldı
+  (sınama: `Sozluk` testi, `dart21` dosyaları uygulama değişince yeniden üretilir); Veri Sözlüğü sayfası güncellendi.
   Gerçek algoritmaya geliştirme sürüşleri gelince ve kullanıcı "başla" deyince başlanır.
   3 Kasım Kadıköy sürüşü geliştirme verisidir (eşikler onunla ayarlandı). **Test kesitleri geliştirme kesitlerinden ayrı sokaklar.**
 - Algoritma sohbette verilen yorum değil, depodaki koddur: aynı girdiden hep aynı sonucu üretir.
