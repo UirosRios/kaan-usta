@@ -6,12 +6,13 @@ Uygulamanın ürettiği dosyanın onaylanmış örnekle aynı biçimde olduğunu
 Yalnızca Python'un standart kütüphanesini kullanır.
 """
 
+import pathlib
 import sqlite3
 import sys
 
 
 def sema(yol):
-    db = sqlite3.connect(f"file:{yol}?mode=ro", uri=True)
+    db = sqlite3.connect(pathlib.Path(yol).resolve().as_uri() + "?mode=ro", uri=True)  # '#', '%' içeren yollar için
     katmanlar = {}
     for ad, tur in db.execute("SELECT table_name, data_type FROM gpkg_contents"):
         geo = db.execute("SELECT geometry_type_name, srs_id FROM gpkg_geometry_columns WHERE table_name = ?", (ad,)).fetchone()

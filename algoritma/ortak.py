@@ -7,6 +7,7 @@ ile birebir aynıdır: insan işaretleri de Claude noktaları da ham GPS izinde,
 import hashlib
 import math
 import os
+import pathlib
 import sqlite3
 import struct
 import sys
@@ -29,9 +30,20 @@ class VeriHatasi(Exception):
 # ---------------------------------------------------------------------------------------------------------- okuma
 
 def ac(yol):
+    """Salt okunur açar. Yol URI olarak kodlanır: klasör adındaki '#', '?', '%' veya boşluk dosyayı yanlış yere açtırmasın."""
     if not os.path.exists(yol):
         raise VeriHatasi(f"dosya yok: {yol}")
-    return sqlite3.connect(f"file:{yol}?mode=ro", uri=True)
+    return sqlite3.connect(pathlib.Path(yol).resolve().as_uri() + "?mode=ro", uri=True)
+
+
+def gercek_yol(yol):
+    """Karşılaştırma için: sembolik bağlantılar çözülmüş, Windows'ta harf büyüklüğü eşitlenmiş tam yol."""
+    return os.path.normcase(os.path.realpath(yol))
+
+
+def altinda(yol, klasor):
+    """yol, klasor'un içinde mi (ikisi de karşılaştırma anında gerçek yola çevrilir)?"""
+    return gercek_yol(yol).startswith(gercek_yol(klasor) + os.sep)
 
 
 def katmanlar(db):

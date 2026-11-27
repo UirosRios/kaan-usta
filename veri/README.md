@@ -8,9 +8,11 @@ konmasına izin verdi.
 - `test/<YYYYMMDD>/`: **test seti** (geliştirmeden farklı sokaklar). Sıra şöyledir:
   1. Önce yalnızca `*_ham.gpkg` konur.
   2. `python3 algoritma/uret.py veri/test/<gün>` ile Claude dosyası üretilir, commit edilir ve GitHub'a gönderilir (mühür).
-  3. Ancak bundan sonra `*_insan.gpkg` eklenir ve `python3 algoritma/karsilastir.py veri/test` çalıştırılır.
-  - Eşik: `test/esik.json` (`{"esik_m": ...}`). Kullanıcı ve arkadaşı geliştirme sürüşlerinden sonra belirler; testten
-    önce GitHub'a konur.
+  3. Ancak bundan sonra `*_insan.gpkg` eklenir (ayrı, sonraki bir gönderimde) ve `python3 algoritma/karsilastir.py veri/test`
+     çalıştırılır. Karşılaştırma, Claude dosyasının ve eşiğin insan dosyasından önce GitHub'a gittiğini git geçmişinden
+     denetler; aynı gönderimde giderlerse durur.
+  - Eşik: `test/esik.json` (`{"esik_m": 6.5}`). Kullanıcı ve arkadaşı geliştirme sürüşlerinden sonra belirler; ilk test
+    gününün insan dosyasından önce GitHub'a konur.
 
 Claude, bir test gününün insan dosyasını o günün Claude dosyası GitHub'a gönderilmeden açmaz (bağımsızlık kuralı).
 Kurallar ve komutlar: `algoritma/README.md`.

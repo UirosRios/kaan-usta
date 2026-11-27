@@ -41,7 +41,10 @@ python3 -m unittest discover -s algoritma/testler    # sınamalar
   - `karsilastir.py`, dosyalardaki konumların bu kurala 1 cm içinde uyduğunu denetler, uymazsa durur. Böylece QGIS'te
     elle ölçülen mesafe rapordakiyle aynı olur.
 - **Haritaya oturtma kullanılmaz** (karar 27 Kasım): bir tarafı sokağa çekmek mesafeye GPS'in yan sapmasını (1-6 m) ekler.
-- **Eşleştirme:** aynı kayıt içinde, bire bir, en yakın çift önce, mesafe ≤ eşik.
+- **Eşleştirme:** aynı kayıt içinde, bire bir, mesafe ≤ eşik. Olabildiğince çok çift kurulur; aynı sayıda çift veren
+  seçenekler arasında toplam mesafesi en küçük olan alınır (Macar yöntemi). 28 Kasım'a kadar "en yakın çift önce"
+  kuralı vardı; çukurlar sık olduğunda eşleşebilecek bir işareti kaçırılmış sayabildiği için değiştirildi (sayılar
+  yalnızca artabilir).
   - Doğru: eşleşen işaret. Kaçırılan: eşleşmeyen işaret. Fazladan: eşleşmeyen Claude noktası.
   - Duyarlılık = doğru / işaret. Kesinlik = doğru / Claude noktası.
   - Ek tablo 5, 10 ve 15 m eşikleri için verilir.
@@ -55,13 +58,20 @@ python3 -m unittest discover -s algoritma/testler    # sınamalar
 
 ## Test verisi bekçileri (`veri/test/`)
 
-- `uret.py` "0-" (yer tutucu) sürümle yazmaz ve var olan bir Claude dosyasının üstüne yazmaz.
+- `uret.py` "0-" (yer tutucu) sürümle yazmaz ve var olan bir Claude dosyasının üstüne yazmaz (klasör verilince
+  mühürlü günleri "atlandı" diye geçer).
 - `karsilastir.py`:
   - Claude dosyası `origin/main`'dekiyle birebir aynı değilse durur (önce commit + push).
-  - Eşiği komut satırından almaz; `veri/test/esik.json` dosyasından alır (`{"esik_m": 6}`). Bu dosya da
-    `origin/main`'de olmalı.
+  - **Sıra:** Claude dosyasının ve `esik.json`'ın `origin/main`'deki son hâli, o günün insan dosyası GitHub'a ilk
+    girmeden ÖNCEKİ bir commit'te olmalı; aynı commit'te ya da sonra değiştiyse durur. İnsan dosyası henüz GitHub'da
+    değilse sıra bozulmamıştır. Sığ klonda (`git clone --depth`) geçmiş görünmediği için durur: `git fetch --unshallow`.
+  - Eşiği komut satırından almaz; `veri/test/esik.json` dosyasından alır (`{"esik_m": 6.5}`; tırnaksız, nokta ile,
+    sıfırdan büyük). Bu dosya da `origin/main`'de olmalı.
   - "0-" sürümü kabul etmez.
   - Test ve geliştirme günlerini aynı raporda karıştırmaz.
+- Yollar karşılaştırılırken sembolik bağlantılar çözülür ve (Windows'ta) harf büyüklüğü eşitlenir; Windows'ta
+  denenmedi.
+- Klasör taranırken evde prova dosyaları (`test_` ile başlayan, sanal GPS) atlanır.
 - Onaylı örnek klasörüne (`qgis/`) yazılmaz; örnekler `qgis/ornek_uret.py` ile üretilir.
 
 ## Karşılaştırma dosyası (`*_karsilastirma.gpkg`; biçim onaylandı, 27 Kasım)
@@ -87,4 +97,6 @@ Her eşik için ayrı satırlar vardır. QGIS'te katmana sağ tık → Süz (Fil
 - `uret.py`, `karsilastir.py`: komutlar.
 - `testler/`: sınamalar. `testler/veri/dart21_*` uygulamanın (Dart, 2.1) yazdığı yapay bir gün (`test/donusturucu_test.dart`,
   "çeviri" testi; boyut için jiroskop satırları silindi): konum kuralının Dart ile Python'da aynı olduğunu sınar.
-- Katman alanları ve veri sözlüğü: `qgis/sozluk.py` (örnek üreticiyle ortak).
+- Katman alanları ve veri sözlüğü: `qgis/sozluk.py` (örnek üreticiyle ortak). Uygulamanın sözlüğüyle (`lib/katmanlar.dart`)
+  aynılığı `qgis/sozluk.json` üzerinden sınanır: sözlük değişince `python3 qgis/sozluk.py` (JSON'u yeniden yazar); Python
+  testi JSON'un güncel, `test/sozluk_test.dart` uygulamanın aynı olduğunu denetler.

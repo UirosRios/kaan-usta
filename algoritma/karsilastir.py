@@ -8,7 +8,8 @@ Kullanım:
 Kural (README'de ayrıntı):
 - Konum: iki nokta da ham GPS izinde, t_s anına doğrusal ara değer (`konum_at`). Dosyadaki konumlar bu kuralla 1 cm'den
   fazla uyuşmazsa durur: QGIS'te elle ölçülen mesafe rapordakiyle aynı olmalı.
-- Eşleştirme: aynı kayıt içinde, bire bir, en yakın çift önce, mesafe <= eşik. Doğru = eşleşen işaret; kaçırılan =
+- Eşleştirme: aynı kayıt içinde, bire bir, mesafe <= eşik; olabildiğince çok çift, eşitlikte toplam mesafe en küçük
+  (Macar yöntemi). Doğru = eşleşen işaret; kaçırılan =
   eşleşmeyen işaret; fazladan = eşleşmeyen Claude noktası. Duyarlılık = doğru / işaret; kesinlik = doğru / Claude noktası.
 - Dışlanan: ekran / telefon tuşu işaretleri (basış telefonu sarsar, algoritma basışın kendisini bulabilir) ve onlara
   1 sn'den yakın Claude noktaları. Sayıları raporlanır.
@@ -18,6 +19,7 @@ Kural (README'de ayrıntı):
 
 import argparse
 import json
+import math
 import os
 import subprocess
 import sys
@@ -25,7 +27,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from okuma import claude_oku, ham_oku, insan_oku  # noqa: E402
-from ortak import KOK, VeriHatasi, ac, icerik_ozeti, konum_at, mesafe_m, yuzdelik  # noqa: E402
+from ortak import KOK, VeriHatasi, ac, altinda, gercek_yol, icerik_ozeti, konum_at, mesafe_m, yuzdelik  # noqa: E402
 
 from gpkg import GeoPackage, cizgi, nokta  # noqa: E402  (qgis/gpkg.py)
 
@@ -61,28 +63,84 @@ ACIKLAMALAR = [
 
 # ------------------------------------------------------------------------------------------------ eşleştirme
 
+def _macar(maliyet):
+    """Macar yöntemi (Kuhn-Munkres): n x m maliyet matrisinde (n <= m) her satıra ayrı bir sütun verip toplam maliyeti en
+    küçük yapan atama. Döner: her satırın sütunu."""
+    n, m = len(maliyet), len(maliyet[0])
+    sonsuz = float("inf")
+    u, v = [0.0] * (n + 1), [0.0] * (m + 1)
+    p, yol = [0] * (m + 1), [0] * (m + 1)
+    for i in range(1, n + 1):
+        p[0], j0 = i, 0
+        enaz, kullanildi = [sonsuz] * (m + 1), [False] * (m + 1)
+        while True:
+            kullanildi[j0] = True
+            i0, delta, j1 = p[j0], sonsuz, 0
+            for j in range(1, m + 1):
+                if not kullanildi[j]:
+                    simdiki = maliyet[i0 - 1][j - 1] - u[i0] - v[j]
+                    if simdiki < enaz[j]:
+                        enaz[j], yol[j] = simdiki, j0
+                    if enaz[j] < delta:
+                        delta, j1 = enaz[j], j
+            for j in range(m + 1):
+                if kullanildi[j]:
+                    u[p[j]] += delta
+                    v[j] -= delta
+                else:
+                    enaz[j] -= delta
+            j0 = j1
+            if p[j0] == 0:
+                break
+        while j0:
+            j1 = yol[j0]
+            p[j0] = p[j1]
+            j0 = j1
+    sonuc = [None] * n
+    for j in range(1, m + 1):
+        if p[j]:
+            sonuc[p[j] - 1] = j - 1
+    return sonuc
+
+
 def eslestir(isaretler, noktalar, esik):
-    """Bire bir, aynı kayıt içinde, en yakın çift önce. isaretler / noktalar: [{'kayit_no', 't_s', 'enlem', 'boylam', ...}].
+    """Aynı kayıt içinde bire bir eşleştirme: eşik içinde olabildiğince ÇOK çift, eşitlikte toplam mesafe en küçük
+    (Macar yöntemi). isaretler / noktalar: [{'kayit_no', 't_s', 'enlem', 'boylam', ...}].
     Döner: (çiftler [(i, c, mesafe)], eşleşmeyen işaret indeksleri, eşleşmeyen nokta indeksleri)."""
-    adaylar = []
-    for i, a in enumerate(isaretler):
-        for c, b in enumerate(noktalar):
-            if a["kayit_no"] != b["kayit_no"]:
+    ciftler = []
+    for k in sorted({a["kayit_no"] for a in isaretler} & {b["kayit_no"] for b in noktalar}):
+        uygun = {}
+        for i, a in enumerate(isaretler):
+            if a["kayit_no"] != k:
                 continue
-            d = mesafe_m(a["enlem"], a["boylam"], b["enlem"], b["boylam"])
-            if d <= esik:
-                adaylar.append((d, abs(a["t_s"] - b["t_s"]), i, c))
-    adaylar.sort()
-    kullanilan_i, kullanilan_c, ciftler = set(), set(), []
-    for d, _, i, c in adaylar:
-        if i in kullanilan_i or c in kullanilan_c:
+            for c, b in enumerate(noktalar):
+                if b["kayit_no"] == k:
+                    d = mesafe_m(a["enlem"], a["boylam"], b["enlem"], b["boylam"])
+                    if d <= esik:
+                        uygun[(i, c)] = d
+        if not uygun:
             continue
-        kullanilan_i.add(i)
-        kullanilan_c.add(c)
-        ciftler.append((i, c, d))
+        satir = sorted({i for i, _ in uygun})
+        sutun = sorted({c for _, c in uygun})
+        # Uygun her çift, mesafelerin olası toplamından büyük bir ödül alır: önce çift sayısı, sonra toplam mesafe
+        odul = (esik + 1.0) * (len(satir) + len(sutun) + 1)
+        ters = len(satir) > len(sutun)
+        if ters:
+            satir, sutun = sutun, satir
+
+        def anahtar(r, s):
+            return (s, r) if ters else (r, s)
+
+        matris = [[uygun[anahtar(r, s)] - odul if anahtar(r, s) in uygun else 0.0 for s in sutun] for r in satir]
+        for r_i, s_i in enumerate(_macar(matris)):
+            cift = anahtar(satir[r_i], sutun[s_i])
+            if cift in uygun:
+                ciftler.append((cift[0], cift[1], uygun[cift]))
+    eslesen_i = {i for i, _, _ in ciftler}
+    eslesen_c = {c for _, c, _ in ciftler}
     ciftler.sort(key=lambda p: (isaretler[p[0]]["kayit_no"], isaretler[p[0]]["t_s"]))
-    return (ciftler, [i for i in range(len(isaretler)) if i not in kullanilan_i],
-            [c for c in range(len(noktalar)) if c not in kullanilan_c])
+    return (ciftler, [i for i in range(len(isaretler)) if i not in eslesen_i],
+            [c for c in range(len(noktalar)) if c not in eslesen_c])
 
 
 def oran(pay, payda):
@@ -161,9 +219,13 @@ def git(*arg):
     return r.returncode, r.stdout.strip()
 
 
+def _rel(yol):
+    return os.path.relpath(gercek_yol(yol), gercek_yol(KOK)).replace(os.sep, "/")
+
+
 def muhur_denetle(yol):
     """Dosya origin/main'de birebir aynı mı (önce GitHub'a gönderilmiş mi)?"""
-    rel = os.path.relpath(os.path.abspath(yol), KOK).replace(os.sep, "/")
+    rel = _rel(yol)
     kod, uzak = git("rev-parse", f"origin/main:{rel}")
     if kod != 0:
         raise VeriHatasi(f"mühür yok: {rel} origin/main'de bulunamadı (önce commit + push; gerekirse git fetch)")
@@ -172,17 +234,62 @@ def muhur_denetle(yol):
         raise VeriHatasi(f"mühür bozuk: {rel} origin/main'dekinden farklı")
 
 
+def _son_degisiklik(yol):
+    """origin/main'de dosyayı en son değiştiren commit."""
+    _, h = git("log", "-1", "--format=%H", "origin/main", "--", _rel(yol))
+    return h or None
+
+
+def _ilk_eklenis(yol):
+    """origin/main'de dosyayı ilk ekleyen commit (yoksa None: dosya henüz GitHub'da değil)."""
+    _, cikti = git("log", "--diff-filter=A", "--format=%H", "origin/main", "--", _rel(yol))
+    satirlar = cikti.split()
+    return satirlar[-1] if satirlar else None
+
+
+def sira_denetle(once, sonra, ne):
+    """`once` dosyasının origin/main'deki son hâli, `sonra` dosyası ilk eklenmeden ÖNCEKİ bir commit'te mi?
+    `sonra` henüz GitHub'da değilse sıra bozulmamıştır."""
+    s = _ilk_eklenis(sonra)
+    if s is None:
+        return
+    o = _son_degisiklik(once)
+    _, sig = git("rev-parse", "--is-shallow-repository")
+    ipucu = " (depo sığ klon: önce git fetch --unshallow)" if sig == "true" else ""
+    if o is None:
+        raise VeriHatasi(f"sıra denetlenemedi: {_rel(once)} geçmişi bulunamadı{ipucu}")
+    kod, _ = git("merge-base", "--is-ancestor", o, s)
+    if o == s or kod != 0:
+        raise VeriHatasi(f"sıra bozuk: {ne} ({_rel(once)} son hâli {o[:8]}, {_rel(sonra)} ilk eklenişi {s[:8]}){ipucu}")
+
+
 def tur_bul(on):
-    yol = os.path.abspath(on)
-    if yol.startswith(TEST_KLASORU + os.sep):
+    if altinda(on, TEST_KLASORU):
         return "test"
-    if yol.startswith(GELISTIRME_KLASORU + os.sep):
+    if altinda(on, GELISTIRME_KLASORU):
         return "gelistirme"
     return "diger"
 
 
+def _esik_oku(yol):
+    def yasak(sabit):
+        raise ValueError(f"{sabit} kabul edilmez")
+
+    try:
+        with open(yol, encoding="utf-8") as f:
+            v = json.load(f, parse_constant=yasak)["esik_m"]
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        raise VeriHatasi(f"veri/test/esik.json okunamadı ({e}); biçim: {{\"esik_m\": 6.5}}") from e
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0:
+        raise VeriHatasi(f"veri/test/esik.json: esik_m sıfırdan büyük bir sayı olmalı (tırnaksız, nokta ile: 6.5); "
+                         f"okunan: {v!r}")
+    return float(v)
+
+
 def bekciler(gunler_yol, esik):
-    """Verinin türü ve seçilen eşik. Test verisinde mühür ve eşik dosyası denetlenir. Döner: (tür, eşik)."""
+    """Verinin türü ve seçilen eşik. Test verisinde: eşik yalnız esik.json'dan; esik.json ve her günün Claude dosyası
+    origin/main'dekiyle aynı; ikisinin son hâli de o günün insan dosyası GitHub'a ilk girmeden ÖNCE gönderilmiş olmalı.
+    Döner: (tür, eşik)."""
     turler = {tur_bul(on) for on, *_ in gunler_yol}
     if len(turler) > 1:
         raise VeriHatasi("test, geliştirme ve öteki veriler aynı raporda karşılaştırılmaz")
@@ -195,22 +302,31 @@ def bekciler(gunler_yol, esik):
     if not os.path.exists(esik_yol):
         raise VeriHatasi("veri/test/esik.json yok (eşik testten önce kararlaştırılıp GitHub'a konmalı)")
     muhur_denetle(esik_yol)
-    with open(esik_yol, encoding="utf-8") as f:
-        secilen = float(json.load(f)["esik_m"])
-    for _, _, _, claude in gunler_yol:
+    secilen = _esik_oku(esik_yol)
+    for _, _, insan, claude in gunler_yol:
         muhur_denetle(claude)
+        sira_denetle(claude, insan, "Claude dosyası insan dosyasından önce GitHub'a gönderilmemiş")
+        sira_denetle(esik_yol, insan, "eşik insan dosyasından önce GitHub'a gönderilmemiş")
     return tur, secilen
 
 
 # ------------------------------------------------------------------------------------------------ gün
 
-def gunleri_bul(yollar):
+def gunleri_bul(yollar, atlanan=None):
+    """Gün üçlüleri (ham + insan + claude). Klasör taramasında evde prova dosyaları (test_ ile başlayan, sanal GPS)
+    atlanır ve `atlanan` listesine yazılır; dosya adıyla verilirse alınır."""
     gunler = []
     for y in yollar:
         adaylar = []
         if os.path.isdir(y):
             for kok, _, dosyalar in sorted(os.walk(y)):
-                adaylar += [os.path.join(kok, d) for d in sorted(dosyalar) if d.endswith("_ham.gpkg")]
+                for d in sorted(dosyalar):
+                    if d.endswith("_ham.gpkg"):
+                        if d.startswith("test_"):
+                            if atlanan is not None:
+                                atlanan.append(os.path.join(kok, d))
+                            continue
+                        adaylar.append(os.path.join(kok, d))
         else:
             adaylar.append(y)
         for ham in adaylar:
@@ -339,7 +455,8 @@ def rapor(gunler, esikler, secilen, tur):
     kf = max(max(g["konum_farki"].values()) for g in gunler)
     s.append(f"- Konum: iki nokta da ham GPS izinde t_s anına doğrusal ara değer. Dosyalardaki konumlar bu kurala "
              f"uyuyor (en büyük fark {sayi(kf * 1000)} mm).")
-    s.append("- Eşleştirme: aynı kayıt içinde, bire bir, en yakın çift önce, mesafe ≤ eşik.")
+    s.append("- Eşleştirme: aynı kayıt içinde, bire bir, mesafe ≤ eşik; olabildiğince çok çift kurulur, eşitlikte toplam "
+             "mesafe en küçük olan seçilir (Macar yöntemi).")
     s.append("- Doğru = eşleşen işaret; kaçırılan = eşleşmeyen işaret; fazladan = eşleşmeyen Claude noktası.")
     s.append("- Duyarlılık = doğru / işaret sayısı; kesinlik = doğru / Claude noktası sayısı.")
     def say(liste, neden):
@@ -408,7 +525,10 @@ def main():
     ap.add_argument("--cikti", help="raporun yazılacağı klasör (varsayılan: ilk yol)")
     a = ap.parse_args()
     try:
-        gunler_yol = gunleri_bul(a.yollar)
+        atlanan = []
+        gunler_yol = gunleri_bul(a.yollar, atlanan)
+        for y in atlanan:
+            print(f"atlandı (evde prova, sanal GPS): {y}")
         tur, secilen = bekciler(gunler_yol, a.esik)
         gunler = []
         for on, ham, insan, claude in gunler_yol:

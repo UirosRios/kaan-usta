@@ -53,19 +53,24 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   `testler/` (sınamalar). Kararlar: konum iki tarafa da aynı kural (`konum_at` = Dart `konumAt`, t_s'ye doğrusal ara
   değer); **GPS gecikmesi hiçbir tarafa uygulanmaz** (aynı izde iki tarafa aynı kaydırma mesafeyi değiştirmez); dosyadaki
   konumlar kurala 1 cm içinde uymazsa karşılaştırma durur; Claude noktası darbe anında (basış gecikmesi payı verilip
-  verilmeyeceği geliştirme sonrası kullanıcı ve arkadaşın kararı); eşleştirme aynı kayıt içinde, bire bir, en yakın çift
-  önce; ekran / telefon tuşu işaretleri ve onlara 1 sn'den yakın Claude noktaları dışlanır (v1 kuralı, sayı raporlanır);
+  verilmeyeceği geliştirme sonrası kullanıcı ve arkadaşın kararı); eşleştirme aynı kayıt içinde, bire bir, **olabildiğince
+  çok çift, eşitlikte toplam mesafe en küçük (Macar yöntemi; 28 Kasım incelemesinde "en yakın çift önce"nin yerini aldı,
+  kaba kuvvetle sınanır)**; ekran / telefon tuşu işaretleri ve onlara 1 sn'den yakın Claude noktaları dışlanır (v1 kuralı, sayı raporlanır);
   ham ve insan kayıtları farklıysa hata; GPS'siz kayıttaki (konumsuz) işaret dışlanır ve sayılır. Test bekçileri (`veri/test/`): Claude dosyası origin/main'dekiyle aynı değilse
-  durur, eşik yalnız `veri/test/esik.json`'dan (o da origin/main'de), "0-" sürüm reddedilir, var olan Claude dosyasının
-  üstüne yazılmaz. `uret.py` `qgis/` altına yazmaz (bir kez onaylı örneğin üstüne yazılmıştı, `ornek_uret.py` ile geri
+  durur; **Claude dosyasının ve esik.json'ın origin/main'deki son hâli o günün insan dosyasının ilk eklenişinden önceki
+  bir commit'te olmalı** (aynı commit veya sonrası reddedilir; sığ klonda "git fetch --unshallow" ister); eşik yalnız
+  `veri/test/esik.json`'dan (sayı, > 0; NaN / metin reddedilir), "0-" sürüm reddedilir, var olan Claude dosyasının
+  üstüne yazılmaz (klasör taramasında mühürlü gün atlanır). Yollar `realpath` + `normcase` ile karşılaştırılır (Windows'ta
+  denenmedi); klasör taramasında `test_` (evde prova) dosyaları atlanır; `ortak.ac` yolu URI olarak kodlar ('#', '%'). `uret.py` `qgis/` altına yazmaz (bir kez onaylı örneğin üstüne yazılmıştı, `ornek_uret.py` ile geri
   üretildi). Belirlenimcilik içerik özetiyle (`icerik_ozeti`, sıralı satırlar) denetlenir: dosya baytları SQLite
   sürümüne göre değişebilir. Veri: `veri/gelistirme/<gün>/`, `veri/test/<gün>/` (`veri/README.md`).
-  26 sınama (test günü mühür yolu geçici git deposunda); yeni dosyalar GDAL (pyogrio) ile okundu, boş katmanlar dahil;
+  Python sınamaları (38, 28 Kasım; mühür ve sıra yolu geçici git deposunda, sığ klon dahil); yeni dosyalar GDAL (pyogrio) ile okundu, boş katmanlar dahil;
   QGIS'te denenmedi; Windows'ta çalıştırılmadı (git yolu `/` ile). Sözlük tek kaynak: `qgis/sozluk.py` (örnek üretici ve `uret.py` ortak); örnek Claude noktaları artık gecikmesiz
   (yeniden üretildi; ham ve insan örneklerinde yalnız açıklama metinleri değişti).
   **27 Kasım, kullanıcı:** `*_karsilastirma.gpkg` biçimi **onaylandı** (örnek `qgis/ornek/ornek_20261120_karsilastirma.gpkg`);
   uygulamadaki eski metinler (`lib/katmanlar.dart` veri sözlüğü, `lib/about_page.dart`) `qgis/sozluk.py` ile aynı yapıldı
-  (sınama: `Sozluk` testi, `dart21` dosyaları uygulama değişince yeniden üretilir); Veri Sözlüğü sayfası güncellendi.
+  (sınama: `qgis/sozluk.json` köprüsü: `python3 qgis/sozluk.py` üretir, Python testi güncelliğini, `test/sozluk_test.dart`
+  uygulamanın aynılığını denetler); Veri Sözlüğü sayfası güncellendi.
   Gerçek algoritmaya geliştirme sürüşleri gelince ve kullanıcı "başla" deyince başlanır.
   3 Kasım Kadıköy sürüşü geliştirme verisidir (eşikler onunla ayarlandı). **Test kesitleri geliştirme kesitlerinden ayrı sokaklar.**
 - Algoritma sohbette verilen yorum değil, depodaki koddur: aynı girdiden hep aynı sonucu üretir.
@@ -97,7 +102,8 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   tamamlanır; dosya yoksa / bozuksa kayıt bilinmeyen kalır (referansa katılmaz, çeviriyi ve silmeyi engellemez).
   **Boşalan kesit saklanır** (kullanıcı onayladı, 25 Kasım): bütün kayıtları silinen kesit (adlı / adsız) defterde son
   referansıyla kalır; aynı yer yeniden sürülünce kodu ve adı geri gelir, başka sokak yeni kod alır (kod hiç yeniden
-  verilmez; önceden gönderilmiş dosyalarla karışmasın).
+  verilmez; önceden gönderilmiş dosyalarla karışmasın). **28 Kasım (inceleme):** eşleştirmede önce etkin (kayıtlı)
+  kesitler aranır, boş kesit yalnız hiçbiri uymazsa seçilir (boş kesit, aynı yer için açılmış etkin kesitle geçiş bölüşmesin).
   Sınırlar: (1) bölünmüş kodlar birleştirilmez (ilk geçiş >30 m saptıysa yeni kod açılmış olabilir; QGIS'te düzeltilir);
   (2) boşalan kesitin referansı son silinen kaydınkidir (silme sırasına bağlı; tek kötü geçiş silindiyse onun uçları);
   (3) iki geçişte referans ortadır (her biri ±15 m sapmış olabilir).
@@ -122,8 +128,8 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   `baslangic_yerel`). Jiroskop **kalıyor** (dosyanın %47'si; kullanıcı "kalsın"). Ekrandan "Düzeltilmiş GPS" (Fused konum
   servisi) kaldırıldı; TOPLAM ve EĞİM kaldı. `.kuham` ham biçimi değişmedi (Kotlin hâlâ yükseklik vb. yazar, çeviride atılır).
   Kod incelemesi (25 Kasım, /code-review xhigh, 11 bulgu): önemli üçü düzeltildi (derleme 38): (1) DURDUR'da kayıt bilgisi
-  (`<ham>.kuham.json`) üzerine yazılmıyor, `KayitBilgisi.eksikleriDoldur` ile birleşiyor (ekran yeniden kurulursa scooter /
-  hava kaybolmasın); (2) dosya işlemleri `sirayla` kuyruğunda + `busy_timeout`; (3) `KayitMotoru` ilk yazma hatasından
+  üzerine yazılıyor sanılmıştı; 28 Kasım incelemesi o yazmanın hiç çalışmadığını buldu (`_hamYol` önceden boşaltılıyordu),
+  çağrı kaldırıldı; bilgi BAŞLAT'ta ve hava gelince yazılır, `KayitBilgisi.eksikleriDoldur` birleştirmesi güvence olarak kaldı; (2) dosya işlemleri `sirayla` kuyruğunda + `busy_timeout`; (3) `KayitMotoru` ilk yazma hatasından
   sonra hiçbir şey yazmaz, dosyayı `FileOutputStream`'den doğrudan kapatır, hatayı DURDUR'da `hata` olarak döner (Dart
   "hafıza dolmuş olabilir" uyarısı gösterir; hatadan sonra basış sayılmaz, bip gelmez). Kalan 8 bulgu kullanıcıya açıklandı;
   kullanıcının seçtiği dördü düzeltildi (derleme 39-40, telefonda denenmedi): yeniden kurulan ekranda süre ve çukur sayacı
@@ -274,8 +280,9 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   `read_info` (CRS, alan türleri), `pyogrio.raw.read`. Rapor: "GDAL ile doğrulandı, QGIS'te denenmedi".
 - Uygulama değişince: `flutter analyze` (info dahil temiz olmalı; CI'da uyarılar hata sayılır).
 - `algoritma/` veya `qgis/sozluk.py` değişince: `python3 -m unittest discover -s algoritma/testler` ve `python3 -m pyflakes
-  algoritma`; sözlük değişirse `python3 qgis/ornek_uret.py` ve `python3 algoritma/karsilastir.py qgis/ornek` ile örnekleri
-  yeniden üret.
+  algoritma`; sözlük değişirse `python3 qgis/sozluk.py` (sozluk.json), `python3 qgis/ornek_uret.py` ve
+  `python3 algoritma/karsilastir.py qgis/ornek` ile örnekleri yeniden üret; `lib/katmanlar.dart` de aynı yapılır
+  (`flutter test test/sozluk_test.dart`).
 - Bulut oturumunda Flutter kurulu değildir: CI ile aynı sürümü (stable **3.47.7**) oturumun geçici klasörüne indir,
   `git config --global --add safe.directory '*'` çalıştır, sonra `flutter analyze`. Ekranı görmek için geçici bir widget testi
   (`test/` altında, commit edilmez) `matchesGoldenFile` + `--update-goldens` ile PNG üretir; Roboto ve MaterialIcons yazı tipleri

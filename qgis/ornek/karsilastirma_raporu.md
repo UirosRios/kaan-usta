@@ -8,7 +8,7 @@
 ## Kural
 
 - Konum: iki nokta da ham GPS izinde t_s anına doğrusal ara değer. Dosyalardaki konumlar bu kurala uyuyor (en büyük fark 0,2 mm).
-- Eşleştirme: aynı kayıt içinde, bire bir, en yakın çift önce, mesafe ≤ eşik.
+- Eşleştirme: aynı kayıt içinde, bire bir, mesafe ≤ eşik; olabildiğince çok çift kurulur, eşitlikte toplam mesafe en küçük olan seçilir (Macar yöntemi).
 - Doğru = eşleşen işaret; kaçırılan = eşleşmeyen işaret; fazladan = eşleşmeyen Claude noktası.
 - Duyarlılık = doğru / işaret sayısı; kesinlik = doğru / Claude noktası sayısı.
 - Dışlanan: ekran / telefon tuşu işaretleri (0), onlara 1 sn'den yakın Claude noktaları (0), konumu olmayan işaretler (0).

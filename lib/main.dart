@@ -493,8 +493,8 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
     );
   }
 
-  // Var olan dosyadaki dolu alanlar korunur (eksikleriDoldur): ekran yeniden kurulduysa bellekteki scooter ve hava
-  // durumu boştur, BAŞLAT'ta yazılan bilgiyi silmemeli
+  // BAŞLAT'ta ve hava durumu gelince çağrılır. Var olan dosyadaki dolu alanlar korunur (eksikleriDoldur): bellekteki
+  // bilgi boşsa (ör. ekran yeniden kurulduktan sonra) önce yazılmış bilgiyi silmesin
   Future<void> _bilgiDosyasiYaz() async {
     final yol = _hamYol;
     if (yol == null) return;
@@ -584,7 +584,7 @@ class _SensorDashboardState extends State<SensorDashboard> with WidgetsBindingOb
         _showMessage('Kayıt dosyası bulunamadı.');
         return;
       }
-      await _bilgiDosyasiYaz();
+      // Kayıt bilgisi (<ham>.kuham.json) BAŞLAT'ta ve hava durumu gelince yazıldı; DURDUR'da yazılacak yeni bilgi yok
       if (!mounted) return;
       // Çeviri birkaç saniye sürebilir
       showDialog<void>(

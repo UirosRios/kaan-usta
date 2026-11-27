@@ -18,8 +18,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import tespit  # noqa: E402
 from okuma import ham_oku  # noqa: E402
-from ortak import (KOK, STIL_KLASORU, VeriHatasi, icerik_ozeti, konum_at, utc_yazim, yerel_metinden,  # noqa: E402
-                   yerel_yazim)
+from ortak import (KOK, STIL_KLASORU, VeriHatasi, altinda, icerik_ozeti, konum_at, utc_yazim,  # noqa: E402
+                   yerel_metinden, yerel_yazim)
 
 import sozluk  # noqa: E402  (qgis/sozluk.py)
 from gpkg import GeoPackage, cizgi, nokta  # noqa: E402  (qgis/gpkg.py)
@@ -29,7 +29,7 @@ STIL_NOTU = "Kullanıcının QGIS projesinden alınan görünüm (qgis/stil_cika
 
 
 def test_verisi_mi(yol):
-    return os.path.abspath(yol).startswith(TEST_KLASORU + os.sep)
+    return altinda(yol, TEST_KLASORU)
 
 
 def cikti_yolu(ham_yol):
@@ -49,7 +49,7 @@ def stiller():
 
 def uret(ham_yol, cikti=None, surum=tespit.SURUM, parametreler=tespit.PARAMETRELER):
     cikti = cikti or cikti_yolu(ham_yol)
-    if os.path.abspath(cikti).startswith(os.path.join(KOK, "qgis") + os.sep):
+    if altinda(cikti, os.path.join(KOK, "qgis")):
         raise VeriHatasi(f"onaylı örnek klasörüne yazılmaz (örnekler qgis/ornek_uret.py ile üretilir): {cikti}")
     if test_verisi_mi(cikti):
         if surum.startswith("0-"):
@@ -109,11 +109,15 @@ def uret(ham_yol, cikti=None, surum=tespit.SURUM, parametreler=tespit.PARAMETREL
 
 
 def ham_dosyalari(yollar):
+    """Klasör taramasında evde prova dosyaları (test_ ile başlayan, sanal GPS) atlanır; dosya adıyla verilirse alınır."""
     for y in yollar:
         if os.path.isdir(y):
             for kok, _, dosyalar in sorted(os.walk(y)):
                 for d in sorted(dosyalar):
                     if d.endswith("_ham.gpkg"):
+                        if d.startswith("test_"):
+                            print(f"atlandı (evde prova, sanal GPS): {os.path.join(kok, d)}")
+                            continue
                         yield os.path.join(kok, d)
         else:
             yield y
@@ -127,6 +131,9 @@ def main():
     hata = False
     for ham in ham_dosyalari(a.yollar):
         cikti = cikti_yolu(ham)
+        if os.path.exists(cikti) and test_verisi_mi(cikti) and not a.uzerine_yaz:
+            print(f"atlandı (mühürlü test günü, Claude dosyası var): {cikti}")
+            continue
         if os.path.exists(cikti) and not a.uzerine_yaz and not test_verisi_mi(cikti):
             print(f"atlandı (Claude dosyası var; --uzerine-yaz): {cikti}")
             continue

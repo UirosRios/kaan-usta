@@ -75,6 +75,26 @@ void main() {
     expect(y.ata('u2', u.$2, u.$1)!.kesit.kod, 'K02');
   });
 
+  test('boş kesit, aynı yer için açılmış etkin kesitten geçiş almaz', () {
+    final d = yeni();
+    d.ata('k1', a, b); // K01 (kötü geçiş)
+    d.kayitSil('k1'); // K01 boş, referansı a-b'de kalır
+    final a2 = kaydir(a, kuzey: -35);
+    expect(d.ata('k2', a2, b)!.kesit.kod, 'K02'); // 35 m ötede başladı: yeni kod
+    // Hem K01'e (17 m) hem K02'ye (18 m) 30 m içinde: boş K01 daha yakın ama etkin K02 seçilir
+    final s = d.ata('k3', kaydir(a, kuzey: -17), b)!;
+    expect((s.kesit.kod, s.gecis), ('K02', 2));
+  });
+
+  test('iki etkin kesitten en yakını seçilir', () {
+    final d = yeni();
+    d.ata('k1', a, b);
+    final a2 = kaydir(a, kuzey: -40), b2 = kaydir(b, kuzey: -40);
+    expect(d.ata('k2', a2, b2)!.kesit.kod, 'K02');
+    expect(d.ata('k3', kaydir(a, kuzey: -15), kaydir(b, kuzey: -15))!.kesit.kod, 'K01'); // K01'e 15, K02'ye 25 m
+    expect(d.ata('k4', kaydir(a, kuzey: -25), kaydir(b, kuzey: -25))!.kesit.kod, 'K02'); // K01'e 25, K02'ye 15 m
+  });
+
   test('defter kaydedilip yüklenince uçlar ve referans aynı kalır', () {
     final d = yeni();
     d.ata('k1', a, b);

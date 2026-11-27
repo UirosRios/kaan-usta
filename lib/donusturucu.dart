@@ -30,8 +30,8 @@ class KayitBilgisi {
   final String? hava;
   final double? sicaklik, yagis;
 
-  // Boş (null / '') alanları eski bilgiden doldurur. Kayıt sürerken ekran yeniden kurulursa bellekteki scooter ve hava
-  // durumu kaybolur; DURDUR'da yazılan bilgi, BAŞLAT'ta yazılmış olanı boşaltmasın.
+  // Boş (null / '') alanları eski bilgiden doldurur: sonradan yazılan bilgi (ör. hava durumu gelince), daha önce
+  // yazılmış dolu alanları boşaltmasın.
   KayitBilgisi eksikleriDoldur(KayitBilgisi eski) {
     String m(String yeni, String e) => yeni.isEmpty ? e : yeni;
     return KayitBilgisi(
@@ -164,14 +164,18 @@ typedef UcNoktasi = (double, double, double, double);
 ((double, double)?, (double, double)?) uclar(List<GpsKonumu> konumlar) =>
     uclarNoktalardan([for (final g in konumlar) (g.t, g.enlem, g.boylam, g.dogruluk)]);
 
-// GeoPackage nokta geometrisinden (enlem, boylam)
-(double, double)? _noktaOku(Object? blob) {
-  if (blob is! Uint8List || blob.length < 29) return null;
+// GeoPackage nokta geometrisinden (enlem, boylam). Zarf (envelope) türüne göre başlık 8 + 0 / 32 / 48 / 64 bayt;
+// WKB'nin bayt sırası kendi ilk baytındadır. Bozuk / bilinmeyen biçimde null.
+const Map<int, int> _zarfBoyu = {0: 0, 1: 32, 2: 48, 3: 48, 4: 64};
+(double, double)? gpkgNoktaOku(Object? blob) {
+  if (blob is! Uint8List || blob.length < 8 || blob[0] != 0x47 || blob[1] != 0x50) return null;
+  final zarf = _zarfBoyu[(blob[3] >> 1) & 7];
+  if (zarf == null) return null;
+  final o = 8 + zarf;
+  if (blob.length < o + 21) return null;
   final b = ByteData.sublistView(blob);
-  final zarf = (b.getUint8(3) >> 1) & 7;
-  final o = 8 + (zarf == 1 ? 32 : 0) + 5;
-  if (blob.length < o + 16) return null;
-  return (b.getFloat64(o + 8, Endian.little), b.getFloat64(o, Endian.little));
+  final sira = blob[o] == 1 ? Endian.little : Endian.big;
+  return (b.getFloat64(o + 13, sira), b.getFloat64(o + 5, sira));
 }
 
 // 2.1'den önceki kesit defterinde kayıtların kendi uçları yoktu: gün dosyasındaki GPS noktalarından, kaydın
@@ -199,7 +203,7 @@ void _ucBilgisiniTamamla(KesitDefteri defter, String klasor, {required bool test
       try {
         final noktalar = <UcNoktasi>[];
         for (final r in db.select('SELECT t_s, dogruluk_m, geom FROM gps_noktalari WHERE kayit_no = ? ORDER BY t_s', [kayitNo])) {
-          final p = _noktaOku(r['geom']);
+          final p = gpkgNoktaOku(r['geom']);
           if (p == null) continue;
           noktalar.add(((r['t_s'] as num?)?.toDouble() ?? 0, p.$1, p.$2, (r['dogruluk_m'] as num?)?.toDouble() ?? double.nan));
         }
@@ -505,7 +509,7 @@ List<KayitOzeti> kayitlariListele(String klasor) {
 
 // Bir kaydın güzergâhı ve işaretleri (harita için): ham dosyadaki GPS noktaları, insan dosyasındaki işaretler
 (List<(double, double)>, List<(double, double)>) haritaVerisi(String hamYol, String insanYol, String kayitNo) {
-  const noktaOku = _noktaOku;
+  const noktaOku = gpkgNoktaOku;
   final rota = <(double, double)>[];
   final isaretler = <(double, double)>[];
   final gh = GeoPackage.ac(hamYol);

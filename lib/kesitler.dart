@@ -12,6 +12,7 @@ import 'dart:math';
 // başlayıp silinse de kesit doğru geçişlere göre eşleşir ve tek bir geçişin GPS sapması referansı kaydırmaz.
 // Bütün kayıtları silinen kesit defterde kalır (görünmez; son referansıyla): aynı yer yeniden sürülünce kodu ve adı geri
 // gelir, başka bir sokak yeni kod alır (silinen kodun başka sokağa verilmesi, daha önce gönderilmiş dosyalarla karışırdı).
+// Eşleştirmede önce etkin (kayıtları olan) kesitlere bakılır; boş kesit yalnızca etkin bir kesit uymazsa seçilir.
 // Kesitin yönü ilk kaydınkidir, sonradan değişmez.
 
 const double kesitEsigiM = 30;
@@ -132,22 +133,28 @@ class KesitDefteri {
       }
     }
     if (bas == null || bit == null) return null;
+    // Önce kayıtları olan (etkin) kesitler, onlarda yoksa bütün kayıtları silinmiş (boş) kesitler aranır: boş kesitin
+    // eski referansı, aynı yer için sonradan açılmış etkin bir kesitle geçişleri bölüşmesin
     Kesit? enIyi;
     String yon = 'gidis';
-    var enKucuk = double.infinity;
-    for (final k in kesitler) {
-      final ileri = max(mesafeM(bas.$1, bas.$2, k.basEnlem, k.basBoylam), mesafeM(bit.$1, bit.$2, k.bitEnlem, k.bitBoylam));
-      final geri = max(mesafeM(bas.$1, bas.$2, k.bitEnlem, k.bitBoylam), mesafeM(bit.$1, bit.$2, k.basEnlem, k.basBoylam));
-      if (ileri <= kesitEsigiM && ileri < enKucuk) {
-        enIyi = k;
-        yon = 'gidis';
-        enKucuk = ileri;
+    for (final etkin in [true, false]) {
+      var enKucuk = double.infinity;
+      for (final k in kesitler) {
+        if (k.kayitlar.isNotEmpty != etkin) continue;
+        final ileri = max(mesafeM(bas.$1, bas.$2, k.basEnlem, k.basBoylam), mesafeM(bit.$1, bit.$2, k.bitEnlem, k.bitBoylam));
+        final geri = max(mesafeM(bas.$1, bas.$2, k.bitEnlem, k.bitBoylam), mesafeM(bit.$1, bit.$2, k.basEnlem, k.basBoylam));
+        if (ileri <= kesitEsigiM && ileri < enKucuk) {
+          enIyi = k;
+          yon = 'gidis';
+          enKucuk = ileri;
+        }
+        if (geri <= kesitEsigiM && geri < enKucuk) {
+          enIyi = k;
+          yon = 'donus';
+          enKucuk = geri;
+        }
       }
-      if (geri <= kesitEsigiM && geri < enKucuk) {
-        enIyi = k;
-        yon = 'donus';
-        enKucuk = geri;
-      }
+      if (enIyi != null) break;
     }
     if (enIyi == null) {
       var n = kesitler.length + 1;

@@ -268,13 +268,23 @@ class _KayitlarSayfasiState extends State<KayitlarSayfasi> {
 }
 
 // Bir kaydın güzergâhı ve çukur işaretleri (kırmızı üçgen). Ölçülen sarsıntı gösterilmez.
-class KayitHaritasi extends StatelessWidget {
+class KayitHaritasi extends StatefulWidget {
   const KayitHaritasi({super.key, required this.ozet});
   final KayitOzeti ozet;
 
   @override
+  State<KayitHaritasi> createState() => _KayitHaritasiState();
+}
+
+// Veri bir kez okunur (ilk çizimde, durum nesnesiyle birlikte): sayfa her yeniden çizildiğinde dosya işleri sırasına
+// yeni okuma eklenmesin
+class _KayitHaritasiState extends State<KayitHaritasi> {
+  late final Future<(List<(double, double)>, List<(double, double)>)> _veri =
+      haritaVerisiArkaPlanda(widget.ozet.hamYol, widget.ozet.insanYol, widget.ozet.kayitNo);
+
+  @override
   Widget build(BuildContext context) {
-    final o = ozet;
+    final o = widget.ozet;
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF003366),
@@ -282,7 +292,7 @@ class KayitHaritasi extends StatelessWidget {
         title: Text(kesitBasligi(o.kesit, o.kesitAdi)),
       ),
       body: FutureBuilder<(List<(double, double)>, List<(double, double)>)>(
-        future: haritaVerisiArkaPlanda(o.hamYol, o.insanYol, o.kayitNo),
+        future: _veri,
         builder: (context, snap) {
           if (snap.hasError) {
             return Center(

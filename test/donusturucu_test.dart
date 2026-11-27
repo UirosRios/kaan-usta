@@ -284,6 +284,25 @@ void main() {
     expect(KesitDefteri.yukle(klasor.path, test: false).kod('K01')!.kayitlar.keys, ['20261120_090000']);
   });
 
+  test('GeoPackage nokta okuyucu bütün zarf türlerini okur', () {
+    Uint8List blob(int zarfTuru, int zarfBoyu, Endian sira) {
+      final b = BytesBuilder()..add([0x47, 0x50, 0, (zarfTuru << 1) | 1, 0xE6, 0x10, 0, 0])..add(List.filled(zarfBoyu, 0));
+      final w = ByteData(21)
+        ..setUint8(0, sira == Endian.little ? 1 : 0)
+        ..setUint32(1, 1, sira)
+        ..setFloat64(5, 28.9, sira) // boylam
+        ..setFloat64(13, 41.0, sira); // enlem
+      return (b..add(w.buffer.asUint8List())).toBytes();
+    }
+
+    for (final (tur, boy) in [(0, 0), (1, 32), (2, 48), (3, 48), (4, 64)]) {
+      expect(gpkgNoktaOku(blob(tur, boy, Endian.little)), (41.0, 28.9), reason: 'zarf $tur');
+    }
+    expect(gpkgNoktaOku(blob(2, 48, Endian.big)), (41.0, 28.9));
+    expect(gpkgNoktaOku(blob(5, 0, Endian.little)), isNull); // bilinmeyen zarf
+    expect(gpkgNoktaOku(Uint8List.fromList([1, 2, 3])), isNull);
+  });
+
   test('test sürüşü ayrı dosyalara', () {
     final y = hamYaz('t', yapayKayit(baslangic: gun, a: a, b: b, sanal: true));
     final s = donustur(hamDosya: y, klasor: klasor.path, bilgi: const KayitBilgisi(), stiller: stiller);

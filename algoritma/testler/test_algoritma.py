@@ -64,6 +64,18 @@ class Ortak(unittest.TestCase):
             struct.pack("<BII", 1, 2, 2) + struct.pack("<4d", 29.0, 41.0, 29.1, 41.1)
         self.assertEqual(cizgi_oku(zarfli), [(29.0, 41.0), (29.1, 41.1)])
 
+    def test_ozel_karakterli_yol(self):
+        gecici = tempfile.mkdtemp(prefix="kaan_yol_")
+        try:
+            klasor = os.path.join(gecici, "Tez #2 %20 ?x")
+            os.makedirs(klasor)
+            hedef = os.path.join(klasor, "x_ham.gpkg")
+            shutil.copy(DART + "_ham.gpkg", hedef)
+            self.assertEqual(len(ham_oku(hedef).kayitlar), 3)
+            self.assertEqual(sorted(os.listdir(gecici)), ["Tez #2 %20 ?x"])  # yanlış yerde dosya açılmadı
+        finally:
+            shutil.rmtree(gecici)
+
     def test_yuzdelik(self):
         self.assertEqual(yuzdelik([3, 1, 2], 50), 2)
         self.assertAlmostEqual(yuzdelik([0, 10], 68), 6.8)
@@ -97,6 +109,44 @@ class Eslestirme(unittest.TestCase):
         self.assertEqual((s["dogru"], s["fazladan"], s["duyarlilik"], s["kesinlik"]), (0, 1, None, 0.0))
         s = K.sayilar(c, [], 10.0)
         self.assertEqual((s["kacirilan"], s["duyarlilik"], s["kesinlik"]), (1, 0.0, None))
+
+    def test_en_cok_esleme_acgozlu_karsi_ornek(self):
+        # A 0 m, B 7 m; X 3 m, Y -4 m; eşik 8: en yakın çift önce A-X alınırsa B eşleşemez. Doğrusu A-Y + B-X.
+        i = [isaret("k", 10.0, kuzeye(41.0, 0), 29.0), isaret("k", 12.0, kuzeye(41.0, 7), 29.0)]
+        c = [isaret("k", 9.9, kuzeye(41.0, 3), 29.0), isaret("k", 11.9, kuzeye(41.0, -4), 29.0)]
+        s = K.sayilar(i, c, 8.0)
+        self.assertEqual((s["dogru"], s["kacirilan"], s["fazladan"]), (2, 0, 0))
+
+    def test_kaba_kuvvetle_ayni(self):
+        """Küçük rastgele durumlarda bütün bire bir eşleştirmeler denenir: çift sayısı en çok, eşitlikte toplam mesafe
+        en küçük olan bulunmalı."""
+        import itertools
+        import random
+        rnd = random.Random(7)
+        for _ in range(400):
+            n, m = rnd.randint(0, 5), rnd.randint(0, 5)
+            esik = rnd.choice([3.0, 5.0, 8.0])
+            kayit = lambda: rnd.choice(["k1", "k1", "k2"])  # noqa: E731
+            i = [isaret(kayit(), float(t), kuzeye(41.0, rnd.uniform(0, 20)), 29.0 + rnd.uniform(0, 1e-4)) for t in range(n)]
+            c = [isaret(kayit(), float(t), kuzeye(41.0, rnd.uniform(0, 20)), 29.0 + rnd.uniform(0, 1e-4)) for t in range(m)]
+            d = {(a, b): mesafe_m(i[a]["enlem"], i[a]["boylam"], c[b]["enlem"], c[b]["boylam"])
+                 for a in range(n) for b in range(m) if i[a]["kayit_no"] == c[b]["kayit_no"]}
+            en_iyi = (0, 0.0)
+            for k in range(min(n, m), 0, -1):
+                for ai in itertools.combinations(range(n), k):
+                    for bi in itertools.permutations(range(m), k):
+                        if all((a, b) in d and d[(a, b)] <= esik for a, b in zip(ai, bi)):
+                            t = sum(d[(a, b)] for a, b in zip(ai, bi))
+                            if k > en_iyi[0] or (k == en_iyi[0] and t < en_iyi[1]):
+                                en_iyi = (k, t)
+                if en_iyi[0]:
+                    break
+            s = K.sayilar(i, c, esik)
+            self.assertEqual(s["dogru"], en_iyi[0])
+            self.assertAlmostEqual(sum(x for _, _, x in s["ciftler"]), en_iyi[1], places=6)
+            self.assertTrue(all(x <= esik for _, _, x in s["ciftler"]))
+            self.assertEqual(len({a for a, _, _ in s["ciftler"]}), s["dogru"])
+            self.assertEqual(len({b for _, b, _ in s["ciftler"]}), s["dogru"])
 
     def test_dislama(self):
         i = [isaret("k1", 10.0, 41.0, 29.0, "ekran"), isaret("k1", 20.0, 41.0, 29.0)]
@@ -229,12 +279,25 @@ def git_calistir(klasor, *arg):
                    capture_output=True)
 
 
+def gonder(klasor, *dosyalar, mesaj="g"):
+    """Dosyaları commit edip origin/main'i o commit'e getirir (GitHub'a gönderme yerine)."""
+    git_calistir(klasor, "add", *dosyalar)
+    git_calistir(klasor, "commit", "-q", "-m", mesaj)
+    git_calistir(klasor, "update-ref", "refs/remotes/origin/main", "HEAD")
+
+
 class TestGunuMuhru(unittest.TestCase):
-    """veri/test yolu: geçici bir git deposunda (KOK ve TEST_KLASORU geçici olarak değiştirilir)."""
+    """veri/test yolu: geçici bir git deposunda (KOK ve klasörler geçici olarak değiştirilir).
+    Doğru sıra: önce ham + Claude + esik.json gönderilir, insan dosyası sonra."""
 
     def setUp(self):
         self.kok = tempfile.mkdtemp(prefix="kaan_muhur_")
-        self.eski = (K.KOK, K.TEST_KLASORU, K.GELISTIRME_KLASORU)
+        self.addCleanup(shutil.rmtree, self.kok)
+        eski = (K.KOK, K.TEST_KLASORU, K.GELISTIRME_KLASORU)
+
+        def geri():
+            K.KOK, K.TEST_KLASORU, K.GELISTIRME_KLASORU = eski
+        self.addCleanup(geri)  # kurulum yarıda düşse de eski değerler geri gelir
         K.KOK = self.kok
         K.TEST_KLASORU = os.path.join(self.kok, "veri", "test")
         K.GELISTIRME_KLASORU = os.path.join(self.kok, "veri", "gelistirme")
@@ -244,20 +307,56 @@ class TestGunuMuhru(unittest.TestCase):
         for son in ("_ham.gpkg", "_insan.gpkg", "_claude.gpkg"):
             with open(self.on + son, "w") as f:
                 f.write(son)
-        with open(os.path.join(K.TEST_KLASORU, "esik.json"), "w") as f:
-            f.write('{"esik_m": 6.5}')
-        git_calistir(self.kok, "init", "-q")
-        git_calistir(self.kok, "add", "-A")
-        git_calistir(self.kok, "commit", "-q", "-m", "mühür")
-        git_calistir(self.kok, "update-ref", "refs/remotes/origin/main", "HEAD")
+        self.esik = os.path.join(K.TEST_KLASORU, "esik.json")
+        self.esik_yaz('{"esik_m": 6.5}')
+        git_calistir(self.kok, "init", "-q", "-b", "main")
+        gonder(self.kok, self.on + "_ham.gpkg", self.on + "_claude.gpkg", self.esik, mesaj="mühür")
         self.yollar = [(self.on, self.on + "_ham.gpkg", self.on + "_insan.gpkg", self.on + "_claude.gpkg")]
 
-    def tearDown(self):
-        K.KOK, K.TEST_KLASORU, K.GELISTIRME_KLASORU = self.eski
-        shutil.rmtree(self.kok)
+    def esik_yaz(self, metin):
+        with open(self.esik, "w") as f:
+            f.write(metin)
 
-    def test_muhurlu_gecer_esik_dosyadan(self):
+    def test_insan_henuz_gonderilmedi_gecer(self):
         self.assertEqual(K.bekciler(self.yollar, None), ("test", 6.5))
+
+    def test_dogru_sira_gecer(self):
+        gonder(self.kok, self.on + "_insan.gpkg")
+        self.assertEqual(K.bekciler(self.yollar, None), ("test", 6.5))
+
+    def test_ayni_commit_reddedilir(self):
+        # Claude dosyası insan dosyasıyla aynı gönderimde yeniden yazılırsa sıra kanıtı yoktur
+        with open(self.on + "_claude.gpkg", "a") as f:
+            f.write("yeniden")
+        gonder(self.kok, self.on + "_insan.gpkg", self.on + "_claude.gpkg")
+        with self.assertRaisesRegex(VeriHatasi, "sıra bozuk: Claude"):
+            K.bekciler(self.yollar, None)
+
+    def test_insandan_sonra_degisen_claude_reddedilir(self):
+        gonder(self.kok, self.on + "_insan.gpkg")
+        with open(self.on + "_claude.gpkg", "a") as f:
+            f.write("işaretleri gördükten sonra")
+        gonder(self.kok, self.on + "_claude.gpkg")  # GitHub'dakiyle aynı, ama insan dosyasından sonra
+        with self.assertRaisesRegex(VeriHatasi, "sıra bozuk: Claude"):
+            K.bekciler(self.yollar, None)
+
+    def test_insandan_sonra_degisen_esik_reddedilir(self):
+        gonder(self.kok, self.on + "_insan.gpkg")
+        self.esik_yaz('{"esik_m": 9}')
+        gonder(self.kok, self.esik)
+        with self.assertRaisesRegex(VeriHatasi, "sıra bozuk: eşik"):
+            K.bekciler(self.yollar, None)
+
+    def test_sig_klonda_reddedilir(self):
+        gonder(self.kok, self.on + "_insan.gpkg")
+        klon = tempfile.mkdtemp(prefix="kaan_sig_")
+        self.addCleanup(shutil.rmtree, klon)
+        git_calistir(klon, "clone", "-q", "--depth", "1", "file://" + self.kok, "d")
+        K.KOK = os.path.join(klon, "d")
+        K.TEST_KLASORU = os.path.join(K.KOK, "veri", "test")
+        on = os.path.join(K.TEST_KLASORU, "20261201", "mikromobilite_20261201")
+        with self.assertRaisesRegex(VeriHatasi, "unshallow"):
+            K.bekciler([(on, on + "_ham.gpkg", on + "_insan.gpkg", on + "_claude.gpkg")], None)
 
     def test_komut_satiri_esigi_reddedilir(self):
         with self.assertRaisesRegex(VeriHatasi, "komut satırından"):
@@ -274,6 +373,15 @@ class TestGunuMuhru(unittest.TestCase):
         with self.assertRaisesRegex(VeriHatasi, "mühür yok"):
             K.bekciler(self.yollar, None)
 
+    def test_bozuk_esik_anlasilir_hata(self):
+        for metin in ('{"esik_m": "6,5"}', '{"esik_m": NaN}', '{"esik_m": Infinity}', '{"esik_m": -1}',
+                      '{"esik_m": 0}', '{"esik_m": true}', '{"esik": 6}', '{esik_m: 6}'):
+            self.esik_yaz(metin)
+            with self.subTest(metin=metin), self.assertRaisesRegex(VeriHatasi, "esik"):
+                K._esik_oku(self.esik)
+        self.esik_yaz('{"esik_m": 7}')
+        self.assertEqual(K._esik_oku(self.esik), 7.0)
+
     def test_tur_etiketleri(self):
         self.assertEqual(K.tur_bul(self.on), "test")
         self.assertEqual(K.tur_bul(os.path.join(K.GELISTIRME_KLASORU, "x", "y")), "gelistirme")
@@ -281,17 +389,21 @@ class TestGunuMuhru(unittest.TestCase):
         with self.assertRaisesRegex(VeriHatasi, "aynı raporda"):
             K.bekciler(self.yollar + [("/tmp/x/y", "", "", "")], None)
 
+    def test_sembolik_baglantili_yol_test_sayilir(self):
+        baglanti = os.path.join(tempfile.mkdtemp(prefix="kaan_bag_"), "kisa")
+        self.addCleanup(shutil.rmtree, os.path.dirname(baglanti))
+        os.symlink(os.path.join(K.TEST_KLASORU, "20261201"), baglanti)
+        self.assertEqual(K.tur_bul(os.path.join(baglanti, "mikromobilite_20261201")), "test")
+
 
 class Sozluk(unittest.TestCase):
-    def test_uygulama_sozlugu_python_ile_ayni(self):
-        """lib/katmanlar.dart'ın yazdığı veri sözlüğü qgis/sozluk.py ile aynı olmalı (dart21 dosyaları uygulama
-        değişince yeniden üretilir: KAAN_TEST_CIKTI=<klasör> flutter test ... --plain-name "çeviri: katmanlar")."""
+    def test_sozluk_json_python_ile_ayni(self):
+        """qgis/sozluk.json (Dart testi bununla karşılaştırır: test/sozluk_test.dart) qgis/sozluk.py'den üretilmiş
+        güncel hâli olmalı: `python3 qgis/sozluk.py` yeniden yazar."""
+        import json
         import sozluk
-        for ad, beklenen in (("ham", sozluk.ACIKLAMA_HAM), ("insan", sozluk.ACIKLAMA_INSAN)):
-            db = sqlite3.connect(f"{DART}_{ad}.gpkg")
-            satirlar = [tuple(r) for r in db.execute("SELECT katman, alan, tur, birim, aciklama FROM aciklamalar ORDER BY fid")]
-            db.close()
-            self.assertEqual(satirlar, [tuple(r) for r in beklenen], ad)
+        with open(os.path.join(KOK, "qgis", "sozluk.json"), encoding="utf-8") as f:
+            self.assertEqual(json.load(f), sozluk.json_icerik())
 
 
 class Bekciler(unittest.TestCase):
@@ -312,6 +424,31 @@ class Bekciler(unittest.TestCase):
         with self.assertRaisesRegex(VeriHatasi, "yer tutucu"):
             U.uret(DART + "_ham.gpkg", cikti=cikti)
         self.assertFalse(os.path.exists(os.path.dirname(cikti)))
+
+    def test_muhurlu_test_gunu_atlanir(self):
+        import contextlib
+        import io
+        gecici = tempfile.mkdtemp(prefix="kaan_uret_")
+        eski = U.TEST_KLASORU
+        try:
+            U.TEST_KLASORU = os.path.join(gecici, "veri", "test")
+            gun = os.path.join(U.TEST_KLASORU, "20261201")
+            os.makedirs(gun)
+            shutil.copy(DART + "_ham.gpkg", os.path.join(gun, "g_ham.gpkg"))
+            open(os.path.join(gun, "g_claude.gpkg"), "w").close()
+            cikti, argv = io.StringIO(), sys.argv
+            sys.argv = ["uret.py", U.TEST_KLASORU]
+            try:
+                with contextlib.redirect_stdout(cikti), self.assertRaises(SystemExit) as son:
+                    U.main()
+            finally:
+                sys.argv = argv
+            self.assertEqual(son.exception.code, 0)
+            self.assertIn("mühürlü test günü", cikti.getvalue())
+            self.assertEqual(os.path.getsize(os.path.join(gun, "g_claude.gpkg")), 0)  # dokunulmadı
+        finally:
+            U.TEST_KLASORU = eski
+            shutil.rmtree(gecici)
 
     def test_onayli_ornege_yazilmaz(self):
         with self.assertRaisesRegex(VeriHatasi, "onaylı örnek"):

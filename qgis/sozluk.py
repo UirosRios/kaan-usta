@@ -77,3 +77,19 @@ ACIKLAMA_CLAUDE = [
     ("claude_puanlar", "puan_ondalik", "ondalık", "1-5", "Yuvarlanmamış puan."),
     ("claude_puanlar", "indeks_ms2", "ondalık", "m/s²", "Puanın dayandığı sarsıntı ölçüsü."),
 ]
+
+
+def json_icerik():
+    """Uygulamanın (lib/katmanlar.dart) yazdığı sözlükle karşılaştırmak için: test/sozluk_test.dart bunu okur."""
+    return {"ham": [list(r) for r in ACIKLAMA_HAM], "insan": [list(r) for r in ACIKLAMA_INSAN]}
+
+
+if __name__ == "__main__":
+    # python3 qgis/sozluk.py: qgis/sozluk.json'u yeniden yazar (sözlük değişince; Dart ve Python testleri bunu ister)
+    import json
+    import os
+    yol = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sozluk.json")
+    with open(yol, "w", encoding="utf-8") as f:
+        json.dump(json_icerik(), f, ensure_ascii=False, indent=1)
+        f.write("\n")
+    print(yol)
