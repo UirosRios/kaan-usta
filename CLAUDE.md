@@ -16,6 +16,8 @@ Bu dosya oturumlar arası kalıcı hafızadır: bulut oturumu her seferinde sıf
   25 Kasım 2026 (2.0 için): "Kaan Usta Sistem Özeti" https://claude.ai/artifact/HR6424k6VUmaTi8ud21ghG ve "Kaan Usta Veri
   Sözlüğü" https://claude.ai/artifact/RCaCWqkL2HCKi2QdT3CK5r (QGIS sütunları, deneme sürüşünden örnekler). Kaynak HTML'ler
   oturumun geçici klasöründeydi; güncellemek için sayfayı `Artifact read` ile okuyup aynı URL'ye yayımla.
+  27 Kasım: "Geliştirme Sürüşü Listesi" https://claude.ai/artifact/QXXimPjx9s6vTSDtVfyHhr (telefonda açılan kontrol
+  listesi: geçiş adımları, işaret kuralları, 6 sokak × 3 geçiş takibi; işaretler yalnız o telefonda saklanır).
 - Örnek dosyaları / biçimleri **kullanıcı ve arkadaşı** onaylar (hoca değil).
 
 ## Tez tasarımı (24 Kasım 2026'da değişti)
