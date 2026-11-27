@@ -389,6 +389,27 @@ class TestGunuMuhru(unittest.TestCase):
         with self.assertRaisesRegex(VeriHatasi, "aynı raporda"):
             K.bekciler(self.yollar + [("/tmp/x/y", "", "", "")], None)
 
+    def test_git_hatasi_gecis_sayilmaz(self):
+        gonder(self.kok, self.on + "_insan.gpkg")
+        eski = K.git
+        K.git = lambda *arg: (128, "") if arg[0] == "log" else eski(*arg)
+        try:
+            with self.assertRaisesRegex(VeriHatasi, "git geçmişi okunamadı"):
+                K.bekciler(self.yollar, None)
+        finally:
+            K.git = eski
+
+    def test_klasor_taramasi_prova_dosyalarini_atlar(self):
+        gun = os.path.join(K.TEST_KLASORU, "20261201")
+        for son in ("_ham.gpkg", "_insan.gpkg", "_claude.gpkg"):
+            with open(os.path.join(gun, "test_mikromobilite_20261201" + son), "w") as f:
+                f.write(son)
+        atlanan = []
+        bulunan = K.gunleri_bul([K.TEST_KLASORU], atlanan)
+        self.assertEqual([os.path.basename(on) for on, *_ in bulunan], ["mikromobilite_20261201"])
+        self.assertEqual([os.path.basename(y) for y in atlanan], ["test_mikromobilite_20261201_ham.gpkg"])
+        self.assertEqual(len(K.gunleri_bul([os.path.join(gun, "test_mikromobilite_20261201_ham.gpkg")])), 1)
+
     def test_sembolik_baglantili_yol_test_sayilir(self):
         baglanti = os.path.join(tempfile.mkdtemp(prefix="kaan_bag_"), "kisa")
         self.addCleanup(shutil.rmtree, os.path.dirname(baglanti))

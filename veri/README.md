@@ -10,7 +10,9 @@ konmasına izin verdi.
   2. `python3 algoritma/uret.py veri/test/<gün>` ile Claude dosyası üretilir, commit edilir ve GitHub'a gönderilir (mühür).
   3. Ancak bundan sonra `*_insan.gpkg` eklenir (ayrı, sonraki bir gönderimde) ve `python3 algoritma/karsilastir.py veri/test`
      çalıştırılır. Karşılaştırma, Claude dosyasının ve eşiğin insan dosyasından önce GitHub'a gittiğini git geçmişinden
-     denetler; aynı gönderimde giderlerse durur.
+     denetler; aynı gönderimde giderlerse o gün kalıcı olarak reddedilir (yalnızca git geçmişini yeniden yazmak düzeltir).
+     Bu yüzden test günlerinde dosyalar tek tek eklenir (`git add -A` değil) ve insan dosyası Claude gönderimi bitene kadar
+     depo klasörüne konmaz.
   - Eşik: `test/esik.json` (`{"esik_m": 6.5}`). Kullanıcı ve arkadaşı geliştirme sürüşlerinden sonra belirler; ilk test
     gününün insan dosyasından önce GitHub'a konur.
 

@@ -27,7 +27,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from okuma import claude_oku, ham_oku, insan_oku  # noqa: E402
-from ortak import KOK, VeriHatasi, ac, altinda, gercek_yol, icerik_ozeti, konum_at, mesafe_m, yuzdelik  # noqa: E402
+from ortak import KOK, VeriHatasi, ac, altinda, icerik_ozeti, konum_at, mesafe_m, yuzdelik  # noqa: E402
 
 from gpkg import GeoPackage, cizgi, nokta  # noqa: E402  (qgis/gpkg.py)
 
@@ -220,7 +220,8 @@ def git(*arg):
 
 
 def _rel(yol):
-    return os.path.relpath(gercek_yol(yol), gercek_yol(KOK)).replace(os.sep, "/")
+    # git yolları harf büyüklüğüne duyarlı: yalnızca realpath (normcase değil)
+    return os.path.relpath(os.path.realpath(yol), os.path.realpath(KOK)).replace(os.sep, "/")
 
 
 def muhur_denetle(yol):
@@ -234,16 +235,21 @@ def muhur_denetle(yol):
         raise VeriHatasi(f"mühür bozuk: {rel} origin/main'dekinden farklı")
 
 
+def _git_log(*arg):
+    kod, cikti = git("log", *arg)
+    if kod != 0:  # git hatası "dosya yok" sayılmasın (sıra denetimi kendiliğinden geçmesin)
+        raise VeriHatasi(f"git geçmişi okunamadı (git log {' '.join(arg)})")
+    return cikti
+
+
 def _son_degisiklik(yol):
     """origin/main'de dosyayı en son değiştiren commit."""
-    _, h = git("log", "-1", "--format=%H", "origin/main", "--", _rel(yol))
-    return h or None
+    return _git_log("-1", "--format=%H", "origin/main", "--", _rel(yol)) or None
 
 
 def _ilk_eklenis(yol):
     """origin/main'de dosyayı ilk ekleyen commit (yoksa None: dosya henüz GitHub'da değil)."""
-    _, cikti = git("log", "--diff-filter=A", "--format=%H", "origin/main", "--", _rel(yol))
-    satirlar = cikti.split()
+    satirlar = _git_log("--diff-filter=A", "--format=%H", "origin/main", "--", _rel(yol)).split()
     return satirlar[-1] if satirlar else None
 
 

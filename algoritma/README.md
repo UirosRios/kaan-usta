@@ -42,7 +42,7 @@ python3 -m unittest discover -s algoritma/testler    # sınamalar
     elle ölçülen mesafe rapordakiyle aynı olur.
 - **Haritaya oturtma kullanılmaz** (karar 27 Kasım): bir tarafı sokağa çekmek mesafeye GPS'in yan sapmasını (1-6 m) ekler.
 - **Eşleştirme:** aynı kayıt içinde, bire bir, mesafe ≤ eşik. Olabildiğince çok çift kurulur; aynı sayıda çift veren
-  seçenekler arasında toplam mesafesi en küçük olan alınır (Macar yöntemi). 28 Kasım'a kadar "en yakın çift önce"
+  seçenekler arasında toplam mesafesi en küçük olan alınır (Macar yöntemi). 27 Kasım ikinci incelemesine kadar "en yakın çift önce"
   kuralı vardı; çukurlar sık olduğunda eşleşebilecek bir işareti kaçırılmış sayabildiği için değiştirildi (sayılar
   yalnızca artabilir).
   - Doğru: eşleşen işaret. Kaçırılan: eşleşmeyen işaret. Fazladan: eşleşmeyen Claude noktası.

@@ -54,17 +54,22 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   değer); **GPS gecikmesi hiçbir tarafa uygulanmaz** (aynı izde iki tarafa aynı kaydırma mesafeyi değiştirmez); dosyadaki
   konumlar kurala 1 cm içinde uymazsa karşılaştırma durur; Claude noktası darbe anında (basış gecikmesi payı verilip
   verilmeyeceği geliştirme sonrası kullanıcı ve arkadaşın kararı); eşleştirme aynı kayıt içinde, bire bir, **olabildiğince
-  çok çift, eşitlikte toplam mesafe en küçük (Macar yöntemi; 28 Kasım incelemesinde "en yakın çift önce"nin yerini aldı,
+  çok çift, eşitlikte toplam mesafe en küçük (Macar yöntemi; 27 Kasım ikinci incelemesinde "en yakın çift önce"nin yerini aldı,
   kaba kuvvetle sınanır)**; ekran / telefon tuşu işaretleri ve onlara 1 sn'den yakın Claude noktaları dışlanır (v1 kuralı, sayı raporlanır);
   ham ve insan kayıtları farklıysa hata; GPS'siz kayıttaki (konumsuz) işaret dışlanır ve sayılır. Test bekçileri (`veri/test/`): Claude dosyası origin/main'dekiyle aynı değilse
   durur; **Claude dosyasının ve esik.json'ın origin/main'deki son hâli o günün insan dosyasının ilk eklenişinden önceki
   bir commit'te olmalı** (aynı commit veya sonrası reddedilir; sığ klonda "git fetch --unshallow" ister); eşik yalnız
   `veri/test/esik.json`'dan (sayı, > 0; NaN / metin reddedilir), "0-" sürüm reddedilir, var olan Claude dosyasının
   üstüne yazılmaz (klasör taramasında mühürlü gün atlanır). Yollar `realpath` + `normcase` ile karşılaştırılır (Windows'ta
-  denenmedi); klasör taramasında `test_` (evde prova) dosyaları atlanır; `ortak.ac` yolu URI olarak kodlar ('#', '%'). `uret.py` `qgis/` altına yazmaz (bir kez onaylı örneğin üstüne yazılmıştı, `ornek_uret.py` ile geri
+  denenmedi); klasör taramasında `test_` (evde prova) dosyaları atlanır; `ortak.ac` yolu URI olarak kodlar ('#', '%').
+  **Test günü iş kuralı (Claude için):** insan dosyası Claude dosyasıyla aynı commit'e girerse o gün KALICI olarak
+  reddedilir (yalnızca geçmişi yeniden yazmak düzeltir). Test günlerinde `git add -A` KULLANMA: önce yalnızca ham +
+  Claude dosyasını yoluyla ekleyip gönder; insan dosyası o gönderim bitene kadar depo klasörüne konmaz (kullanıcı ham ve
+  insanı birlikte gönderirse insanı açmadan depo dışında bekletir). Sıra denetimi insan dosyası GitHub'a girince kanıt
+  olur; dosya yereldeyken geçer (o zaman kanıt, Claude gönderiminin zamanı ile kullanıcının dosyayı gönderdiği andır). `uret.py` `qgis/` altına yazmaz (bir kez onaylı örneğin üstüne yazılmıştı, `ornek_uret.py` ile geri
   üretildi). Belirlenimcilik içerik özetiyle (`icerik_ozeti`, sıralı satırlar) denetlenir: dosya baytları SQLite
   sürümüne göre değişebilir. Veri: `veri/gelistirme/<gün>/`, `veri/test/<gün>/` (`veri/README.md`).
-  Python sınamaları (38, 28 Kasım; mühür ve sıra yolu geçici git deposunda, sığ klon dahil); yeni dosyalar GDAL (pyogrio) ile okundu, boş katmanlar dahil;
+  Python sınamaları (40, 27 Kasım; mühür ve sıra yolu geçici git deposunda, sığ klon dahil); yeni dosyalar GDAL (pyogrio) ile okundu, boş katmanlar dahil;
   QGIS'te denenmedi; Windows'ta çalıştırılmadı (git yolu `/` ile). Sözlük tek kaynak: `qgis/sozluk.py` (örnek üretici ve `uret.py` ortak); örnek Claude noktaları artık gecikmesiz
   (yeniden üretildi; ham ve insan örneklerinde yalnız açıklama metinleri değişti).
   **27 Kasım, kullanıcı:** `*_karsilastirma.gpkg` biçimi **onaylandı** (örnek `qgis/ornek/ornek_20261120_karsilastirma.gpkg`);
@@ -102,7 +107,7 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   tamamlanır; dosya yoksa / bozuksa kayıt bilinmeyen kalır (referansa katılmaz, çeviriyi ve silmeyi engellemez).
   **Boşalan kesit saklanır** (kullanıcı onayladı, 25 Kasım): bütün kayıtları silinen kesit (adlı / adsız) defterde son
   referansıyla kalır; aynı yer yeniden sürülünce kodu ve adı geri gelir, başka sokak yeni kod alır (kod hiç yeniden
-  verilmez; önceden gönderilmiş dosyalarla karışmasın). **28 Kasım (inceleme):** eşleştirmede önce etkin (kayıtlı)
+  verilmez; önceden gönderilmiş dosyalarla karışmasın). **27 Kasım (ikinci inceleme):** eşleştirmede önce etkin (kayıtlı)
   kesitler aranır, boş kesit yalnız hiçbiri uymazsa seçilir (boş kesit, aynı yer için açılmış etkin kesitle geçiş bölüşmesin).
   Sınırlar: (1) bölünmüş kodlar birleştirilmez (ilk geçiş >30 m saptıysa yeni kod açılmış olabilir; QGIS'te düzeltilir);
   (2) boşalan kesitin referansı son silinen kaydınkidir (silme sırasına bağlı; tek kötü geçiş silindiyse onun uçları);
@@ -128,7 +133,7 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   `baslangic_yerel`). Jiroskop **kalıyor** (dosyanın %47'si; kullanıcı "kalsın"). Ekrandan "Düzeltilmiş GPS" (Fused konum
   servisi) kaldırıldı; TOPLAM ve EĞİM kaldı. `.kuham` ham biçimi değişmedi (Kotlin hâlâ yükseklik vb. yazar, çeviride atılır).
   Kod incelemesi (25 Kasım, /code-review xhigh, 11 bulgu): önemli üçü düzeltildi (derleme 38): (1) DURDUR'da kayıt bilgisi
-  üzerine yazılıyor sanılmıştı; 28 Kasım incelemesi o yazmanın hiç çalışmadığını buldu (`_hamYol` önceden boşaltılıyordu),
+  üzerine yazılıyor sanılmıştı; 27 Kasım ikinci incelemesi o yazmanın hiç çalışmadığını buldu (`_hamYol` önceden boşaltılıyordu),
   çağrı kaldırıldı; bilgi BAŞLAT'ta ve hava gelince yazılır, `KayitBilgisi.eksikleriDoldur` birleştirmesi güvence olarak kaldı; (2) dosya işlemleri `sirayla` kuyruğunda + `busy_timeout`; (3) `KayitMotoru` ilk yazma hatasından
   sonra hiçbir şey yazmaz, dosyayı `FileOutputStream`'den doğrudan kapatır, hatayı DURDUR'da `hata` olarak döner (Dart
   "hafıza dolmuş olabilir" uyarısı gösterir; hatadan sonra basış sayılmaz, bip gelmez). Kalan 8 bulgu kullanıcıya açıklandı;
