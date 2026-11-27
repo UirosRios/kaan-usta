@@ -5,6 +5,9 @@ konmasına izin verdi.
 
 - `gelistirme/<YYYYMMDD>/`: **geliştirme seti.** Ham + insan dosyaları birlikte. Algoritma bunlarla kurulur ve ayarlanır.
   - `20261125`: Söğütlüçeşme deneme sürüşü (4 kısa kayıt, 9 işaret, uygulama sürüm 2.0, derleme 34).
+  - `20261128`: ilk geliştirme günü, Moda (gece 00:45-01:51; 5 sokak × 3 geçiş = 15 kayıt, ~2,1 km; 42 işaret, hepsi
+    kumanda; puanlar 1-5; derleme 43, Hop Scooter). Telefonda dosya adları `gelistirme_` ile başlıyordu (aynı gün test
+    sürüşü yapıldığı için); burada önek kaldırıldı.
 - `test/<YYYYMMDD>/`: **test seti** (geliştirmeden farklı sokaklar). Sıra şöyledir:
   1. Önce yalnızca `*_ham.gpkg` konur.
   2. `python3 algoritma/uret.py veri/test/<gün>` ile Claude dosyası üretilir, commit edilir ve GitHub'a gönderilir (mühür).
