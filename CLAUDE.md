@@ -35,10 +35,11 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   ama Claude'a yalnızca sürüş verisini yükle; sorunlu noktaların konumlarını tahmin etsin. Tahmin ile elle belirlenen ne kadar
   yakın, ölç; GPS'in konum hatasından küçükse doğru kabul et." → İnsan işaretleri geliştirme setinde ayar için kullanılabilir;
   test sokakları farklı ve işaretleri tahminler GitHub'a konmadan görülmez. Hoca konfor puanından (1-5) söz etmedi.
-  Kullanıcıya soruldu (27 Kasım, cevap bekleniyor): konfor puanı tezde kalıyor mu; eşik hangi sayı (öneri: testten önce
-  sabitlenen tek değer, geliştirme setindeki `dogruluk_m` ortancası; ek tablo 5 / 10 / 15 m); doğru eşleşenin yanında
-  kaçırılan ve fazladan bulunan da sayılsın mı (önerildi: duyarlılık + kesinlik). Not: işaret ve tahmin aynı GPS izinden
-  geldiği için GPS'in mutlak hatası büyük ölçüde sadeleşir; ölçüt pratikte zaman uyumunu (basış gecikmesi × hız) sınar.
+  **Kullanıcının cevapları (27 Kasım):** (1) konfor puanı (1-5) tezde **kalıyor**; (2) "doğru" eşiğini kullanıcı ve arkadaş
+  geliştirme sürüşlerinden sonra, o sürüşlerin `dogruluk_m` değerlerine bakarak **kendileri belirler** (test öncesi sabitlenir);
+  (3) doğru eşleşenin yanında kaçırılan ve fazladan bulunan da sayılır (duyarlılık + kesinlik; ek tablo 5 / 10 / 15 m).
+  Not: işaret ve tahmin aynı GPS izinden geldiği için GPS'in mutlak hatası büyük ölçüde sadeleşir; ölçüt pratikte zaman
+  uyumunu (basış gecikmesi × hız) sınar (kullanıcıya açıklandı).
   Algoritmaya geliştirme sürüşleri gelince ve kullanıcı "başla" deyince başlanır.
   3 Kasım Kadıköy sürüşü geliştirme verisidir (eşikler onunla ayarlandı). **Test kesitleri geliştirme kesitlerinden ayrı sokaklar.**
 - Algoritma sohbette verilen yorum değil, depodaki koddur: aynı girdiden hep aynı sonucu üretir.
