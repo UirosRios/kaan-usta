@@ -40,6 +40,14 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   (3) doğru eşleşenin yanında kaçırılan ve fazladan bulunan da sayılır (duyarlılık + kesinlik; ek tablo 5 / 10 / 15 m).
   Not: işaret ve tahmin aynı GPS izinden geldiği için GPS'in mutlak hatası büyük ölçüde sadeleşir; ölçüt pratikte zaman
   uyumunu (basış gecikmesi × hız) sınar (kullanıcıya açıklandı).
+  **Haritaya oturtma (27 Kasım, Claude'un önerisi, danışman da aynı görüşte; kullanıcının onayı bekleniyor):** algoritmada ve
+  karşılaştırmada **kullanılmaz**. Ham veri bozulmaz ama yalnızca Claude noktası sokağa çekilirse insan noktasının yan sapması
+  (1-6 m) her mesafeye eklenir, eşikle aynı boyda. Kural: iki nokta da aynı ham GPS izine aynı kuralla konur. Oturtma
+  hocanın testi için gerekli değil, ikinci bir hata kaynağı (OSM) getirir, canlı Overpass "aynı girdi aynı sonuç"u bozar.
+  İstenirse ileride yalnızca ayrı bir gösterim katmanı (arkadaş / hoca karar verir). Aynı kural GPS gecikme düzeltmesi
+  için de geçerli: v1'in 1 sn'si 2.0 zaman damgalarında doğrulanmadı; ya iki tarafa da ya hiçbirine, geliştirme
+  sürüşlerinden karar verilir. Geçişleri birleştirme (bir sürüşün tahmini başka sürüşlere bağlı olur) ayrı bir karardır.
+  Altyapı (başla denince): ham okuma, `_claude.gpkg` yazımı, karşılaştırma betiği, yapay sürüşlerle sınama.
   Algoritmaya geliştirme sürüşleri gelince ve kullanıcı "başla" deyince başlanır.
   3 Kasım Kadıköy sürüşü geliştirme verisidir (eşikler onunla ayarlandı). **Test kesitleri geliştirme kesitlerinden ayrı sokaklar.**
 - Algoritma sohbette verilen yorum değil, depodaki koddur: aynı girdiden hep aynı sonucu üretir.
@@ -314,11 +322,12 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   Map ve Esri Light Gray'de de sokakların üstünde. Sokaklar tek şeritli (~5-6 m), ekran ~250 m genişliğe yakınlaştırılmış:
   3-7 m GPS hatası (kayıttaki `dogruluk_m` de 3-7) noktaları kaldırıma / bina köşesine düşürüyor; gidiş ve dönüş iki paralel
   çizgi (sağdan sürüş + GPS). Batıdaki sokak yolda, doğudaki 2-4 m doğuda, Mahmut Baba'daki bacak ~5 m kuzeyde: düzensiz,
-  yani KRS / projeksiyon sorunu değil (öyle olsa hepsi aynı yöne, çoğunlukla çok daha fazla kayardı). Çözüm analizde
-  haritaya oturtma (v1 HMM yöntemi), algoritma aşamasında. Karşılaştırma betiği oturumun geçici klasöründeydi.
+  yani KRS / projeksiyon sorunu değil (öyle olsa hepsi aynı yöne, çoğunlukla çok daha fazla kayardı). (26 Kasım'da çözüm
+  olarak "haritaya oturtma" denmişti; 27 Kasım'da geri alındı, bkz. "Haritaya oturtma" kararı.) Karşılaştırma betiği oturumun
+  geçici klasöründeydi.
   Kullanıcının ekranında (Esri Light Gray Base) aynı veri yollara oturmuş görünüyor; arkadaşın altlığı başka bir şirketin
   haritası (yazılar "Mahmutbaba Sokak": OSM'de "Mahmut Baba Sokağı", Esri'de "Mahmut Baba Sokak"). Fark büyük ölçüde altlıkta.
-  Öneri: ikisi aynı altlığı kullansın; yakın bakışta OSM (keskin, oturtmada kullanılacak veri).
+  Öneri: ikisi aynı altlığı kullansın; yakın bakışta OSM (keskin).
   Günler birleştirilmez: her gün ayrı dosya çifti; birleştirme analizde (Claude) veya QGIS'te ("Vektör katmanlarını birleştir").
   Kesit defteri (`kesitler.json`) telefona özeldir: iki telefonla sürülürse kodlar eşleşmez, analizde uç noktalardan yeniden eşlenir. Şimdilik sürüşleri yalnızca kullanıcı
   yapıyor (tek telefon); değişirse haber verecek.
