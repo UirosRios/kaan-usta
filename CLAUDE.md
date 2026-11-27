@@ -50,17 +50,18 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   **Altyapı kuruldu (27 Kasım, danışmanla planlandı; ayrıntı `algoritma/README.md`):** `algoritma/` (Python, yalnız
   standart kütüphane): `uret.py` (ham → claude), `karsilastir.py` (rapor + `<gün>_karsilastirma.gpkg`), `tespit.py`
   (algoritma; şimdilik **yer tutucu `0-altyapi`**: örnek dosyadaki / v1 darbe kuralı ve v1 puan formülü, ayarlanmadı),
-  `testler/` (20 sınama). Kararlar: konum iki tarafa da aynı kural (`konum_at` = Dart `konumAt`, t_s'ye doğrusal ara
+  `testler/` (sınamalar). Kararlar: konum iki tarafa da aynı kural (`konum_at` = Dart `konumAt`, t_s'ye doğrusal ara
   değer); **GPS gecikmesi hiçbir tarafa uygulanmaz** (aynı izde iki tarafa aynı kaydırma mesafeyi değiştirmez); dosyadaki
   konumlar kurala 1 cm içinde uymazsa karşılaştırma durur; Claude noktası darbe anında (basış gecikmesi payı verilip
   verilmeyeceği geliştirme sonrası kullanıcı ve arkadaşın kararı); eşleştirme aynı kayıt içinde, bire bir, en yakın çift
   önce; ekran / telefon tuşu işaretleri ve onlara 1 sn'den yakın Claude noktaları dışlanır (v1 kuralı, sayı raporlanır);
-  ham ve insan kayıtları farklıysa hata. Test bekçileri (`veri/test/`): Claude dosyası origin/main'dekiyle aynı değilse
+  ham ve insan kayıtları farklıysa hata; GPS'siz kayıttaki (konumsuz) işaret dışlanır ve sayılır. Test bekçileri (`veri/test/`): Claude dosyası origin/main'dekiyle aynı değilse
   durur, eşik yalnız `veri/test/esik.json`'dan (o da origin/main'de), "0-" sürüm reddedilir, var olan Claude dosyasının
   üstüne yazılmaz. `uret.py` `qgis/` altına yazmaz (bir kez onaylı örneğin üstüne yazılmıştı, `ornek_uret.py` ile geri
   üretildi). Belirlenimcilik içerik özetiyle (`icerik_ozeti`, sıralı satırlar) denetlenir: dosya baytları SQLite
   sürümüne göre değişebilir. Veri: `veri/gelistirme/<gün>/`, `veri/test/<gün>/` (`veri/README.md`).
-  Sözlük tek kaynak: `qgis/sozluk.py` (örnek üretici ve `uret.py` ortak); örnek Claude noktaları artık gecikmesiz
+  26 sınama (test günü mühür yolu geçici git deposunda); yeni dosyalar GDAL (pyogrio) ile okundu, boş katmanlar dahil;
+  QGIS'te denenmedi; Windows'ta çalıştırılmadı (git yolu `/` ile). Sözlük tek kaynak: `qgis/sozluk.py` (örnek üretici ve `uret.py` ortak); örnek Claude noktaları artık gecikmesiz
   (yeniden üretildi; ham ve insan örneklerinde yalnız açıklama metinleri değişti).
   **Kullanıcıya sorulacak / onay bekleyen (27 Kasım):** (1) yeni `*_karsilastirma.gpkg` biçimi (örnek:
   `qgis/ornek/ornek_20261120_karsilastirma.gpkg`); (2) uygulamadaki eski metinler ("katmanları zamanla eşleştirmek
@@ -160,7 +161,7 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   kuadratik ağırlıklı kappa, tam / ±1 uyum, 5×5 tablo; güven aralığı kesite göre bootstrap (10000, sabit tohum).
   Tutarlılık: sürücü ve algoritma için tekrarlar arası ICC(1,1); "algoritma–sürücü uyumu, sürücü–sürücü uyumu kadar mı?".
   Dahil etme: kesitte ≥ 2 geçerli insan ve algoritma puanı. 1-5 çevirisi geliştirme setinde kurulur.
-- Çukur: geçiş başına zamanla olay eşleştirme (tahmin, basıştan önceki ~5 sn içinde), duyarlılık, PPV, F1, km başına yanlış
+- (27 Kasım: çukurda hocanın **mesafe** ölçütü bunun yerini aldı, bkz. `algoritma/README.md`; eski not:) Çukur: geçiş başına zamanla olay eşleştirme (tahmin, basıştan önceki ~5 sn içinde), duyarlılık, PPV, F1, km başına yanlış
   alarm; özgüllük için 20 m hücreler (2×2, NPV, kappa); güven puanıyla ROC/AUC; referans konumu yalnızca basış zamanından.
 - Örneklem birimi kesittir (geçişler bağımsız değil). Hız üssü tek kısa geçişten kestirilemez; geliştirme setinde kestirilip dondurulur.
 
@@ -282,7 +283,9 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   (`test/` altında, commit edilmez) `matchesGoldenFile` + `--update-goldens` ile PNG üretir; Roboto ve MaterialIcons yazı tipleri
   SDK'nın `bin/cache/artifacts/material_fonts` klasöründen FontLoader ile yüklenir, `path_provider` kanalı taklit edilir.
   Testte harita karoları yüklenmez (boş gri altlık normaldir).
-- Gerçek sürüş verisini oturumun geçici klasörüne kopyalayıp çalış. **Bağımsızlık kuralına uy** (insan dosyasını açma).
+- Gerçek sürüş verisi `veri/gelistirme/<gün>/` veya `veri/test/<gün>/` klasörüne konur (`veri/README.md`); test günleri
+  yalnızca `veri/test/` içinde karşılaştırılır (bekçiler yalnız orada çalışır; başka yerde rapor "bekçiler uygulanmadı"
+  der). **Bağımsızlık kuralına uy** (test gününün insan dosyasını Claude dosyası GitHub'a gitmeden açma).
 
 ## Derleme (GitHub Actions)
 

@@ -1,6 +1,6 @@
 # Karşılaştırma raporu: Claude ↔ sürücü
 
-- Veri: geliştirme; günler: ornek_20261120
+- Veri: veri/ dışında (bekçiler UYGULANMADI; resmî sonuç değildir); günler: ornek_20261120
 - Algoritma sürümü: yer tutucu (algoritma henüz yok)
 - ornek_20261120_claude.gpkg içerik özeti: `46683abe414988cc12c9f524056c77718b79c3ddbbb9a86cc9816b155e41c263`
 - Seçilen eşik: henüz seçilmedi
@@ -11,7 +11,7 @@
 - Eşleştirme: aynı kayıt içinde, bire bir, en yakın çift önce, mesafe ≤ eşik.
 - Doğru = eşleşen işaret; kaçırılan = eşleşmeyen işaret; fazladan = eşleşmeyen Claude noktası.
 - Duyarlılık = doğru / işaret sayısı; kesinlik = doğru / Claude noktası sayısı.
-- Dışlanan: ekran / telefon tuşu işaretleri (0) ve onlara 1 sn'den yakın Claude noktaları (0).
+- Dışlanan: ekran / telefon tuşu işaretleri (0), onlara 1 sn'den yakın Claude noktaları (0), konumu olmayan işaretler (0).
 
 ## Sonuç
 

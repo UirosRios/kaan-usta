@@ -35,6 +35,9 @@ DISLAMA_S = 1.0
 KONUM_TOLERANSI_M = 0.01
 HAREKET_KMH = 3.0
 TEST_KLASORU = os.path.join(KOK, "veri", "test")
+GELISTIRME_KLASORU = os.path.join(KOK, "veri", "gelistirme")
+TUR_ADI = {"test": "TEST", "gelistirme": "geliştirme",
+           "diger": "veri/ dışında (bekçiler UYGULANMADI; resmî sonuç değildir)"}
 
 
 ACIKLAMALAR = [
@@ -92,15 +95,30 @@ def sayilar(isaretler, noktalar, esik):
             "ciftler": ciftler, "kacirilan_i": kacirilan, "fazladan_c": fazladan}
 
 
+NEDEN_KONUMSUZ = "konumu yok (kayıtta GPS yok)"
+NEDEN_KAYNAK = "ekran / telefon tuşu işareti (telefonu sarsar)"
+NEDEN_YAKIN = "dışlanan bir işarete 1 sn'den yakın"
+
+
 def dislama(isaretler, noktalar):
-    """Ekran / telefon tuşu işaretlerini ve onlara 1 sn'den yakın Claude noktalarını ayırır."""
-    disi = [a for a in isaretler if a["kaynak"] in DISLANAN_KAYNAKLAR]
-    dahil_i = [a for a in isaretler if a["kaynak"] not in DISLANAN_KAYNAKLAR]
+    """Karşılaştırma dışı: konumsuz işaretler, ekran / telefon tuşu işaretleri ve bu ikincilere 1 sn'den yakın Claude
+    noktaları. Dışlananlara 'neden' yazılır. Döner: (dahil işaretler, dahil noktalar, dışı işaretler, dışı noktalar)."""
+    dahil_i, disi_i, kaynakli = [], [], []
+    for a in isaretler:
+        if a["enlem"] is None:
+            disi_i.append(dict(a, neden=NEDEN_KONUMSUZ))
+        elif a["kaynak"] in DISLANAN_KAYNAKLAR:
+            disi_i.append(dict(a, neden=NEDEN_KAYNAK))
+            kaynakli.append(a)
+        else:
+            dahil_i.append(a)
     dahil_c, disi_c = [], []
     for b in noktalar:
-        yakin = any(a["kayit_no"] == b["kayit_no"] and abs(a["t_s"] - b["t_s"]) <= DISLAMA_S for a in disi)
-        (disi_c if yakin else dahil_c).append(b)
-    return dahil_i, dahil_c, disi, disi_c
+        if any(a["kayit_no"] == b["kayit_no"] and abs(a["t_s"] - b["t_s"]) <= DISLAMA_S for a in kaynakli):
+            disi_c.append(dict(b, neden=NEDEN_YAKIN))
+        else:
+            dahil_c.append(b)
+    return dahil_i, dahil_c, disi_i, disi_c
 
 
 def en_yakin(isaretler, noktalar):
@@ -121,6 +139,8 @@ def konum_denetle(gun, kayitlar, ad):
     """Dosyadaki konum, ham izde konum_at(t_s) ile aynı mı? En büyük farkı döner; tolerans aşılırsa durur."""
     en_buyuk = 0.0
     for r in kayitlar:
+        if r["enlem"] is None:
+            continue  # konumsuz işaret: dışlanır
         k = gun.kayitlar.get(r["kayit_no"])
         if k is None:
             raise VeriHatasi(f"{ad}: ham dosyada olmayan kayıt {r['kayit_no']}")
@@ -142,13 +162,43 @@ def git(*arg):
 
 def muhur_denetle(yol):
     """Dosya origin/main'de birebir aynı mı (önce GitHub'a gönderilmiş mi)?"""
-    rel = os.path.relpath(os.path.abspath(yol), KOK)
+    rel = os.path.relpath(os.path.abspath(yol), KOK).replace(os.sep, "/")
     kod, uzak = git("rev-parse", f"origin/main:{rel}")
     if kod != 0:
         raise VeriHatasi(f"mühür yok: {rel} origin/main'de bulunamadı (önce commit + push; gerekirse git fetch)")
     _, yerel = git("hash-object", rel)
     if uzak != yerel:
         raise VeriHatasi(f"mühür bozuk: {rel} origin/main'dekinden farklı")
+
+
+def tur_bul(on):
+    yol = os.path.abspath(on)
+    if yol.startswith(TEST_KLASORU + os.sep):
+        return "test"
+    if yol.startswith(GELISTIRME_KLASORU + os.sep):
+        return "gelistirme"
+    return "diger"
+
+
+def bekciler(gunler_yol, esik):
+    """Verinin türü ve seçilen eşik. Test verisinde mühür ve eşik dosyası denetlenir. Döner: (tür, eşik)."""
+    turler = {tur_bul(on) for on, *_ in gunler_yol}
+    if len(turler) > 1:
+        raise VeriHatasi("test, geliştirme ve öteki veriler aynı raporda karşılaştırılmaz")
+    tur = turler.pop()
+    if tur != "test":
+        return tur, esik
+    if esik is not None:
+        raise VeriHatasi("test verisinde eşik komut satırından verilmez; veri/test/esik.json kullanılır")
+    esik_yol = os.path.join(TEST_KLASORU, "esik.json")
+    if not os.path.exists(esik_yol):
+        raise VeriHatasi("veri/test/esik.json yok (eşik testten önce kararlaştırılıp GitHub'a konmalı)")
+    muhur_denetle(esik_yol)
+    with open(esik_yol, encoding="utf-8") as f:
+        secilen = float(json.load(f)["esik_m"])
+    for _, _, _, claude in gunler_yol:
+        muhur_denetle(claude)
+    return tur, secilen
 
 
 # ------------------------------------------------------------------------------------------------ gün
@@ -262,10 +312,9 @@ def gpkg_yaz(g, esikler, yol):
         gp.ekle("ozet", [(e, len(I), len(C), s["dogru"], s["kacirilan"], s["fazladan"],
                           None if s["duyarlilik"] is None else round(s["duyarlilik"], 4),
                           None if s["kesinlik"] is None else round(s["kesinlik"], 4))])
-    disi = [(nokta(a["boylam"], a["enlem"]), a["kayit_no"], "insan", a["t_s"], a["kaynak"],
-             "ekran / telefon tuşu işareti (telefonu sarsar)") for a in g["disi_i"]]
-    disi += [(nokta(b["boylam"], b["enlem"]), b["kayit_no"], "claude", b["t_s"], None,
-              "dışlanan bir işarete 1 sn'den yakın") for b in g["disi_c"]]
+    disi = [(nokta(a["boylam"], a["enlem"]), a["kayit_no"], "insan", a["t_s"], a["kaynak"], a["neden"])
+            for a in g["disi_i"] if a["enlem"] is not None]  # konumsuz işaretler yalnızca raporda sayılır
+    disi += [(nokta(b["boylam"], b["enlem"]), b["kayit_no"], "claude", b["t_s"], None, b["neden"]) for b in g["disi_c"]]
     if disi:
         gp.ekle("dislananlar", disi)
     gp.katman("aciklamalar", None, [("katman", "TEXT"), ("alan", "TEXT"), ("tur", "TEXT"), ("birim", "TEXT"),
@@ -274,13 +323,13 @@ def gpkg_yaz(g, esikler, yol):
     gp.kapat()
 
 
-def rapor(gunler, esikler, secilen, test):
+def rapor(gunler, esikler, secilen, tur):
     I = [a for g in gunler for a in g["dahil_i"]]
     C = [b for g in gunler for b in g["dahil_c"]]
     surumler = sorted(set().union(*(g["surumler"] for g in gunler)))
     s = []
     s.append("# Karşılaştırma raporu: Claude ↔ sürücü\n")
-    s.append(f"- Veri: {'TEST' if test else 'geliştirme'}; günler: {', '.join(g['ad'] for g in gunler)}")
+    s.append(f"- Veri: {TUR_ADI[tur]}; günler: {', '.join(g['ad'] for g in gunler)}")
     s.append(f"- Algoritma sürümü: {', '.join(surumler) or '-'}")
     for g in gunler:
         s.append(f"- {g['ad']}_claude.gpkg içerik özeti: `{g['claude_ozet']}`")
@@ -292,9 +341,10 @@ def rapor(gunler, esikler, secilen, test):
     s.append("- Eşleştirme: aynı kayıt içinde, bire bir, en yakın çift önce, mesafe ≤ eşik.")
     s.append("- Doğru = eşleşen işaret; kaçırılan = eşleşmeyen işaret; fazladan = eşleşmeyen Claude noktası.")
     s.append("- Duyarlılık = doğru / işaret sayısı; kesinlik = doğru / Claude noktası sayısı.")
-    nd_i = sum(len(g["disi_i"]) for g in gunler)
-    nd_c = sum(len(g["disi_c"]) for g in gunler)
-    s.append(f"- Dışlanan: ekran / telefon tuşu işaretleri ({nd_i}) ve onlara 1 sn'den yakın Claude noktaları ({nd_c}).\n")
+    def say(liste, neden):
+        return sum(1 for g in gunler for r in g[liste] if r["neden"] == neden)
+    s.append(f"- Dışlanan: ekran / telefon tuşu işaretleri ({say('disi_i', NEDEN_KAYNAK)}), onlara 1 sn'den yakın Claude "
+             f"noktaları ({say('disi_c', NEDEN_YAKIN)}), konumu olmayan işaretler ({say('disi_i', NEDEN_KONUMSUZ)}).\n")
     s.append("## Sonuç\n")
     s.append(f"İşaret: {len(I)}, Claude noktası: {len(C)}\n")
     s.append("| Eşik | Doğru | Kaçırılan | Fazladan | Duyarlılık | Kesinlik |")
@@ -358,27 +408,11 @@ def main():
     a = ap.parse_args()
     try:
         gunler_yol = gunleri_bul(a.yollar)
-        testler = {os.path.abspath(on).startswith(TEST_KLASORU + os.sep) for on, *_ in gunler_yol}
-        if len(testler) > 1:
-            raise VeriHatasi("test ve geliştirme verisi aynı raporda karşılaştırılmaz")
-        test = testler.pop()
-        if test:
-            if a.esik is not None:
-                raise VeriHatasi("test verisinde eşik komut satırından verilmez; veri/test/esik.json kullanılır")
-            esik_yol = os.path.join(TEST_KLASORU, "esik.json")
-            if not os.path.exists(esik_yol):
-                raise VeriHatasi("veri/test/esik.json yok (eşik testten önce kararlaştırılıp GitHub'a konmalı)")
-            muhur_denetle(esik_yol)
-            with open(esik_yol, encoding="utf-8") as f:
-                secilen = float(json.load(f)["esik_m"])
-            for _, _, _, claude in gunler_yol:
-                muhur_denetle(claude)
-        else:
-            secilen = a.esik
+        tur, secilen = bekciler(gunler_yol, a.esik)
         gunler = []
         for on, ham, insan, claude in gunler_yol:
             g = gun_oku(on, ham, insan, claude)
-            if test and any(v.startswith("0-") for v in g["surumler"]):
+            if tur == "test" and any(v.startswith("0-") for v in g["surumler"]):
                 raise VeriHatasi(f"{g['ad']}: yer tutucu (\"0-\") sürümle test karşılaştırması yapılmaz")
             g["dahil_i"], g["dahil_c"], g["disi_i"], g["disi_c"] = dislama(g["isaretler"], g["noktalar"])
             gunler.append(g)
@@ -391,7 +425,7 @@ def main():
         print(f"QGIS katmanı: {g['on']}_karsilastirma.gpkg")
     cikti = a.cikti or (a.yollar[0] if os.path.isdir(a.yollar[0]) else os.path.dirname(a.yollar[0]))
     yol = os.path.join(cikti, "karsilastirma_raporu.md")
-    metin = rapor(gunler, esikler, secilen, test)
+    metin = rapor(gunler, esikler, secilen, tur)
     with open(yol, "w", encoding="utf-8") as f:
         f.write(metin)
     print(f"Rapor: {yol}\n")

@@ -85,7 +85,9 @@ def insan_oku(yol):
     isaretler = []
     if "insan_cukurlar" in kat:
         for r in satirlar(db, "insan_cukurlar", ["geom", "kayit_no", "kesit", "t_s", "hiz_kmh", "kaynak"]):
-            r["enlem"], r["boylam"] = nokta_oku(r.pop("geom"))
+            g = r.pop("geom")
+            # GPS'siz kayıtta uygulama konumsuz (boş geometri) yazar: karşılaştırmada dışlanır ve sayılır
+            r["enlem"], r["boylam"] = nokta_oku(g) if g is not None else (None, None)
             isaretler.append(r)
     puanlar = {r["kayit_no"]: r for r in satirlar(db, "insan_puanlar", ["kayit_no", "kesit", "kesit_adi", "puan", "durum"])}
     db.close()
@@ -102,7 +104,11 @@ def claude_oku(yol):
     noktalar = []
     for r in satirlar(db, "claude_cukurlar", ["geom", "kayit_no", "kesit", "t_s", "hiz_kmh", "guven", "tepe_ms2",
                                               "algoritma"]):
-        r["enlem"], r["boylam"] = nokta_oku(r.pop("geom"))
+        g = r.pop("geom")
+        if g is None:
+            db.close()
+            raise VeriHatasi(f"{os.path.basename(yol)}: {r['kayit_no']} t_s={r['t_s']} Claude noktasının konumu yok")
+        r["enlem"], r["boylam"] = nokta_oku(g)
         noktalar.append(r)
     puanlar = {r["kayit_no"]: r for r in satirlar(db, "claude_puanlar", ["kayit_no", "kesit", "puan", "puan_ondalik",
                                                                          "indeks_ms2", "algoritma"])}

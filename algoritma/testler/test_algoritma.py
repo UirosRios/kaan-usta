@@ -168,7 +168,7 @@ class UctanUca(unittest.TestCase):
         self.assertEqual(len(g["noktalar"]), 0)
         s = K.sayilar(g["dahil_i"], g["dahil_c"], 10.0)
         self.assertEqual((s["kacirilan"], s["kesinlik"]), (3, None))
-        K.rapor([g], [5.0, 10.0, 15.0], None, False)  # tanımsız oranlarla da rapor ve katman yazılır
+        K.rapor([g], [5.0, 10.0, 15.0], None, "diger")  # tanımsız oranlarla da rapor ve katman yazılır
         K.gpkg_yaz(g, [5.0, 10.0, 15.0], h + "_karsilastirma.gpkg")
         db = sqlite3.connect(h + "_karsilastirma.gpkg")
         self.assertEqual(db.execute("SELECT count(*), max(kesinlik) FROM ozet").fetchone(), (3, None))
@@ -209,6 +209,77 @@ class UctanUca(unittest.TestCase):
         db.close()
         with self.assertRaisesRegex(VeriHatasi, "konum kuralı uyuşmuyor"):
             K.gun_oku(h, h + "_ham.gpkg", h + "_insan.gpkg", h + "_claude.gpkg")
+
+
+    def test_konumsuz_isaret_dislanir(self):
+        h = self.kopyala(DART, "konumsuz")
+        db = sqlite3.connect(h + "_insan.gpkg")
+        db.execute("UPDATE insan_cukurlar SET geom = NULL WHERE kayit_no = '20261125_102102'")
+        db.commit()
+        db.close()
+        U.uret(h + "_ham.gpkg")
+        g = K.gun_oku(h, h + "_ham.gpkg", h + "_insan.gpkg", h + "_claude.gpkg")
+        dahil_i, _, disi_i, _ = K.dislama(g["isaretler"], g["noktalar"])
+        self.assertEqual((len(dahil_i), [a["neden"] for a in disi_i]), (2, [K.NEDEN_KONUMSUZ]))
+
+
+def git_calistir(klasor, *arg):
+    import subprocess
+    subprocess.run(["git", "-C", klasor, "-c", "user.name=t", "-c", "user.email=t@t", *arg], check=True,
+                   capture_output=True)
+
+
+class TestGunuMuhru(unittest.TestCase):
+    """veri/test yolu: geçici bir git deposunda (KOK ve TEST_KLASORU geçici olarak değiştirilir)."""
+
+    def setUp(self):
+        self.kok = tempfile.mkdtemp(prefix="kaan_muhur_")
+        self.eski = (K.KOK, K.TEST_KLASORU, K.GELISTIRME_KLASORU)
+        K.KOK = self.kok
+        K.TEST_KLASORU = os.path.join(self.kok, "veri", "test")
+        K.GELISTIRME_KLASORU = os.path.join(self.kok, "veri", "gelistirme")
+        gun = os.path.join(K.TEST_KLASORU, "20261201")
+        os.makedirs(gun)
+        self.on = os.path.join(gun, "mikromobilite_20261201")
+        for son in ("_ham.gpkg", "_insan.gpkg", "_claude.gpkg"):
+            with open(self.on + son, "w") as f:
+                f.write(son)
+        with open(os.path.join(K.TEST_KLASORU, "esik.json"), "w") as f:
+            f.write('{"esik_m": 6.5}')
+        git_calistir(self.kok, "init", "-q")
+        git_calistir(self.kok, "add", "-A")
+        git_calistir(self.kok, "commit", "-q", "-m", "mühür")
+        git_calistir(self.kok, "update-ref", "refs/remotes/origin/main", "HEAD")
+        self.yollar = [(self.on, self.on + "_ham.gpkg", self.on + "_insan.gpkg", self.on + "_claude.gpkg")]
+
+    def tearDown(self):
+        K.KOK, K.TEST_KLASORU, K.GELISTIRME_KLASORU = self.eski
+        shutil.rmtree(self.kok)
+
+    def test_muhurlu_gecer_esik_dosyadan(self):
+        self.assertEqual(K.bekciler(self.yollar, None), ("test", 6.5))
+
+    def test_komut_satiri_esigi_reddedilir(self):
+        with self.assertRaisesRegex(VeriHatasi, "komut satırından"):
+            K.bekciler(self.yollar, 10.0)
+
+    def test_degisen_claude_dosyasi_reddedilir(self):
+        with open(self.on + "_claude.gpkg", "a") as f:
+            f.write("değişti")
+        with self.assertRaisesRegex(VeriHatasi, "mühür bozuk"):
+            K.bekciler(self.yollar, None)
+
+    def test_gonderilmemis_esik_reddedilir(self):
+        git_calistir(self.kok, "update-ref", "-d", "refs/remotes/origin/main")
+        with self.assertRaisesRegex(VeriHatasi, "mühür yok"):
+            K.bekciler(self.yollar, None)
+
+    def test_tur_etiketleri(self):
+        self.assertEqual(K.tur_bul(self.on), "test")
+        self.assertEqual(K.tur_bul(os.path.join(K.GELISTIRME_KLASORU, "x", "y")), "gelistirme")
+        self.assertEqual(K.tur_bul("/tmp/x/y"), "diger")
+        with self.assertRaisesRegex(VeriHatasi, "aynı raporda"):
+            K.bekciler(self.yollar + [("/tmp/x/y", "", "", "")], None)
 
 
 class Bekciler(unittest.TestCase):
