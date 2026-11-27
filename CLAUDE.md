@@ -91,6 +91,13 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
 - Başta: kesit başında dur, BAŞLAT, ~5 sn bekle, sür. Sonda: kesit sonunda dur, ~5 sn bekle, DURDUR (son çukurun işareti
   ~1,3 sn sonra geldiği için; başlat/durdur dokunuşu duruşa denk gelsin). Her geçiş **aynı noktalarda** başlar ve biter.
 - Puan DURDUR'dan hemen sonra verilir (1-5 veya "Hatırlamıyorum"; "Sonra" kalkacak).
+- **Aynı gün test sürüşü (27 Kasım, kullanıcı seçti):** uygulama günün bütün kayıtlarını tek dosya çiftine yazar ve her silme /
+  DURDUR'da Belgeler'deki aynı adlı kopyanın üstüne yazar (`disaAktar`, ada göre "wt"). Sıra: geliştirme gün sonu → Belgeler'de
+  iki dosyanın başına `gelistirme_` → sohbete gönderilir, **Claude açıp "sağlam geldi" der** (kayıt, kesit, işaret sayısı) →
+  dosyalar Mikromobilite'den taşınır → Kayıtlar'da o günün bütün kayıtları silinir → test sokakları sürülür (aynı adla yeni
+  dosya) → test dosyaları sürücüde kalır. İki çiftin adı aynı olabilir: geliştirme `veri/gelistirme/<gün>/`, test
+  `veri/test/<gün>/`. Test dosyasında geliştirme kaydı kalırsa test sonucu şişer: kesitlerine bakıp kullanıcıya sor.
+  Adımlar "Geliştirme Sürüşü Listesi" sayfasında.
 - **Çukur tanımı:** ani sarsıntı hissi veren her şey (çukur, kasis, ray, rögar, kot farkı vb.). Arnavut kaldırımı gibi sürekli
   pürüzlü zeminde her taşa değil, yalnızca zeminden belirgin ayrılan sarsıntılara basılır.
 - İşaret doğrulama sürüşlerinde **kulaklık / Bluetooth kumanda** ile verilir (ekran ve telefon tuşu telefonu sarsar;
