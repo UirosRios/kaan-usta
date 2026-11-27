@@ -50,7 +50,8 @@ ACIKLAMALAR = [
     ("eslesmeler", "mesafe_m", "ondalık", "m", "İki nokta arasındaki mesafe."),
     ("eslesmeyenler", "taraf, sonuc", "metin", "", "insan / kacirilan: sürücü işaretledi, Claude bulmadı; "
      "claude / fazladan: Claude buldu, sürücü işaretlemedi."),
-    ("eslesmeyenler", "en_yakin_m", "ondalık", "m", "Aynı kayıtta öteki taraftaki en yakın noktaya mesafe (eşikten büyük)."),
+    ("eslesmeyenler", "en_yakin_m", "ondalık", "m", "Aynı kayıtta öteki taraftaki en yakın noktaya mesafe. Eşikten küçükse "
+     "o nokta başka bir noktayla eşleşmiştir (eşleşme bire birdir)."),
     ("dislananlar", "neden", "metin", "", "Karşılaştırma dışı: ekran / telefon tuşu işareti (basış telefonu sarsar) "
      "veya böyle bir işarete 1 sn'den yakın Claude noktası."),
     ("ozet", "duyarlilik, kesinlik", "ondalık", "0-1", "Duyarlılık = doğru / işaret; kesinlik = doğru / Claude noktası. "
