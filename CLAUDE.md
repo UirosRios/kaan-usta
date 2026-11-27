@@ -30,10 +30,16 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   katmanları (`*_claude.gpkg`) GitHub'a gönderilmeden **açmaz, okumaz, analiz etmez**. Yanlışlıkla gelirse açmadan kenara
   koy ve kullanıcıya söyle. Algoritma bir test gününe bakılarak sonradan değiştirilmez (değişirse yeni sürüm, yeni test verisi).
   İstisna: **geliştirme seti** (kullanıcı izin verdi): ilk sürüşlerde her şey görülür, algoritma ve 1-5 çevirisi bunlarla kurulur.
-  **25 Kasım: BEKLEMEDE.** Arkadaş hocaya danışacak; hoca insan puan ve işaretlerinin referans / ayar için kullanılmasını
-  istemeyebilir. Karar gelene kadar algoritmaya **başlanmaz** (kullanıcı "şimdilik hayır" dedi). İnsan verisi kullanılmazsa
-  seçenek: konfor için ISO 2631-1 eşikleri (ağırlıklı RMS; telefon gidonda olduğu için değerler yüksek, doğrudan uymayabilir),
-  çukur için yalnızca sinyale dayalı eşikler. Şimdiye kadar görülen insan verisi: 3 Kasım Kadıköy (v1) ve 25 Kasım deneme işaretleri.
+  **Hocanın kararı (27 Kasım 2026, arkadaş aracılığıyla):** "5-6 farklı sokaktaki sürüşü ve o güzergâhlarda elle belirlenen
+  rahatsızlık uyandıran sarsıntı noktalarını Claude'a birlikte ver (geliştirme). Sonra başka yollarda yine noktaları belirle
+  ama Claude'a yalnızca sürüş verisini yükle; sorunlu noktaların konumlarını tahmin etsin. Tahmin ile elle belirlenen ne kadar
+  yakın, ölç; GPS'in konum hatasından küçükse doğru kabul et." → İnsan işaretleri geliştirme setinde ayar için kullanılabilir;
+  test sokakları farklı ve işaretleri tahminler GitHub'a konmadan görülmez. Hoca konfor puanından (1-5) söz etmedi.
+  Kullanıcıya soruldu (27 Kasım, cevap bekleniyor): konfor puanı tezde kalıyor mu; eşik hangi sayı (öneri: testten önce
+  sabitlenen tek değer, geliştirme setindeki `dogruluk_m` ortancası; ek tablo 5 / 10 / 15 m); doğru eşleşenin yanında
+  kaçırılan ve fazladan bulunan da sayılsın mı (önerildi: duyarlılık + kesinlik). Not: işaret ve tahmin aynı GPS izinden
+  geldiği için GPS'in mutlak hatası büyük ölçüde sadeleşir; ölçüt pratikte zaman uyumunu (basış gecikmesi × hız) sınar.
+  Algoritmaya geliştirme sürüşleri gelince ve kullanıcı "başla" deyince başlanır.
   3 Kasım Kadıköy sürüşü geliştirme verisidir (eşikler onunla ayarlandı). **Test kesitleri geliştirme kesitlerinden ayrı sokaklar.**
 - Algoritma sohbette verilen yorum değil, depodaki koddur: aynı girdiden hep aynı sonucu üretir.
 - Gerçek sürüş güzergâhları ve verileri depoya konabilir (kullanıcı izni; depo herkese açık).
