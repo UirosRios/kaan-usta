@@ -67,14 +67,18 @@ açık bırakılır; böylece örnek verideki aralığın dışında kalan gerç
 - **`kesit_adi`**: Kesitin adıdır (ör. sokak adı). Kullanıcı telefondaki Kayıtlar sayfasında verir; aynı kesitin bütün
   kayıtlarına uygulanır. Verilmediyse boştur.
 - **`t_s`**: Kayıt başından (BAŞLAT) itibaren geçen saniyedir. Sensörler, GPS ve basışlar aynı saatle ölçülür.
-  **İnsan ve Claude çukurlarını zamanla eşleştirin, mesafeyle değil.**
-  - Claude'un noktası darbe anındadır.
-  - Sürücünün basışı darbeden ~1-2 sn sonradır ve konumu basış anındaki ham GPS konumudur. Bu yüzden insan noktası
+- **Çukur noktalarının konumu:** İnsan ve Claude noktaları aynı kuralla konur: t_s anındaki ham GPS konumu (iki GPS
+  noktası arasında doğrusal ara değer).
+  - Claude'un noktası darbe anındadır, sürücününki basış anındadır. Sürücü çukurdan biraz sonra bastığı için insan noktası
     çukurun birkaç metre ilerisine düşebilir.
-- **Konumlar ham GPS'tir** ve WGS84 (EPSG:4326) koordinat sistemindedir. GPS konumu gerçek konumun yaklaşık 1 sn
-  gerisindedir. QGIS, katmanları proje koordinat sistemine (ör. TUREF/TM30, EPSG:5254) kendisi dönüştürür.
-- **Saatler** İstanbul saatiyle metin olarak yazılır (`yerel_saat`, `baslangic_yerel`, `puanlama_yerel`). Eşleştirme
-  için `t_s` (BAŞLAT'tan beri saniye) kullanılır. Sürüm 2.1'de sadeleştirildi: UTC saat alanları (`zaman`, `baslangic`,
+  - İki nokta aynı GPS izinden geldiği için aradaki mesafe çoğunlukla basış gecikmesi × hızdır.
+  - **Hocanın ölçütü mesafedir:** tahmin ile işaret arasındaki mesafe eşiğin altındaysa doğru sayılır. Karşılaştırma
+    `algoritma/karsilastir.py` ile yapılır (`algoritma/README.md`).
+- **Konumlar ham GPS'tir** ve WGS84 (EPSG:4326) koordinat sistemindedir; düzeltme ve haritaya oturtma yapılmaz. GPS
+  konumu gerçek konumun biraz gerisinde olabilir (eski sürümde ~1 sn ölçülmüştü). QGIS, katmanları proje koordinat
+  sistemine (ör. TUREF/TM30, EPSG:5254) kendisi dönüştürür.
+- **Saatler** İstanbul saatiyle metin olarak yazılır (`yerel_saat`, `baslangic_yerel`, `puanlama_yerel`). Hesaplarda
+  `t_s` (BAŞLAT'tan beri saniye) kullanılır. Sürüm 2.1'de sadeleştirildi: UTC saat alanları (`zaman`, `baslangic`,
   `bitis`, `puanlama_zamani`), `ruzgar_kmh`, `yukseklik_m`, `hiz_dogrulugu_kmh`, `dikey_dogruluk_m` kaldırıldı
   (Samsung M21 son ikisini hep 72 ve 100 veriyordu). 2.0 ile alınmış dosyalarda bu alanlar durur.
 - **`dikey_rms`** ve **`dikey_tepe`**, önceki GPS konumundan bu konuma kadarki ivme örneklerinden hesaplanır.
@@ -98,13 +102,9 @@ adımların hepsi henüz denenmedi.
    alan `kayit_no` ↔ `kayit_no`.
 7. **Sürüşü zamanla oynatma (denenmedi):** `gps_noktalari` → Özellikler → Zamansal (Temporal) → başlangıç ve bitişi
    ifadeden alma; ifade `to_datetime("yerel_saat")`. Ardından Görünüm → Paneller → Zaman Denetleyicisi.
-8. **Çukur eşleştirme örneği:** Katman → Katman Ekle → Sanal Katman (Virtual Layer). Aşağıdaki sorgu, Claude'un
-   darbesinden sonraki 0-5 sn içinde gelen basışları eşleştirir:
-   ```sql
-   SELECT i.kayit_no, i.t_s AS insan_t_s, c.t_s AS claude_t_s, i.t_s - c.t_s AS fark_s, c.guven, c.geometry
-   FROM insan_cukurlar i JOIN claude_cukurlar c
-     ON i.kayit_no = c.kayit_no AND i.t_s - c.t_s BETWEEN 0 AND 5
-   ```
+8. **Çukur karşılaştırması:** `python3 algoritma/karsilastir.py <klasör>` her gün için `<gün>_karsilastirma.gpkg`
+   üretir (eşleşmeler çizgi olarak, eşleşmeyenler nokta olarak; örnek: `ornek/ornek_20261120_karsilastirma.gpkg`).
+   QGIS'e ekleyip `esik_m` ile süzün (katmana sağ tık → Süz → `"esik_m" = 10`).
 
 ## Dosya boyutu
 
@@ -123,4 +123,6 @@ Yapay bir gün, YTÜ Davutpaşa Yerleşkesi iç yollarında 3 kesit ve 5 kayıtt
 
 `claude_*` katmanları **yer tutucudur**; algoritma henüz yazılmadı ve basit bir hesapla dolduruldu. Yeniden üretmek için:
 `python qgis/ornek_uret.py`. Aynı kod her seferinde aynı dosyaları verir. Yazıcı `gpkg.py`, yalnızca Python'un
-standart kütüphanesini kullanır.
+standart kütüphanesini kullanır. Veri sözlüğü ve Claude katmanlarının alanları `sozluk.py`'dedir (`algoritma/uret.py`
+ile ortak). Karşılaştırma örneği: `python3 algoritma/karsilastir.py qgis/ornek` (`ornek_20261120_karsilastirma.gpkg`
+ve `karsilastirma_raporu.md`).

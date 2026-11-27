@@ -40,15 +40,34 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
   (3) doğru eşleşenin yanında kaçırılan ve fazladan bulunan da sayılır (duyarlılık + kesinlik; ek tablo 5 / 10 / 15 m).
   Not: işaret ve tahmin aynı GPS izinden geldiği için GPS'in mutlak hatası büyük ölçüde sadeleşir; ölçüt pratikte zaman
   uyumunu (basış gecikmesi × hız) sınar (kullanıcıya açıklandı).
-  **Haritaya oturtma (27 Kasım, Claude'un önerisi, danışman da aynı görüşte; kullanıcının onayı bekleniyor):** algoritmada ve
+  **Haritaya oturtma ÇIKARILDI (27 Kasım, kullanıcı onayladı; Claude ve danışman önerdi):** algoritmada ve
   karşılaştırmada **kullanılmaz**. Ham veri bozulmaz ama yalnızca Claude noktası sokağa çekilirse insan noktasının yan sapması
   (1-6 m) her mesafeye eklenir, eşikle aynı boyda. Kural: iki nokta da aynı ham GPS izine aynı kuralla konur. Oturtma
   hocanın testi için gerekli değil, ikinci bir hata kaynağı (OSM) getirir, canlı Overpass "aynı girdi aynı sonuç"u bozar.
   İstenirse ileride yalnızca ayrı bir gösterim katmanı (arkadaş / hoca karar verir). Aynı kural GPS gecikme düzeltmesi
   için de geçerli: v1'in 1 sn'si 2.0 zaman damgalarında doğrulanmadı; ya iki tarafa da ya hiçbirine, geliştirme
   sürüşlerinden karar verilir. Geçişleri birleştirme (bir sürüşün tahmini başka sürüşlere bağlı olur) ayrı bir karardır.
-  Altyapı (başla denince): ham okuma, `_claude.gpkg` yazımı, karşılaştırma betiği, yapay sürüşlerle sınama.
-  Algoritmaya geliştirme sürüşleri gelince ve kullanıcı "başla" deyince başlanır.
+  **Altyapı kuruldu (27 Kasım, danışmanla planlandı; ayrıntı `algoritma/README.md`):** `algoritma/` (Python, yalnız
+  standart kütüphane): `uret.py` (ham → claude), `karsilastir.py` (rapor + `<gün>_karsilastirma.gpkg`), `tespit.py`
+  (algoritma; şimdilik **yer tutucu `0-altyapi`**: örnek dosyadaki / v1 darbe kuralı ve v1 puan formülü, ayarlanmadı),
+  `testler/` (20 sınama). Kararlar: konum iki tarafa da aynı kural (`konum_at` = Dart `konumAt`, t_s'ye doğrusal ara
+  değer); **GPS gecikmesi hiçbir tarafa uygulanmaz** (aynı izde iki tarafa aynı kaydırma mesafeyi değiştirmez); dosyadaki
+  konumlar kurala 1 cm içinde uymazsa karşılaştırma durur; Claude noktası darbe anında (basış gecikmesi payı verilip
+  verilmeyeceği geliştirme sonrası kullanıcı ve arkadaşın kararı); eşleştirme aynı kayıt içinde, bire bir, en yakın çift
+  önce; ekran / telefon tuşu işaretleri ve onlara 1 sn'den yakın Claude noktaları dışlanır (v1 kuralı, sayı raporlanır);
+  ham ve insan kayıtları farklıysa hata. Test bekçileri (`veri/test/`): Claude dosyası origin/main'dekiyle aynı değilse
+  durur, eşik yalnız `veri/test/esik.json`'dan (o da origin/main'de), "0-" sürüm reddedilir, var olan Claude dosyasının
+  üstüne yazılmaz. `uret.py` `qgis/` altına yazmaz (bir kez onaylı örneğin üstüne yazılmıştı, `ornek_uret.py` ile geri
+  üretildi). Belirlenimcilik içerik özetiyle (`icerik_ozeti`, sıralı satırlar) denetlenir: dosya baytları SQLite
+  sürümüne göre değişebilir. Veri: `veri/gelistirme/<gün>/`, `veri/test/<gün>/` (`veri/README.md`).
+  Sözlük tek kaynak: `qgis/sozluk.py` (örnek üretici ve `uret.py` ortak); örnek Claude noktaları artık gecikmesiz
+  (yeniden üretildi; ham ve insan örneklerinde yalnız açıklama metinleri değişti).
+  **Kullanıcıya sorulacak / onay bekleyen (27 Kasım):** (1) yeni `*_karsilastirma.gpkg` biçimi (örnek:
+  `qgis/ornek/ornek_20261120_karsilastirma.gpkg`); (2) uygulamadaki eski metinler ("katmanları zamanla eşleştirmek
+  için", "Claude ile eşleştirmede t_s kullanın", "GPS ~1 sn geride": `lib/katmanlar.dart`, `lib/about_page.dart`)
+  yeni APK ister; (3) Veri Sözlüğü sayfasında (artifact) aynı eski cümleler var (zamanla eşleştirme, "GPS'in 1 sn
+  gecikmesi düzeltilmiş").
+  Gerçek algoritmaya geliştirme sürüşleri gelince ve kullanıcı "başla" deyince başlanır.
   3 Kasım Kadıköy sürüşü geliştirme verisidir (eşikler onunla ayarlandı). **Test kesitleri geliştirme kesitlerinden ayrı sokaklar.**
 - Algoritma sohbette verilen yorum değil, depodaki koddur: aynı girdiden hep aynı sonucu üretir.
 - Gerçek sürüş güzergâhları ve verileri depoya konabilir (kullanıcı izni; depo herkese açık).
@@ -171,11 +190,13 @@ Arkadaş ve danışman hocası tezi değiştirdi. Yeni düzen:
     silme, dönüş, sapan geçiş, adlı boş kesit, JSON), `test/arka_plan_test.dart` (`sirayla`, isolate, busy_timeout). `KAAN_TEST_CIKTI=<klasör> flutter test` çıktıları kopyalar; `python3 qgis/sema_karsilastir.py qgis/ornek/..._ham.gpkg
     <çıktı>_ham.gpkg` biçimi denetler (25 Kasım: gerçek ve test, ham ve insan dosyalarının dördü de örnekle aynı; testte gerçek
     `qgis/stiller` kullanılır).
+- `algoritma/`: Claude'un algoritması (2.0 ham dosyaları için) ve karşılaştırma; `algoritma/README.md`.
+  `python3 -m unittest discover -s algoritma/testler`. `veri/`: gerçek sürüş dosyaları (`gelistirme/`, `test/`).
 - `analiz/`: v1 Python analiz betikleri (0,5 sn CSV biçimini okur; yeni ham biçim için karşılaştırma aşamasında yeniden ele alınacak).
   `surus_analizi.py` (tek sürüş), `birlestir.py` (sürüşleri birleştirme), `haritaya_oturtma.py` (OSM yollarına oturtma),
   `simulasyon.py` (gerçeği bilinen yapay sürüşlerle doğrulama). Yalnızca standart kütüphane ve matplotlib.
   Yöntem ve parametreler: `analiz/README.md`.
-- `qgis/`: QGIS için GeoPackage biçimi (`README.md`), Python yazıcı (`gpkg.py`), örnek üretici (`ornek_uret.py`), stiller
+- `qgis/`: QGIS için GeoPackage biçimi (`README.md`), Python yazıcı (`gpkg.py`), veri sözlüğü (`sozluk.py`), örnek üretici (`ornek_uret.py`), stiller
   (`stiller/*.qml`, `stil_cikar.py`; uygulamaya asset olarak gömülür, CI `qgis/stiller/**` değişince de APK derler), biçim
   karşılaştırıcı (`sema_karsilastir.py`).
 - Masaüstü Windows uygulaması (`masaustu/`, `build-windows.yml`) kullanıcı isteğiyle **kaldırıldı** (24 Kasım 2026).
@@ -253,6 +274,9 @@ Türkçe Excel biçimi: sütun ayırıcı `;`, ondalık ayırıcı `,`. Başlık
   `python3 -m venv gdalenv && gdalenv/bin/pip install pyogrio numpy` (GDAL gömülü gelir), sonra `pyogrio.list_layers`,
   `read_info` (CRS, alan türleri), `pyogrio.raw.read`. Rapor: "GDAL ile doğrulandı, QGIS'te denenmedi".
 - Uygulama değişince: `flutter analyze` (info dahil temiz olmalı; CI'da uyarılar hata sayılır).
+- `algoritma/` veya `qgis/sozluk.py` değişince: `python3 -m unittest discover -s algoritma/testler` ve `python3 -m pyflakes
+  algoritma`; sözlük değişirse `python3 qgis/ornek_uret.py` ve `python3 algoritma/karsilastir.py qgis/ornek` ile örnekleri
+  yeniden üret.
 - Bulut oturumunda Flutter kurulu değildir: CI ile aynı sürümü (stable **3.47.7**) oturumun geçici klasörüne indir,
   `git config --global --add safe.directory '*'` çalıştır, sonra `flutter analyze`. Ekranı görmek için geçici bir widget testi
   (`test/` altında, commit edilmez) `matchesGoldenFile` + `--update-goldens` ile PNG üretir; Roboto ve MaterialIcons yazı tipleri
